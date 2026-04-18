@@ -27,6 +27,7 @@ import {
   Shield,
   PenTool,
   Car,
+  Gauge,
 } from 'lucide-react-native';
 
 import { Text } from '@/components/ui/Text';
@@ -35,6 +36,9 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Divider } from '@/components/ui/Divider';
 import { IconButton } from '@/components/ui/IconButton';
+import { Input } from '@/components/ui/Input';
+import { useToastStore } from '@/components/ui/Toast';
+import { useBookingStore } from '@/stores/useBookingStore';
 import { useTheme } from '@/hooks/useTheme';
 import { shadows } from '@/theme/shadows';
 
@@ -296,6 +300,8 @@ export default function PickupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
   const theme = useTheme();
+  const recordStartMileage = useBookingStore((s) => s.recordStartMileage);
+  const showToast = useToastStore((s) => s.show);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [completed, setCompleted] = useState(false);
@@ -304,6 +310,7 @@ export default function PickupScreen() {
   const [identityVerified, setIdentityVerified] = useState(false);
   const [paymentReceived, setPaymentReceived] = useState(false);
   const [keysReady, setKeysReady] = useState(false);
+  const [startMileageInput, setStartMileageInput] = useState('');
 
   // Step 2 state
   const [capturedAngles, setCapturedAngles] = useState<Set<number>>(new Set());
@@ -316,7 +323,12 @@ export default function PickupScreen() {
 
   const booking = MOCK_BOOKING;
 
-  const allChecked = identityVerified && paymentReceived && keysReady;
+  const parsedStartMileage = Number.parseInt(startMileageInput.replace(/[^0-9]/g, ''), 10);
+  const isStartMileageValid =
+    startMileageInput.trim().length > 0 && Number.isFinite(parsedStartMileage) && parsedStartMileage > 0;
+
+  const allChecked =
+    identityVerified && paymentReceived && keysReady && isStartMileageValid;
 
   const confirmDetections = MOCK_AI_DETECTIONS.filter((d) => d.confidence >= 90);
   const reviewDetections = MOCK_AI_DETECTIONS.filter(
@@ -352,9 +364,32 @@ export default function PickupScreen() {
   }, [currentStep, router]);
 
   const handleComplete = useCallback(() => {
+    if (!id || !isStartMileageValid) {
+      showToast({
+        variant: 'error',
+        title: t('bookings.mileage.startMileageRequired', 'Departure mileage required'),
+      });
+      return;
+    }
+
+    const result = recordStartMileage(id, parsedStartMileage);
+    if (!result.ok) {
+      const messageKey =
+        result.error === 'invalidMileage'
+          ? 'bookings.mileage.errorInvalid'
+          : result.error === 'bookingNotFound'
+            ? 'bookings.mileage.errorBookingNotFound'
+            : 'bookings.mileage.errorInvalid';
+      showToast({
+        variant: 'error',
+        title: t(messageKey, result.error),
+      });
+      return;
+    }
+
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCompleted(true);
-  }, []);
+  }, [id, isStartMileageValid, parsedStartMileage, recordStartMileage, showToast, t]);
 
   // ── Success Screen ──────────────────────────────────────────────────────
 
@@ -574,6 +609,28 @@ export default function PickupScreen() {
           })}
           checked={keysReady}
           onToggle={() => setKeysReady((v) => !v)}
+        />
+      </Card>
+
+      {/* Start mileage (required) */}
+      <Card>
+        <Text variant="titleLarge" style={{ marginBottom: 4 }}>
+          {t('bookings.mileage.startMileageLabel', 'Departure mileage')}
+        </Text>
+        <Text
+          variant="bodySmall"
+          color={theme.textSecondary}
+          style={{ marginBottom: 12 }}
+        >
+          {t('bookings.mileage.startMileageRequired', 'Departure mileage required')}
+        </Text>
+        <Input
+          placeholder={t('bookings.mileage.startMileagePlaceholder', 'Enter mileage')}
+          value={startMileageInput}
+          onChangeText={(text) => setStartMileageInput(text.replace(/[^0-9]/g, ''))}
+          keyboardType="number-pad"
+          leftIcon={Gauge}
+          helperText={`${t('bookings.mileage.unit', 'km')}`}
         />
       </Card>
 

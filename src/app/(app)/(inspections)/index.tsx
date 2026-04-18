@@ -1,262 +1,274 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Pressable, FlatList, RefreshControl } from 'react-native';
+import {
+  View,
+  Pressable,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  TextInput,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ScanLine, Plus, Camera } from 'lucide-react-native';
+import { ScanLine, Plus, Camera, Search, X } from 'lucide-react-native';
 import { Image } from 'expo-image';
 
 import { ScreenWrapper } from '@/components/ui/ScreenWrapper';
 import { Text } from '@/components/ui/Text';
-import { SearchBar } from '@/components/ui/SearchBar';
-import { Chip, ChipGroup } from '@/components/ui/Chip';
-import { Badge } from '@/components/ui/Badge';
-import { IconButton } from '@/components/ui/IconButton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/hooks/useTheme';
-import { shadows } from '@/theme/shadows';
 import { formatDate } from '@/utils/format';
 import { mockInspections } from '@/data/inspections';
 import { getVehicleImage } from '@/data/vehicleImages';
+import { fontFamilies } from '@/theme/typography';
 import type { Inspection, InspectionType } from '@/types/inspection';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+type TypeTone = { fg: string; bg: string };
 
-type BadgeVariant = 'info' | 'warning' | 'accent';
-
-function getTypeBadge(type: InspectionType): { label: string; variant: BadgeVariant } {
+function getTypeTone(
+  type: InspectionType,
+  theme: ReturnType<typeof useTheme>,
+): TypeTone {
   switch (type) {
     case 'pre-rental':
-      return { label: 'Pre-rental', variant: 'info' };
+      return { fg: theme.info, bg: theme.infoSoft };
     case 'post-rental':
-      return { label: 'Post-rental', variant: 'warning' };
+      return { fg: theme.warning, bg: theme.warningSoft };
     case 'routine':
-      return { label: 'Routine', variant: 'accent' };
+      return { fg: theme.accent, bg: theme.accentSoft };
   }
 }
 
-// ── Hero Stats Card ──────────────────────────────────────────────────────────
-
-interface HeroStatsProps {
-  total: number;
-  clean: number;
-  issues: number;
+function getTypeLabel(
+  type: InspectionType,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  switch (type) {
+    case 'pre-rental':
+      return t('inspections.preRental', 'Pre-rental');
+    case 'post-rental':
+      return t('inspections.postRental', 'Post-rental');
+    case 'routine':
+      return t('inspections.routine', 'Routine');
+  }
 }
 
-function HeroStats({ total, clean, issues }: HeroStatsProps) {
-  const theme = useTheme();
-
-  return (
-    <Animated.View
-      entering={FadeInDown.delay(80).duration(500).springify()}
-      style={[
-        {
-          backgroundColor: theme.surface,
-          borderRadius: 20,
-          overflow: 'hidden',
-        },
-        shadows.md,
-      ]}
-    >
-      {/* Accent gradient line at top */}
-      <LinearGradient
-        colors={[theme.accentGradientStart, theme.accentGradientEnd]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={{ height: 2 }}
-      />
-
-      <View style={{ padding: 20, flexDirection: 'row', alignItems: 'center' }}>
-        {/* Total */}
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text variant="headlineMedium">{total}</Text>
-          <Text variant="bodySmall" color={theme.textTertiary}>
-            inspections
-          </Text>
-        </View>
-
-        {/* Divider */}
-        <View
-          style={{
-            width: 1,
-            height: 36,
-            backgroundColor: theme.surfaceTertiary,
-          }}
-        />
-
-        {/* Clean */}
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text variant="headlineMedium" color={theme.success}>
-            {clean}
-          </Text>
-          <Text variant="bodySmall" color={theme.textTertiary}>
-            no damage
-          </Text>
-        </View>
-
-        {/* Divider */}
-        <View
-          style={{
-            width: 1,
-            height: 36,
-            backgroundColor: theme.surfaceTertiary,
-          }}
-        />
-
-        {/* Issues */}
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text variant="headlineMedium" color={theme.danger}>
-            {issues}
-          </Text>
-          <Text variant="bodySmall" color={theme.textTertiary}>
-            damages found
-          </Text>
-        </View>
-      </View>
-    </Animated.View>
-  );
-}
-
-// ── Inspection Card ──────────────────────────────────────────────────────────
+// ── Inspection card ──────────────────────────────────────────────────────────
 
 interface InspectionCardProps {
   inspection: Inspection;
   index: number;
   onPress: () => void;
+  theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useTranslation>['t'];
 }
 
-function InspectionCard({ inspection, index, onPress }: InspectionCardProps) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-
-  const typeBadge = getTypeBadge(inspection.type);
+function InspectionCard({
+  inspection,
+  index,
+  onPress,
+  theme,
+  t,
+}: InspectionCardProps) {
+  const typeTone = getTypeTone(inspection.type, theme);
   const totalDamages = inspection.totalDamagesAI + inspection.totalDamagesManual;
   const vehicleImageUri = getVehicleImage(inspection.vehicleId);
 
   const handlePress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress();
   }, [onPress]);
 
+  const statusTone = inspection.status === 'draft'
+    ? { fg: theme.warning, bg: theme.warningSoft }
+    : { fg: theme.success, bg: theme.successSoft };
+
   return (
-    <AnimatedPressable
-      entering={FadeInDown.delay(index * 60).duration(400).springify()}
-      onPress={handlePress}
-      style={[
-        {
+    <Animated.View
+      entering={FadeInDown.delay(index * 40).duration(350)}
+    >
+      <Pressable
+        onPress={handlePress}
+        style={({ pressed }) => ({
           backgroundColor: theme.surface,
-          borderRadius: 20,
-          padding: 14,
+          borderRadius: 18,
+          padding: 12,
+          borderWidth: 1,
+          borderColor: theme.borderLight,
           flexDirection: 'row',
           alignItems: 'flex-start',
-        },
-        shadows.sm,
-      ]}
-    >
-      {/* Vehicle thumbnail */}
-      <View
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 14,
-          overflow: 'hidden',
-          backgroundColor: theme.surfaceTertiary,
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginRight: 12,
-        }}
+          transform: [{ scale: pressed ? 0.99 : 1 }],
+        })}
       >
-        {vehicleImageUri ? (
-          <Image
-            source={vehicleImageUri}
-            style={{ width: 48, height: 48 }}
-            contentFit="cover"
-            transition={200}
-          />
-        ) : (
-          <Camera size={20} color={theme.textTertiary} />
-        )}
-      </View>
-
-      {/* Content area */}
-      <View style={{ flex: 1 }}>
-        {/* Top row: vehicleName + type badge */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text variant="titleMedium" numberOfLines={1} style={{ flex: 1, marginRight: 8, fontWeight: '700' }}>
-            {inspection.vehicleName}
-          </Text>
-          <Badge variant={typeBadge.variant} size="sm">
-            {typeBadge.label}
-          </Badge>
+        {/* Vehicle thumbnail */}
+        <View
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 14,
+            overflow: 'hidden',
+            backgroundColor: theme.surfaceTertiary,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: 12,
+          }}
+        >
+          {vehicleImageUri ? (
+            <Image
+              source={vehicleImageUri}
+              style={{ width: 64, height: 64 }}
+              contentFit="cover"
+              transition={200}
+            />
+          ) : (
+            <Camera size={22} color={theme.textTertiary} strokeWidth={1.5} />
+          )}
         </View>
 
-        {/* Second row: date + inspector */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-          <Text variant="bodySmall" color={theme.textSecondary}>
-            {formatDate(inspection.date, 'short')}
-          </Text>
-          <Text variant="bodySmall" color={theme.textTertiary} style={{ marginHorizontal: 6 }}>
-            {'\u00B7'}
-          </Text>
-          <Text variant="bodySmall" color={theme.textSecondary} numberOfLines={1}>
-            {inspection.inspectorName}
-          </Text>
-        </View>
-
-        {/* Client name row */}
-        {inspection.clientName != null && (
-          <Text variant="bodySmall" color={theme.textSecondary} style={{ marginTop: 2 }}>
-            {t('inspections.client', 'Client')}: {inspection.clientName}
-          </Text>
-        )}
-
-        {/* Bottom row: damage result + status */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            {totalDamages === 0 ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <View
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: 4,
-                    backgroundColor: theme.success,
-                  }}
-                />
-                <Text variant="bodySmall" color={theme.success} style={{ fontWeight: '600' }}>
-                  {t('inspections.clean', 'Clean')}
-                </Text>
-              </View>
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <View
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: 4,
-                    backgroundColor: theme.danger,
-                  }}
-                />
-                <Text variant="bodySmall" color={theme.danger} style={{ fontWeight: '600' }}>
-                  {totalDamages} {t('inspections.damages', 'damages')}
-                </Text>
-              </View>
-            )}
+        <View style={{ flex: 1 }}>
+          <View className="flex-row items-center justify-between">
+            <Text
+              variant="titleMedium"
+              style={{
+                flex: 1,
+                marginRight: 8,
+                fontFamily: fontFamilies.semiBold,
+                fontSize: 14,
+              }}
+              numberOfLines={1}
+            >
+              {inspection.vehicleName}
+            </Text>
+            <View
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 3,
+                borderRadius: 9999,
+                backgroundColor: typeTone.bg,
+              }}
+            >
+              <Text
+                variant="labelSmall"
+                color={typeTone.fg}
+                style={{
+                  fontFamily: fontFamilies.semiBold,
+                  fontSize: 10,
+                }}
+              >
+                {getTypeLabel(inspection.type, t)}
+              </Text>
+            </View>
           </View>
 
-          <Badge
-            variant={inspection.status === 'draft' ? 'warning' : 'success'}
-            size="sm"
+          <Text
+            variant="bodySmall"
+            color={theme.textSecondary}
+            style={{ fontSize: 12, marginTop: 3 }}
+            numberOfLines={1}
           >
-            {inspection.status === 'draft'
-              ? t('inspections.draft', 'Draft')
-              : t('inspections.completed', 'Completed')}
-          </Badge>
+            {formatDate(inspection.date, 'short')} {'\u00B7'}{' '}
+            {inspection.inspectorName}
+          </Text>
+
+          {inspection.clientName != null && (
+            <Text
+              variant="bodySmall"
+              color={theme.textTertiary}
+              style={{ fontSize: 11, marginTop: 2 }}
+              numberOfLines={1}
+            >
+              {t('inspections.client', 'Client')}: {inspection.clientName}
+            </Text>
+          )}
+
+          <View
+            className="flex-row items-center justify-between"
+            style={{ marginTop: 10 }}
+          >
+            <View className="flex-row items-center" style={{ gap: 6 }}>
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor:
+                    totalDamages === 0 ? theme.success : theme.danger,
+                }}
+              />
+              <Text
+                variant="bodySmall"
+                color={totalDamages === 0 ? theme.success : theme.danger}
+                style={{
+                  fontFamily: fontFamilies.semiBold,
+                  fontSize: 12,
+                }}
+              >
+                {totalDamages === 0
+                  ? t('inspections.clean', 'Clean')
+                  : `${totalDamages} ${t('inspections.damages', 'damages')}`}
+              </Text>
+            </View>
+
+            <View
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 3,
+                borderRadius: 9999,
+                backgroundColor: statusTone.bg,
+              }}
+            >
+              <Text
+                variant="labelSmall"
+                color={statusTone.fg}
+                style={{
+                  fontFamily: fontFamilies.semiBold,
+                  fontSize: 10,
+                }}
+              >
+                {inspection.status === 'draft'
+                  ? t('inspections.draft', 'Draft')
+                  : t('inspections.completed', 'Completed')}
+              </Text>
+            </View>
+          </View>
         </View>
-      </View>
-    </AnimatedPressable>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ── Filter pill ───────────────────────────────────────────────────────────────
+
+interface FilterPillProps {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  theme: ReturnType<typeof useTheme>;
+}
+
+function FilterPill({ label, selected, onPress, theme }: FilterPillProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 9999,
+        backgroundColor: selected ? theme.accent : theme.surface,
+        borderWidth: 1,
+        borderColor: selected ? theme.accent : theme.borderLight,
+        transform: [{ scale: pressed ? 0.97 : 1 }],
+      })}
+    >
+      <Text
+        variant="labelSmall"
+        color={selected ? '#FFFFFF' : theme.textSecondary}
+        style={{ fontFamily: fontFamilies.semiBold, fontSize: 12 }}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -271,7 +283,6 @@ export default function InspectionsScreen() {
   const [typeFilter, setTypeFilter] = useState<InspectionType | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Sort newest first
   const sortedInspections = useMemo(
     () =>
       [...mockInspections].sort(
@@ -282,11 +293,9 @@ export default function InspectionsScreen() {
 
   const filteredInspections = useMemo(() => {
     let result = sortedInspections;
-
     if (typeFilter != null) {
       result = result.filter((i) => i.type === typeFilter);
     }
-
     if (searchQuery.trim().length > 0) {
       const q = searchQuery.trim().toLowerCase();
       result = result.filter(
@@ -295,11 +304,9 @@ export default function InspectionsScreen() {
           (i.clientName != null && i.clientName.toLowerCase().includes(q)),
       );
     }
-
     return result;
   }, [sortedInspections, typeFilter, searchQuery]);
 
-  // Counts for chips
   const counts = useMemo(() => {
     const base =
       searchQuery.trim().length > 0
@@ -320,7 +327,6 @@ export default function InspectionsScreen() {
     };
   }, [sortedInspections, searchQuery]);
 
-  // Hero stats
   const heroStats = useMemo(() => {
     const total = mockInspections.length;
     const clean = mockInspections.filter(
@@ -330,18 +336,10 @@ export default function InspectionsScreen() {
     return { total, clean, issues };
   }, []);
 
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-  }, []);
-
-  const handleFilterPress = useCallback((type: InspectionType | null) => {
-    setTypeFilter((prev) => (prev === type ? null : type));
-  }, []);
-
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setTimeout(() => setRefreshing(false), 800);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTimeout(() => setRefreshing(false), 700);
   }, []);
 
   const handleCardPress = useCallback(
@@ -352,7 +350,7 @@ export default function InspectionsScreen() {
   );
 
   const handleNewInspection = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(inspections)/new');
   }, [router]);
 
@@ -362,9 +360,11 @@ export default function InspectionsScreen() {
         inspection={item}
         index={index}
         onPress={() => handleCardPress(item.id)}
+        theme={theme}
+        t={t}
       />
     ),
-    [handleCardPress],
+    [handleCardPress, theme, t],
   );
 
   const keyExtractor = useCallback((item: Inspection) => item.id, []);
@@ -372,79 +372,197 @@ export default function InspectionsScreen() {
   const ListHeaderComponent = useMemo(
     () => (
       <View>
-        {/* Header row: Title + Plus button */}
+        {/* Title row */}
         <Animated.View
-          entering={FadeInDown.duration(400).springify()}
+          entering={FadeInDown.duration(350)}
+          className="flex-row items-center justify-between"
+          style={{ paddingTop: 12, paddingBottom: 14 }}
+        >
+          <View className="flex-row items-center" style={{ gap: 10 }}>
+            <Text
+              variant="headlineLarge"
+              style={{ fontFamily: fontFamilies.bold, fontSize: 22 }}
+            >
+              {t('inspections.title', 'Inspections')}
+            </Text>
+            <View
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 3,
+                borderRadius: 9999,
+                backgroundColor: theme.accentSoft,
+              }}
+            >
+              <Text
+                variant="labelSmall"
+                color={theme.accent}
+                style={{ fontFamily: fontFamilies.semiBold, fontSize: 11 }}
+              >
+                {heroStats.total}
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            onPress={handleNewInspection}
+            hitSlop={8}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: theme.accent,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Plus size={18} color="#FFFFFF" strokeWidth={2.4} />
+          </Pressable>
+        </Animated.View>
+
+        {/* Stats card */}
+        <Animated.View
+          entering={FadeInDown.delay(60).duration(400)}
           style={{
+            backgroundColor: theme.surface,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
             flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingTop: 24,
-            paddingBottom: 16,
+            paddingVertical: 16,
           }}
         >
-          <Text
-            variant="headlineLarge"
-            style={{ fontFamily: 'Poppins_700Bold', fontSize: 26 }}
-          >
-            {t('inspections.title', 'Inspections')}
-          </Text>
-          <IconButton
-            icon={Plus}
-            variant="filled"
-            size="md"
-            onPress={handleNewInspection}
+          <StatCell
+            value={heroStats.total}
+            label={t('inspections.stats.total', 'inspections')}
+            color={theme.textPrimary}
+            theme={theme}
+          />
+          <View
+            style={{
+              width: 1,
+              backgroundColor: theme.border,
+              marginVertical: 6,
+            }}
+          />
+          <StatCell
+            value={heroStats.clean}
+            label={t('inspections.stats.clean', 'no damage')}
+            color={theme.success}
+            theme={theme}
+          />
+          <View
+            style={{
+              width: 1,
+              backgroundColor: theme.border,
+              marginVertical: 6,
+            }}
+          />
+          <StatCell
+            value={heroStats.issues}
+            label={t('inspections.stats.damages', 'damages found')}
+            color={theme.danger}
+            theme={theme}
           />
         </Animated.View>
 
-        {/* Hero stats card */}
-        <HeroStats
-          total={heroStats.total}
-          clean={heroStats.clean}
-          issues={heroStats.issues}
-        />
-
-        {/* Search */}
-        <View style={{ marginTop: 16, marginBottom: 12 }}>
-          <SearchBar
+        {/* Search pill */}
+        <Animated.View
+          entering={FadeInDown.delay(100).duration(400)}
+          style={{
+            marginTop: 14,
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: 9999,
+            backgroundColor: theme.surface,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+          }}
+        >
+          <Search size={16} color={theme.textTertiary} strokeWidth={2} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
             placeholder={t('inspections.search', 'Search vehicle or client...')}
-            onSearch={handleSearch}
+            placeholderTextColor={theme.textTertiary}
+            style={{
+              flex: 1,
+              marginLeft: 8,
+              fontSize: 14,
+              color: theme.textPrimary,
+              fontFamily: fontFamilies.regular,
+              padding: 0,
+            }}
           />
-        </View>
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+              <X size={14} color={theme.textTertiary} />
+            </Pressable>
+          )}
+        </Animated.View>
 
-        {/* Filter chips */}
-        <ChipGroup className="mb-4">
-          <Chip
-            label={`${t('inspections.all', 'All')} (${counts.all})`}
-            selected={typeFilter === null}
-            onPress={() => handleFilterPress(null)}
-          />
-          <Chip
-            label={`${t('inspections.preRental', 'Pre-rental')} (${counts['pre-rental']})`}
-            selected={typeFilter === 'pre-rental'}
-            onPress={() => handleFilterPress('pre-rental')}
-          />
-          <Chip
-            label={`${t('inspections.postRental', 'Post-rental')} (${counts['post-rental']})`}
-            selected={typeFilter === 'post-rental'}
-            onPress={() => handleFilterPress('post-rental')}
-          />
-          <Chip
-            label={`${t('inspections.routine', 'Routine')} (${counts.routine})`}
-            selected={typeFilter === 'routine'}
-            onPress={() => handleFilterPress('routine')}
-          />
-        </ChipGroup>
+        {/* Filter rail */}
+        <Animated.View
+          entering={FadeInDown.delay(140).duration(400)}
+          style={{ marginTop: 12, marginBottom: 14 }}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingRight: 4 }}
+          >
+            <FilterPill
+              label={`${t('inspections.all', 'All')} (${counts.all})`}
+              selected={typeFilter === null}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setTypeFilter(null);
+              }}
+              theme={theme}
+            />
+            <FilterPill
+              label={`${t('inspections.preRental', 'Pre-rental')} (${counts['pre-rental']})`}
+              selected={typeFilter === 'pre-rental'}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setTypeFilter((prev) =>
+                  prev === 'pre-rental' ? null : 'pre-rental',
+                );
+              }}
+              theme={theme}
+            />
+            <FilterPill
+              label={`${t('inspections.postRental', 'Post-rental')} (${counts['post-rental']})`}
+              selected={typeFilter === 'post-rental'}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setTypeFilter((prev) =>
+                  prev === 'post-rental' ? null : 'post-rental',
+                );
+              }}
+              theme={theme}
+            />
+            <FilterPill
+              label={`${t('inspections.routine', 'Routine')} (${counts.routine})`}
+              selected={typeFilter === 'routine'}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setTypeFilter((prev) => (prev === 'routine' ? null : 'routine'));
+              }}
+              theme={theme}
+            />
+          </ScrollView>
+        </Animated.View>
       </View>
     ),
-    [t, counts, typeFilter, heroStats, handleSearch, handleFilterPress, handleNewInspection],
+    [t, counts, typeFilter, heroStats, searchQuery, theme, handleNewInspection],
   );
 
   const ListEmptyComponent = useMemo(
     () => (
       <EmptyState
         icon={ScanLine}
-        title={t('inspections.emptyTitle', 'Aucune inspection trouvée')}
+        title={t('inspections.emptyTitle', 'No inspections found')}
         subtitle={t(
           'inspections.emptySubtitle',
           'Try adjusting your search or filters.',
@@ -467,7 +585,7 @@ export default function InspectionsScreen() {
         contentContainerStyle={{
           flexGrow: 1,
           paddingBottom: 32,
-          gap: 12,
+          gap: 10,
         }}
         refreshControl={
           <RefreshControl
@@ -478,5 +596,38 @@ export default function InspectionsScreen() {
         }
       />
     </ScreenWrapper>
+  );
+}
+
+// ── StatCell ──────────────────────────────────────────────────────────────────
+
+function StatCell({
+  value,
+  label,
+  color,
+  theme,
+}: {
+  value: number;
+  label: string;
+  color: string;
+  theme: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <View style={{ flex: 1, alignItems: 'center' }}>
+      <Text
+        variant="headlineMedium"
+        color={color}
+        style={{ fontFamily: fontFamilies.bold, fontSize: 22 }}
+      >
+        {value}
+      </Text>
+      <Text
+        variant="caption"
+        color={theme.textTertiary}
+        style={{ fontSize: 11, marginTop: 2 }}
+      >
+        {label}
+      </Text>
+    </View>
   );
 }

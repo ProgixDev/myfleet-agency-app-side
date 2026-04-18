@@ -9,7 +9,7 @@ import { ScreenWrapper } from '@/components/ui/ScreenWrapper';
 import { Text } from '@/components/ui/Text';
 import { IconButton } from '@/components/ui/IconButton';
 import { useTheme } from '@/hooks/useTheme';
-import { useAgencyStore } from '@/stores/useAgencyStore';
+import { useCurrentAgency } from '@/stores/useAgencyStore';
 import { shadows } from '@/theme/shadows';
 import { fontFamilies } from '@/theme/typography';
 
@@ -66,7 +66,7 @@ export default function AgencyQRScreen() {
   const { t } = useTranslation();
   const theme = useTheme();
   const router = useRouter();
-  const { agencyName, agencyQrUrl } = useAgencyStore();
+  const { name: agencyName, qrUrl: agencyQrUrl } = useCurrentAgency();
 
   const handleShare = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

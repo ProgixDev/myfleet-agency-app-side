@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Platform, View, Pressable, ScrollView } from 'react-native';
+import { Platform, View, Pressable, ScrollView, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -14,6 +14,8 @@ import Animated, {
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   X,
   ArrowLeft,
@@ -30,7 +32,14 @@ import {
   Navigation,
   Baby,
   AlertTriangle,
+  Truck,
+  MapPin,
+  Calculator,
+  ArrowRight,
 } from 'lucide-react-native';
+
+import { getVehicleImage } from '@/data/vehicleImages';
+import { fontFamilies } from '@/theme/typography';
 
 import { ScreenWrapper } from '@/components/ui/ScreenWrapper';
 import { Text } from '@/components/ui/Text';
@@ -46,10 +55,20 @@ import { useTheme } from '@/hooks/useTheme';
 import { colors } from '@/theme/colors';
 import { mockVehicles } from '@/data/vehicles';
 import { mockClients } from '@/data/clients';
+import { matchesVehicleQuery } from '@/utils/vehicleSearch';
 import type { Vehicle } from '@/types/vehicle';
 import type { Client } from '@/types/client';
 import { useBookingStore } from '@/stores/useBookingStore';
+import { useCurrentAgencySettings } from '@/stores/useAgencySettingsStore';
 import { useToastStore } from '@/components/ui/Toast';
+import {
+  geocodeAddress,
+  getDrivingDistance,
+  GeocodingError,
+  DistanceMatrixError,
+  MapsApiKeyMissingError,
+} from '@/services/mapsService';
+import type { Booking, DeliveryDetails } from '@/types/booking';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -64,6 +83,7 @@ interface OptionToggle {
   label: string;
   price: number;
   enabled: boolean;
+  deliveryDetails?: DeliveryDetails;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -117,10 +137,12 @@ function SuccessOverlay({
   bookingRef,
   onBack,
   theme,
+  t,
 }: {
   bookingRef: string;
   onBack: () => void;
   theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useTranslation>['t'];
 }) {
   const checkScale = useSharedValue(0);
 
@@ -149,12 +171,12 @@ function SuccessOverlay({
         </Animated.View>
 
         <Text variant="headlineLarge" align="center">
-          Booking Confirmed!
+          {t('bookings.new.confirmedTitle', 'Booking Confirmed!')}
         </Text>
 
         <View className="mt-3 mb-2">
           <Text variant="bodyMedium" color={theme.textSecondary} align="center">
-            Reference
+            {t('bookings.new.confirmedReference', 'Reference')}
           </Text>
         </View>
 
@@ -169,7 +191,7 @@ function SuccessOverlay({
             fullWidth
             onPress={onBack}
           >
-            Back to Bookings
+            {t('bookings.new.backToBookings', 'Back to Bookings')}
           </Button>
         </View>
       </Animated.View>
@@ -220,16 +242,40 @@ export default function NewBookingScreen() {
   const startDate = startDateObj.toISOString().slice(0, 10);
   const endDate = endDateObj.toISOString().slice(0, 10);
 
+  // Agency delivery config (used throughout Step 4)
+  const agencyDelivery = useCurrentAgencySettings().delivery;
+  const hasBasePoint =
+    agencyDelivery.enabled &&
+    (agencyDelivery.basePointLat !== 0 || agencyDelivery.basePointLng !== 0);
+
   // Step 4: Options
-  const [options, setOptions] = useState<OptionToggle[]>([
-    { id: 'ins', label: 'Insurance Plus', price: 15, enabled: false },
-    { id: 'drv', label: 'Additional Driver', price: 10, enabled: false },
-    { id: 'gps', label: 'GPS', price: 8, enabled: false },
-    { id: 'seat', label: 'Child Seat', price: 5, enabled: false },
-  ]);
+  const [options, setOptions] = useState<OptionToggle[]>(() => {
+    const baseOptions: OptionToggle[] = [
+      { id: 'ins', label: 'Insurance Plus', price: 15, enabled: false },
+      { id: 'drv', label: 'Additional Driver', price: 10, enabled: false },
+      { id: 'gps', label: 'GPS', price: 8, enabled: false },
+      { id: 'seat', label: 'Child Seat', price: 5, enabled: false },
+    ];
+    if (agencyDelivery.enabled) {
+      return [
+        { id: 'delivery', label: 'Home delivery', price: 0, enabled: false },
+        ...baseOptions,
+      ];
+    }
+    return baseOptions;
+  });
+
+  // Delivery input state
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryComputing, setDeliveryComputing] = useState(false);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
 
   // Step 5: Confirm
   const [confirmedRef, setConfirmedRef] = useState<string | null>(null);
+  const [conflictModal, setConflictModal] = useState<{
+    visible: boolean;
+    conflicts: Booking[];
+  }>({ visible: false, conflicts: [] });
 
   // ── Derived Data ────────────────────────────────────────────────────────
 
@@ -239,13 +285,12 @@ export default function NewBookingScreen() {
   );
 
   const filteredVehicles = useMemo(() => {
-    const q = vehicleSearch.toLowerCase().trim();
-    if (!q) return availableVehicles;
+    const trimmed = vehicleSearch.trim();
+    if (!trimmed) return availableVehicles;
+    const q = trimmed.toLowerCase();
     return availableVehicles.filter(
       (v) =>
-        v.name.toLowerCase().includes(q) ||
-        v.brand.toLowerCase().includes(q) ||
-        v.category.toLowerCase().includes(q),
+        matchesVehicleQuery(v, trimmed) || v.category.toLowerCase().includes(q),
     );
   }, [availableVehicles, vehicleSearch]);
 
@@ -272,17 +317,24 @@ export default function NewBookingScreen() {
     return useBookingStore.getState().isVehicleAvailable(selectedVehicle.id, startDate, endDate);
   }, [selectedVehicle, startDate, endDate, datesValid]);
 
+  const deliveryOption = options.find((o) => o.id === 'delivery');
+  const deliveryEnabled = !!deliveryOption?.enabled;
+  const deliveryDetails = deliveryOption?.deliveryDetails ?? null;
+
   const pricing = useMemo(() => {
     if (!selectedVehicle || days <= 0) {
-      return { subtotal: 0, optionsTotal: 0, deposit: 0, total: 0 };
+      return { subtotal: 0, optionsTotal: 0, deliveryFee: 0, deposit: 0, total: 0 };
     }
     const subtotal = selectedVehicle.dailyRate * days;
     const optionsTotal = options
       .filter((o) => o.enabled)
       .reduce((sum, o) => sum + o.price * days, 0);
+    const deliveryFee = options
+      .filter((o) => o.enabled && o.deliveryDetails)
+      .reduce((sum, o) => sum + (o.deliveryDetails?.fee ?? 0), 0);
     const deposit = Math.round(subtotal * 0.4);
-    const total = subtotal + optionsTotal;
-    return { subtotal, optionsTotal, deposit, total };
+    const total = subtotal + optionsTotal + deliveryFee;
+    return { subtotal, optionsTotal, deliveryFee, deposit, total };
   }, [selectedVehicle, days, options]);
 
   // ── Step Validation ─────────────────────────────────────────────────────
@@ -296,13 +348,22 @@ export default function NewBookingScreen() {
       case 3:
         return datesValid && vehicleAvailableForDates;
       case 4:
+        if (deliveryEnabled && !deliveryDetails) return false;
         return true;
       case 5:
         return true;
       default:
         return false;
     }
-  }, [step, selectedVehicle, selectedClient, datesValid, vehicleAvailableForDates]);
+  }, [
+    step,
+    selectedVehicle,
+    selectedClient,
+    datesValid,
+    vehicleAvailableForDates,
+    deliveryEnabled,
+    deliveryDetails,
+  ]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
 
@@ -328,14 +389,154 @@ export default function NewBookingScreen() {
   const toggleOption = useCallback((optionId: string) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setOptions((prev) =>
-      prev.map((o) => (o.id === optionId ? { ...o, enabled: !o.enabled } : o)),
+      prev.map((o) => {
+        if (o.id !== optionId) return o;
+        const next = !o.enabled;
+        // Turning off delivery clears computed details so the fee disappears
+        if (o.id === 'delivery' && !next) {
+          return { ...o, enabled: false, deliveryDetails: undefined };
+        }
+        return { ...o, enabled: next };
+      }),
+    );
+    if (optionId === 'delivery') {
+      setDeliveryError(null);
+    }
+  }, []);
+
+  const clearComputedDelivery = useCallback(() => {
+    setOptions((prev) =>
+      prev.map((o) =>
+        o.id === 'delivery' ? { ...o, deliveryDetails: undefined } : o,
+      ),
     );
   }, []);
 
+  const handleDeliveryAddressChange = useCallback(
+    (text: string) => {
+      setDeliveryAddress(text);
+      if (deliveryError) setDeliveryError(null);
+      if (deliveryDetails) clearComputedDelivery();
+    },
+    [clearComputedDelivery, deliveryDetails, deliveryError],
+  );
+
+  const handleCalculateDelivery = useCallback(async () => {
+    const trimmed = deliveryAddress.trim();
+    if (!trimmed) {
+      setDeliveryError(
+        t('bookings.new.delivery.addressRequired', 'Delivery address required'),
+      );
+      return;
+    }
+    if (!hasBasePoint) {
+      setDeliveryError(
+        t(
+          'bookings.new.delivery.noBasePoint',
+          'No agency base address configured',
+        ),
+      );
+      return;
+    }
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDeliveryComputing(true);
+    setDeliveryError(null);
+    try {
+      const geocoded = await geocodeAddress(trimmed);
+      const distance = await getDrivingDistance(
+        { lat: agencyDelivery.basePointLat, lng: agencyDelivery.basePointLng },
+        { lat: geocoded.lat, lng: geocoded.lng },
+      );
+      const distanceKm = Math.round((distance.distanceMeters / 1000) * 100) / 100;
+
+      if (
+        agencyDelivery.maxDistanceKm != null &&
+        distanceKm > agencyDelivery.maxDistanceKm
+      ) {
+        setDeliveryError(
+          t('bookings.new.delivery.maxDistanceExceeded', {
+            defaultValue: 'Distance {{distance}} km exceeds limit {{max}} km',
+            distance: distanceKm,
+            max: agencyDelivery.maxDistanceKm,
+          }),
+        );
+        return;
+      }
+
+      const rawFee = distanceKm * agencyDelivery.ratePerKm;
+      const fee = Math.max(rawFee, agencyDelivery.minFee ?? 0);
+      const roundedFee = Math.round(fee * 100) / 100;
+
+      const details: DeliveryDetails = {
+        address: geocoded.formattedAddress,
+        lat: geocoded.lat,
+        lng: geocoded.lng,
+        distanceKm,
+        fee: roundedFee,
+      };
+
+      setOptions((prev) =>
+        prev.map((o) =>
+          o.id === 'delivery' ? { ...o, deliveryDetails: details } : o,
+        ),
+      );
+    } catch (err) {
+      let key = 'bookings.new.delivery.errorUnknown';
+      if (err instanceof MapsApiKeyMissingError) {
+        key = 'bookings.new.delivery.apiKeyMissing';
+      } else if (err instanceof GeocodingError) {
+        key =
+          err.code === 'ZERO_RESULTS'
+            ? 'bookings.new.delivery.errorZeroResults'
+            : err.code === 'OVER_QUERY_LIMIT'
+              ? 'bookings.new.delivery.errorQuota'
+              : err.code === 'REQUEST_DENIED'
+                ? 'bookings.new.delivery.errorRequestDenied'
+                : err.code === 'NETWORK'
+                  ? 'bookings.new.delivery.errorNetwork'
+                  : 'bookings.new.delivery.errorUnknown';
+      } else if (err instanceof DistanceMatrixError) {
+        key =
+          err.code === 'OVER_QUERY_LIMIT'
+            ? 'bookings.new.delivery.errorQuota'
+            : err.code === 'REQUEST_DENIED'
+              ? 'bookings.new.delivery.errorRequestDenied'
+              : err.code === 'NETWORK'
+                ? 'bookings.new.delivery.errorNetwork'
+                : 'bookings.new.delivery.errorZeroResults';
+      }
+      setDeliveryError(t(key, 'Error'));
+    } finally {
+      setDeliveryComputing(false);
+    }
+  }, [
+    deliveryAddress,
+    hasBasePoint,
+    agencyDelivery.basePointLat,
+    agencyDelivery.basePointLng,
+    agencyDelivery.ratePerKm,
+    agencyDelivery.minFee,
+    agencyDelivery.maxDistanceKm,
+    t,
+  ]);
+
+  const proceedWithCreate = useCallback(() => {
+    if (!selectedVehicle) return;
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const booking = bookingStore.createBooking(selectedVehicle.dailyRate);
+    if (booking) {
+      setConfirmedRef(booking.id);
+    } else {
+      showToast({
+        variant: 'error',
+        title: 'Error',
+        message: 'Failed to create booking. Please try again.',
+      });
+    }
+  }, [bookingStore, selectedVehicle, showToast]);
+
   const handleConfirm = useCallback(() => {
     if (!selectedVehicle || !selectedClient) return;
-
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     bookingStore.startDraft();
     bookingStore.updateDraft({
@@ -352,21 +553,43 @@ export default function NewBookingScreen() {
         label: o.label,
         price: o.price,
         enabled: o.enabled,
+        ...(o.deliveryDetails ? { deliveryDetails: o.deliveryDetails } : {}),
       })),
     });
 
-    const booking = bookingStore.createBooking(selectedVehicle.dailyRate);
-
-    if (booking) {
-      setConfirmedRef(booking.id);
-    } else {
-      showToast({
-        variant: 'error',
-        title: 'Error',
-        message: 'Failed to create booking. Please try again.',
-      });
+    const conflicts = bookingStore.findDraftConflicts();
+    if (conflicts.length > 0) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setConflictModal({ visible: true, conflicts });
+      return;
     }
-  }, [selectedVehicle, selectedClient, startDate, endDate, options, bookingStore, showToast]);
+
+    proceedWithCreate();
+  }, [
+    selectedVehicle,
+    selectedClient,
+    startDate,
+    endDate,
+    options,
+    bookingStore,
+    proceedWithCreate,
+  ]);
+
+  const handleConflictCreateAnyway = useCallback(() => {
+    setConflictModal({ visible: false, conflicts: [] });
+    proceedWithCreate();
+  }, [proceedWithCreate]);
+
+  const handleConflictModifyDates = useCallback(() => {
+    setConflictModal({ visible: false, conflicts: [] });
+    setStep(3);
+  }, []);
+
+  const handleConflictAbandon = useCallback(() => {
+    setConflictModal({ visible: false, conflicts: [] });
+    bookingStore.discardDraft();
+    router.back();
+  }, [bookingStore, router]);
 
   const handleSaveDraft = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -424,6 +647,7 @@ export default function NewBookingScreen() {
           bookingRef={confirmedRef}
           onBack={handleBackToBookings}
           theme={theme}
+          t={t}
         />
       </ScreenWrapper>
     );
@@ -453,80 +677,36 @@ export default function NewBookingScreen() {
   const renderStep1 = () => (
     <Animated.View entering={FadeInDown.duration(400).delay(100)}>
       <SearchBar
-        placeholder={t('bookings.new.searchVehicle', 'Search vehicles...')}
+        placeholder={t('bookings.new.searchVehicle', 'Search by name, model or plate')}
         value={vehicleSearch}
         onChangeText={setVehicleSearch}
-        className="mb-4"
+        className="mb-3"
       />
 
-      <Text variant="bodySmall" color={theme.textSecondary} className="mb-3">
+      <Text
+        variant="bodySmall"
+        color={theme.textTertiary}
+        style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginLeft: 4 }}
+      >
         {filteredVehicles.length} {t('bookings.new.available', 'available')}
       </Text>
 
-      {filteredVehicles.map((vehicle, index) => {
-        const isSelected = selectedVehicle?.id === vehicle.id;
-        return (
-          <Animated.View
+      <View style={{ gap: 12 }}>
+        {filteredVehicles.map((vehicle, index) => (
+          <VehicleHeroCard
             key={vehicle.id}
-            entering={FadeInDown.duration(300).delay(index * 60)}
-          >
-            <Pressable
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setSelectedVehicle(vehicle);
-              }}
-              className="mb-3"
-            >
-              <Card
-                variant={isSelected ? 'elevated' : 'default'}
-                className={isSelected ? '' : ''}
-              >
-                <View
-                  style={
-                    isSelected
-                      ? { borderWidth: 2, borderColor: theme.accent, borderRadius: 16, padding: 0, margin: -1 }
-                      : undefined
-                  }
-                  className={isSelected ? 'rounded-2xl' : ''}
-                >
-                  <View className="p-4">
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-1">
-                        <Text variant="titleLarge">
-                          {vehicle.brand} {vehicle.name}
-                        </Text>
-                        <Text variant="bodySmall" color={theme.textSecondary}>
-                          {vehicle.category}
-                        </Text>
-                      </View>
-                      <View className="items-end">
-                        <Text variant="headlineSmall" color={theme.accent}>
-                          {'\u20AC'}{vehicle.dailyRate}
-                        </Text>
-                        <Text variant="bodySmall" color={theme.textTertiary}>
-                          /day
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View className="flex-row items-center mt-2 gap-2">
-                      <Badge variant="neutral" size="sm">
-                        {vehicle.year.toString()}
-                      </Badge>
-                      <Badge variant="neutral" size="sm">
-                        {vehicle.transmission}
-                      </Badge>
-                      <Badge variant="neutral" size="sm">
-                        {vehicle.fuelType}
-                      </Badge>
-                    </View>
-                  </View>
-                </View>
-              </Card>
-            </Pressable>
-          </Animated.View>
-        );
-      })}
+            vehicle={vehicle}
+            index={index}
+            selected={selectedVehicle?.id === vehicle.id}
+            theme={theme}
+            t={t}
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setSelectedVehicle(vehicle);
+            }}
+          />
+        ))}
+      </View>
 
       {filteredVehicles.length === 0 && (
         <View className="items-center py-8">
@@ -611,24 +791,148 @@ export default function NewBookingScreen() {
 
   const renderStep3 = () => {
     return (
-      <Animated.View entering={FadeInDown.duration(400).delay(100)}>
-        {/* Date pickers */}
-        <Card className="mb-4">
-          <View className="p-4">
-            {/* Start date */}
-            <Text variant="bodySmall" color={theme.textSecondary} className="mb-2">
-              Date de début
-            </Text>
-            <Pressable
-              onPress={() => setShowPicker('start')}
-              className="flex-row items-center rounded-xl px-4 py-3 mb-4"
-              style={{ backgroundColor: theme.surfaceTertiary }}
+      <Animated.View
+        entering={FadeInDown.duration(400).delay(100)}
+        style={{ gap: 14 }}
+      >
+        {/* Duration hero chip */}
+        {datesValid && (
+          <View
+            style={{
+              backgroundColor: theme.accentSoft,
+              borderRadius: 20,
+              padding: 18,
+              alignItems: 'center',
+            }}
+          >
+            <Text
+              variant="caption"
+              color={theme.accent}
+              style={{
+                fontSize: 11,
+                fontFamily: fontFamilies.medium,
+                letterSpacing: 0.5,
+                textTransform: 'uppercase',
+              }}
             >
-              <CalendarDays size={18} color={theme.accent} style={{ marginRight: 10 }} />
-              <Text variant="titleMedium">{formatDisplayDate(startDateObj)}</Text>
-            </Pressable>
+              {t('bookings.new.dailyRate', 'Daily rate')} · €{selectedVehicle?.dailyRate ?? 0}
+            </Text>
+            <Text
+              variant="headlineLarge"
+              color={theme.accent}
+              style={{
+                fontFamily: fontFamilies.bold,
+                fontSize: 28,
+                marginTop: 4,
+              }}
+            >
+              {t('bookings.new.duration', { count: days, defaultValue: '{{count}} days' })}
+            </Text>
+          </View>
+        )}
 
-            {showPicker === 'start' && (
+        {/* Start / End paired card */}
+        <View
+          style={{
+            backgroundColor: theme.surface,
+            borderRadius: 20,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+          }}
+        >
+          <View className="flex-row items-center">
+            <View style={{ flex: 1 }}>
+              <Text
+                variant="caption"
+                color={theme.textTertiary}
+                style={{ fontSize: 11, marginBottom: 4 }}
+              >
+                {t('bookings.new.startDate', 'Start date')}
+              </Text>
+              <Pressable
+                onPress={() => setShowPicker(showPicker === 'start' ? null : 'start')}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor:
+                    showPicker === 'start' ? theme.accentSoft : theme.surfaceTertiary,
+                  borderRadius: 14,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  gap: 8,
+                }}
+              >
+                <CalendarDays size={15} color={theme.accent} />
+                <Text
+                  variant="bodyMedium"
+                  style={{
+                    fontFamily: fontFamilies.semiBold,
+                    fontSize: 13,
+                    color: theme.textPrimary,
+                  }}
+                  numberOfLines={1}
+                >
+                  {formatDisplayDate(startDateObj)}
+                </Text>
+              </Pressable>
+            </View>
+
+            <View
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                backgroundColor: theme.surfaceTertiary,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginHorizontal: 8,
+                marginTop: 16,
+              }}
+            >
+              <ArrowRight size={14} color={theme.textSecondary} strokeWidth={2} />
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text
+                variant="caption"
+                color={theme.textTertiary}
+                style={{ fontSize: 11, marginBottom: 4, textAlign: 'right' }}
+              >
+                {t('bookings.new.endDate', 'End date')}
+              </Text>
+              <Pressable
+                onPress={() => setShowPicker(showPicker === 'end' ? null : 'end')}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  backgroundColor:
+                    showPicker === 'end' ? theme.accentSoft : theme.surfaceTertiary,
+                  borderRadius: 14,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  gap: 8,
+                }}
+              >
+                <CalendarDays size={15} color={theme.accent} />
+                <Text
+                  variant="bodyMedium"
+                  style={{
+                    fontFamily: fontFamilies.semiBold,
+                    fontSize: 13,
+                    color: theme.textPrimary,
+                  }}
+                  numberOfLines={1}
+                >
+                  {formatDisplayDate(endDateObj)}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {showPicker === 'start' && (
+            <View className="items-center" style={{ marginTop: 6 }}>
               <DateTimePicker
                 value={startDateObj}
                 mode="date"
@@ -638,22 +942,11 @@ export default function NewBookingScreen() {
                 themeVariant={pickerTheme}
                 onChange={onDateChange('start')}
               />
-            )}
+            </View>
+          )}
 
-            {/* End date */}
-            <Text variant="bodySmall" color={theme.textSecondary} className="mb-2">
-              Date de fin
-            </Text>
-            <Pressable
-              onPress={() => setShowPicker('end')}
-              className="flex-row items-center rounded-xl px-4 py-3"
-              style={{ backgroundColor: theme.surfaceTertiary }}
-            >
-              <CalendarDays size={18} color={theme.accent} style={{ marginRight: 10 }} />
-              <Text variant="titleMedium">{formatDisplayDate(endDateObj)}</Text>
-            </Pressable>
-
-            {showPicker === 'end' && (
+          {showPicker === 'end' && (
+            <View className="items-center" style={{ marginTop: 6 }}>
               <DateTimePicker
                 value={endDateObj}
                 mode="date"
@@ -663,100 +956,173 @@ export default function NewBookingScreen() {
                 themeVariant={pickerTheme}
                 onChange={onDateChange('end')}
               />
-            )}
+            </View>
+          )}
+        </View>
 
-            {/* Duration badge */}
-            {datesValid && (
-              <Animated.View entering={FadeInDown.duration(300)} className="mt-4">
-                <View className="rounded-full py-2 px-4 self-center" style={{ backgroundColor: theme.accentSoft }}>
-                  <Text variant="titleMedium" color={theme.accent}>
-                    {days} jours
-                  </Text>
-                </View>
-              </Animated.View>
-            )}
-          </View>
-        </Card>
+        {/* Times card */}
+        <View
+          style={{
+            backgroundColor: theme.surface,
+            borderRadius: 20,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+          }}
+        >
+          <Text
+            variant="bodySmall"
+            color={theme.textTertiary}
+            style={{
+              fontSize: 11,
+              textTransform: 'uppercase',
+              letterSpacing: 1,
+              fontFamily: fontFamilies.medium,
+              marginBottom: 10,
+            }}
+          >
+            {t('bookings.new.times', 'Schedule')}
+          </Text>
 
-        {/* Time pickers */}
-        <Card className="mb-4">
-          <View className="p-4">
-            <Text variant="titleMedium" className="mb-3">Horaires</Text>
-            {/* Time buttons row */}
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <Text variant="bodySmall" color={theme.textSecondary} className="mb-2">
-                  Prise en charge
-                </Text>
-                <Pressable
-                  onPress={() => setShowPicker(showPicker === 'pickupTime' ? null : 'pickupTime')}
-                  className="flex-row items-center justify-center rounded-xl py-3"
-                  style={{ backgroundColor: showPicker === 'pickupTime' ? theme.accentSoft : theme.surfaceTertiary }}
+          <View className="flex-row" style={{ gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text
+                variant="caption"
+                color={theme.textTertiary}
+                style={{ fontSize: 11, marginBottom: 4 }}
+              >
+                {t('bookings.new.pickup', 'Pickup')}
+              </Text>
+              <Pressable
+                onPress={() =>
+                  setShowPicker(showPicker === 'pickupTime' ? null : 'pickupTime')
+                }
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor:
+                    showPicker === 'pickupTime'
+                      ? theme.accentSoft
+                      : theme.surfaceTertiary,
+                  borderRadius: 14,
+                  paddingVertical: 10,
+                  gap: 6,
+                }}
+              >
+                <Clock size={14} color={theme.accent} />
+                <Text
+                  variant="bodyMedium"
+                  style={{
+                    fontFamily: fontFamilies.semiBold,
+                    fontSize: 13,
+                  }}
                 >
-                  <Clock size={16} color={theme.accent} style={{ marginRight: 6 }} />
-                  <Text variant="titleMedium">{formatDisplayTime(pickupTime)}</Text>
-                </Pressable>
-              </View>
-
-              <View className="flex-1">
-                <Text variant="bodySmall" color={theme.textSecondary} className="mb-2">
-                  Retour
+                  {formatDisplayTime(pickupTime)}
                 </Text>
-                <Pressable
-                  onPress={() => setShowPicker(showPicker === 'returnTime' ? null : 'returnTime')}
-                  className="flex-row items-center justify-center rounded-xl py-3"
-                  style={{ backgroundColor: showPicker === 'returnTime' ? theme.accentSoft : theme.surfaceTertiary }}
-                >
-                  <Clock size={16} color={theme.accent} style={{ marginRight: 6 }} />
-                  <Text variant="titleMedium">{formatDisplayTime(returnTime)}</Text>
-                </Pressable>
-              </View>
+              </Pressable>
             </View>
 
-            {/* Time picker — full width, centered below buttons */}
-            {showPicker === 'pickupTime' && (
-              <View className="items-center mt-2">
-                <DateTimePicker
-                  value={pickupTime}
-                  mode="time"
-                  display="spinner"
-                  minuteInterval={15}
-                  locale="fr-FR"
-                  themeVariant={pickerTheme}
-                  onChange={onDateChange('pickupTime')}
-                />
-              </View>
-            )}
-            {showPicker === 'returnTime' && (
-              <View className="items-center mt-2">
-                <DateTimePicker
-                  value={returnTime}
-                  mode="time"
-                  display="spinner"
-                  minuteInterval={15}
-                  locale="fr-FR"
-                  themeVariant={pickerTheme}
-                  onChange={onDateChange('returnTime')}
-                />
-              </View>
-            )}
+            <View style={{ flex: 1 }}>
+              <Text
+                variant="caption"
+                color={theme.textTertiary}
+                style={{ fontSize: 11, marginBottom: 4 }}
+              >
+                {t('bookings.new.return', 'Return')}
+              </Text>
+              <Pressable
+                onPress={() =>
+                  setShowPicker(showPicker === 'returnTime' ? null : 'returnTime')
+                }
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor:
+                    showPicker === 'returnTime'
+                      ? theme.accentSoft
+                      : theme.surfaceTertiary,
+                  borderRadius: 14,
+                  paddingVertical: 10,
+                  gap: 6,
+                }}
+              >
+                <Clock size={14} color={theme.accent} />
+                <Text
+                  variant="bodyMedium"
+                  style={{
+                    fontFamily: fontFamilies.semiBold,
+                    fontSize: 13,
+                  }}
+                >
+                  {formatDisplayTime(returnTime)}
+                </Text>
+              </Pressable>
+            </View>
           </View>
-        </Card>
+
+          {showPicker === 'pickupTime' && (
+            <View className="items-center" style={{ marginTop: 6 }}>
+              <DateTimePicker
+                value={pickupTime}
+                mode="time"
+                display="spinner"
+                minuteInterval={15}
+                locale="fr-FR"
+                themeVariant={pickerTheme}
+                onChange={onDateChange('pickupTime')}
+              />
+            </View>
+          )}
+          {showPicker === 'returnTime' && (
+            <View className="items-center" style={{ marginTop: 6 }}>
+              <DateTimePicker
+                value={returnTime}
+                mode="time"
+                display="spinner"
+                minuteInterval={15}
+                locale="fr-FR"
+                themeVariant={pickerTheme}
+                onChange={onDateChange('returnTime')}
+              />
+            </View>
+          )}
+        </View>
 
         {/* Unavailable warning */}
         {datesValid && !vehicleAvailableForDates && (
           <Animated.View entering={FadeInDown.duration(300)}>
             <View
-              className="rounded-2xl p-4 flex-row items-center gap-3"
-              style={{ backgroundColor: theme.dangerSoft }}
+              style={{
+                backgroundColor: theme.dangerSoft,
+                borderLeftWidth: 4,
+                borderLeftColor: theme.danger,
+                borderRadius: 16,
+                padding: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+              }}
             >
-              <AlertTriangle size={20} color={theme.danger} />
+              <AlertTriangle size={18} color={theme.danger} />
               <View className="flex-1">
-                <Text variant="titleSmall" color={theme.danger}>
-                  Véhicule indisponible
+                <Text
+                  variant="titleSmall"
+                  color={theme.danger}
+                  style={{ fontFamily: fontFamilies.semiBold, fontSize: 13 }}
+                >
+                  {t('bookings.new.unavailable', 'Vehicle unavailable')}
                 </Text>
-                <Text variant="bodySmall" color={theme.danger}>
-                  Ce véhicule est déjà réservé pour les dates sélectionnées.
+                <Text
+                  variant="bodySmall"
+                  color={theme.danger}
+                  style={{ fontSize: 12, marginTop: 2 }}
+                >
+                  {t(
+                    'bookings.new.unavailableDesc',
+                    'This vehicle is already booked for the selected dates.',
+                  )}
                 </Text>
               </View>
             </View>
@@ -777,7 +1143,8 @@ export default function NewBookingScreen() {
           {/* Daily rate line */}
           <View className="flex-row items-center justify-between mb-2">
             <Text variant="bodyMedium" color={theme.textSecondary}>
-              {'\u20AC'}{selectedVehicle?.dailyRate ?? 0} {'\u00D7'} {days} jours
+              {'\u20AC'}{selectedVehicle?.dailyRate ?? 0} {'\u00D7'} {days}{' '}
+              {t('bookings.new.days', 'days')}
             </Text>
             <Text variant="bodyMedium">
               {'\u20AC'}{pricing.subtotal}
@@ -788,65 +1155,169 @@ export default function NewBookingScreen() {
 
           {/* Option toggles */}
           <Text variant="titleSmall" color={theme.textSecondary} className="mb-2">
-            OPTIONS
+            {t('bookings.new.options', 'Options').toUpperCase()}
           </Text>
 
           {options.map((option) => {
-            const OptionIcon = optionIcons[option.id] ?? Shield;
+            const isDelivery = option.id === 'delivery';
+            const OptionIcon = isDelivery ? Truck : optionIcons[option.id] ?? Shield;
+            const label = isDelivery
+              ? t('bookings.new.delivery.optionLabel', 'Home delivery')
+              : option.label;
             return (
-              <Pressable
-                key={option.id}
-                onPress={() => toggleOption(option.id)}
-                className="flex-row items-center justify-between py-3"
-              >
-                <View className="flex-row items-center flex-1 gap-3">
-                  <View
-                    className="rounded-lg items-center justify-center"
-                    style={{
-                      width: 36,
-                      height: 36,
-                      backgroundColor: option.enabled
-                        ? theme.accentSoft
-                        : theme.surfaceTertiary,
-                    }}
-                  >
-                    <OptionIcon
-                      size={18}
-                      color={option.enabled ? theme.accent : theme.textTertiary}
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <Text variant="bodyMedium">{option.label}</Text>
-                    <Text variant="bodySmall" color={theme.textTertiary}>
-                      +{'\u20AC'}{option.price}/day
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Toggle switch */}
-                <View
-                  className="rounded-full"
-                  style={{
-                    width: 48,
-                    height: 28,
-                    backgroundColor: option.enabled
-                      ? theme.accent
-                      : theme.surfaceTertiary,
-                    justifyContent: 'center',
-                    paddingHorizontal: 2,
-                  }}
+              <React.Fragment key={option.id}>
+                <Pressable
+                  onPress={() => toggleOption(option.id)}
+                  className="flex-row items-center justify-between py-3"
                 >
+                  <View className="flex-row items-center flex-1 gap-3">
+                    <View
+                      className="rounded-lg items-center justify-center"
+                      style={{
+                        width: 36,
+                        height: 36,
+                        backgroundColor: option.enabled
+                          ? theme.accentSoft
+                          : theme.surfaceTertiary,
+                      }}
+                    >
+                      <OptionIcon
+                        size={18}
+                        color={option.enabled ? theme.accent : theme.textTertiary}
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Text variant="bodyMedium">{label}</Text>
+                      <Text variant="bodySmall" color={theme.textTertiary}>
+                        {isDelivery
+                          ? t('bookings.new.delivery.rateInfo', {
+                              defaultValue:
+                                'Rate: {{rate}} {{currency}} / km',
+                              rate: agencyDelivery.ratePerKm.toFixed(2),
+                              currency: agencyDelivery.currency,
+                            })
+                          : `+${'\u20AC'}${option.price}/day`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Toggle switch */}
                   <View
                     className="rounded-full"
                     style={{
-                      width: 24,
-                      height: 24,
-                      backgroundColor: '#FFFFFF',
-                      alignSelf: option.enabled ? 'flex-end' : 'flex-start',
+                      width: 48,
+                      height: 28,
+                      backgroundColor: option.enabled
+                        ? theme.accent
+                        : theme.surfaceTertiary,
+                      justifyContent: 'center',
+                      paddingHorizontal: 2,
                     }}
-                  />
-                </View>
-              </Pressable>
+                  >
+                    <View
+                      className="rounded-full"
+                      style={{
+                        width: 24,
+                        height: 24,
+                        backgroundColor: '#FFFFFF',
+                        alignSelf: option.enabled ? 'flex-end' : 'flex-start',
+                      }}
+                    />
+                  </View>
+                </Pressable>
+
+                {/* Delivery expanded panel */}
+                {isDelivery && option.enabled && (
+                  <View
+                    style={{
+                      backgroundColor: theme.surfaceSecondary,
+                      borderRadius: 14,
+                      padding: 12,
+                      marginBottom: 8,
+                      gap: 10,
+                    }}
+                  >
+                    <Input
+                      label={t(
+                        'bookings.new.delivery.addressLabel',
+                        'Delivery address',
+                      )}
+                      placeholder={t(
+                        'bookings.new.delivery.addressPlaceholder',
+                        'Street, number, postcode, city',
+                      )}
+                      value={deliveryAddress}
+                      onChangeText={handleDeliveryAddressChange}
+                      leftIcon={MapPin}
+                      error={deliveryError ?? undefined}
+                    />
+
+                    <Button
+                      variant="secondary"
+                      size="md"
+                      leftIcon={Calculator}
+                      disabled={
+                        deliveryComputing ||
+                        deliveryAddress.trim().length === 0
+                      }
+                      onPress={handleCalculateDelivery}
+                    >
+                      {deliveryComputing
+                        ? t('bookings.new.delivery.calculating', 'Calculating…')
+                        : option.deliveryDetails
+                          ? t('bookings.new.delivery.recalculate', 'Recalculate')
+                          : t('bookings.new.delivery.calculate', 'Calculate route')}
+                    </Button>
+
+                    {option.deliveryDetails && (
+                      <View
+                        style={{
+                          backgroundColor: theme.surface,
+                          borderRadius: 12,
+                          padding: 12,
+                          gap: 6,
+                        }}
+                      >
+                        <View className="flex-row items-center justify-between">
+                          <Text variant="bodySmall" color={theme.textSecondary}>
+                            {t('bookings.new.delivery.distance', 'Distance')}
+                          </Text>
+                          <Text variant="bodyMedium" style={{ fontWeight: '600' }}>
+                            {option.deliveryDetails.distanceKm.toFixed(2)} km
+                          </Text>
+                        </View>
+                        <View className="flex-row items-center justify-between">
+                          <Text variant="bodySmall" color={theme.textSecondary}>
+                            {t('bookings.new.delivery.fee', 'Fee')}
+                          </Text>
+                          <Text
+                            variant="bodyMedium"
+                            color={theme.accent}
+                            style={{ fontWeight: '700' }}
+                          >
+                            {option.deliveryDetails.fee.toFixed(2)}{' '}
+                            {agencyDelivery.currency}
+                          </Text>
+                        </View>
+                        {agencyDelivery.minFee != null &&
+                          option.deliveryDetails.distanceKm *
+                            agencyDelivery.ratePerKm <
+                            agencyDelivery.minFee && (
+                            <Text variant="caption" color={theme.textTertiary}>
+                              {t(
+                                'bookings.new.delivery.minFeeApplied',
+                                'Minimum fee applied',
+                              )}
+                            </Text>
+                          )}
+                        <Text variant="caption" color={theme.textTertiary} numberOfLines={2}>
+                          {option.deliveryDetails.address}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </React.Fragment>
             );
           })}
 
@@ -861,6 +1332,17 @@ export default function NewBookingScreen() {
               {'\u20AC'}{pricing.deposit}
             </Text>
           </View>
+
+          {pricing.deliveryFee > 0 && (
+            <View className="flex-row items-center justify-between mb-2">
+              <Text variant="bodyMedium" color={theme.textSecondary}>
+                {t('bookings.new.delivery.fee', 'Delivery fee')}
+              </Text>
+              <Text variant="bodyMedium">
+                {pricing.deliveryFee.toFixed(2)} {agencyDelivery.currency}
+              </Text>
+            </View>
+          )}
 
           <Divider className="my-3" />
 
@@ -878,119 +1360,326 @@ export default function NewBookingScreen() {
 
   const renderStep5 = () => {
     const enabledOptions = options.filter((o) => o.enabled);
+    const heroImage = selectedVehicle ? getVehicleImage(selectedVehicle.id) : null;
 
     return (
-      <Animated.View entering={FadeInDown.duration(400).delay(100)}>
-        {/* Summary Card */}
-        <Card className="mb-4">
-          <View className="p-4">
-            <Text variant="titleMedium" className="mb-4">
-              {t('bookings.new.summary', 'Booking Summary')}
-            </Text>
-
-            {/* Vehicle */}
-            <View className="flex-row items-center justify-between mb-3">
-              <View className="flex-row items-center gap-2">
-                <Car size={16} color={theme.textSecondary} />
-                <Text variant="bodySmall" color={theme.textSecondary}>
-                  Vehicle
-                </Text>
+      <Animated.View
+        entering={FadeInDown.duration(400).delay(100)}
+        style={{ gap: 14 }}
+      >
+        {/* Vehicle hero banner */}
+        {selectedVehicle && (
+          <View
+            style={{
+              borderRadius: 22,
+              overflow: 'hidden',
+              backgroundColor: theme.surfaceTertiary,
+              height: 160,
+            }}
+          >
+            {heroImage ? (
+              <Image
+                source={heroImage}
+                style={{ width: '100%', height: '100%' }}
+                contentFit="cover"
+                transition={300}
+              />
+            ) : (
+              <View className="flex-1 items-center justify-center">
+                <Car size={60} color={theme.textTertiary} strokeWidth={1.3} />
               </View>
-              <Text variant="bodyMedium">
-                {selectedVehicle?.brand} {selectedVehicle?.name}
-              </Text>
-            </View>
-
-            <Divider className="mb-3" />
-
-            {/* Client */}
-            <View className="flex-row items-center justify-between mb-3">
-              <View className="flex-row items-center gap-2">
-                <User size={16} color={theme.textSecondary} />
-                <Text variant="bodySmall" color={theme.textSecondary}>
-                  Client
-                </Text>
-              </View>
-              <View className="items-end">
-                <Text variant="bodyMedium">
-                  {selectedClient?.firstName} {selectedClient?.lastName}
-                </Text>
-                <Text variant="bodySmall" color={theme.textTertiary}>
-                  {selectedClient?.email}
-                </Text>
-              </View>
-            </View>
-
-            <Divider className="mb-3" />
-
-            {/* Dates */}
-            <View className="flex-row items-center justify-between mb-3">
-              <View className="flex-row items-center gap-2">
-                <CalendarDays size={16} color={theme.textSecondary} />
-                <Text variant="bodySmall" color={theme.textSecondary}>
-                  Dates
-                </Text>
-              </View>
-              <View className="items-end">
-                <Text variant="bodyMedium">
-                  {startDate} {'\u2192'} {endDate}
-                </Text>
-                <Text variant="bodySmall" color={theme.textTertiary}>
-                  {days} days
-                </Text>
-              </View>
-            </View>
-
-            <Divider className="mb-3" />
-
-            {/* Options */}
-            {enabledOptions.length > 0 && (
-              <>
-                <View className="mb-3">
-                  <Text variant="bodySmall" color={theme.textSecondary} className="mb-2">
-                    Options
-                  </Text>
-                  <View className="flex-row flex-wrap gap-2">
-                    {enabledOptions.map((opt) => (
-                      <Badge key={opt.id} variant="accent" size="sm">
-                        {opt.label}
-                      </Badge>
-                    ))}
-                  </View>
-                </View>
-                <Divider className="mb-3" />
-              </>
             )}
-
-            {/* Total */}
-            <View className="flex-row items-center justify-between">
-              <Text variant="headlineMedium">Total</Text>
-              <Text variant="headlineMedium" color={theme.accent}>
-                {'\u20AC'}{pricing.total}
-              </Text>
+            <LinearGradient
+              colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.7)']}
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 100,
+              }}
+              pointerEvents="none"
+            />
+            <View
+              style={{
+                position: 'absolute',
+                left: 16,
+                right: 16,
+                bottom: 14,
+                flexDirection: 'row',
+                alignItems: 'flex-end',
+                justifyContent: 'space-between',
+              }}
+            >
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text
+                  variant="headlineMedium"
+                  color="#FFFFFF"
+                  style={{
+                    fontFamily: fontFamilies.bold,
+                    fontSize: 20,
+                    lineHeight: 24,
+                  }}
+                  numberOfLines={1}
+                >
+                  {selectedVehicle.name}
+                </Text>
+                <Text
+                  variant="bodySmall"
+                  color="rgba(255,255,255,0.85)"
+                  style={{ fontSize: 12, marginTop: 2 }}
+                  numberOfLines={1}
+                >
+                  {selectedVehicle.category} · {selectedVehicle.licensePlate}
+                </Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: theme.accent,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 9999,
+                }}
+              >
+                <Text
+                  variant="labelSmall"
+                  color="#FFFFFF"
+                  style={{ fontFamily: fontFamilies.bold, fontSize: 12 }}
+                >
+                  €{selectedVehicle.dailyRate}/{t('bookings.new.perDay', 'day')}
+                </Text>
+              </View>
             </View>
           </View>
-        </Card>
+        )}
+
+        {/* Summary card */}
+        <View
+          style={{
+            backgroundColor: theme.surface,
+            borderRadius: 20,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+          }}
+        >
+          <Text
+            variant="bodySmall"
+            color={theme.textTertiary}
+            style={{
+              fontSize: 11,
+              textTransform: 'uppercase',
+              letterSpacing: 1,
+              fontFamily: fontFamilies.medium,
+              marginBottom: 12,
+            }}
+          >
+            {t('bookings.new.summary', 'Booking Summary')}
+          </Text>
+
+          {/* Client */}
+          <SummaryRow
+            label={t('bookings.new.client', 'Client')}
+            primary={
+              selectedClient
+                ? `${selectedClient.firstName} ${selectedClient.lastName}`
+                : ''
+            }
+            secondary={selectedClient?.email}
+            theme={theme}
+          />
+
+          <View
+            style={{
+              height: 1,
+              backgroundColor: theme.border,
+              marginVertical: 10,
+            }}
+          />
+
+          {/* Dates */}
+          <SummaryRow
+            label={t('bookings.new.dates', 'Dates')}
+            primary={`${formatDisplayDate(startDateObj)} → ${formatDisplayDate(endDateObj)}`}
+            secondary={t('bookings.new.duration', {
+              count: days,
+              defaultValue: '{{count}} days',
+            })}
+            theme={theme}
+          />
+
+          {/* Times */}
+          <View
+            style={{
+              height: 1,
+              backgroundColor: theme.border,
+              marginVertical: 10,
+            }}
+          />
+          <SummaryRow
+            label={t('bookings.new.times', 'Schedule')}
+            primary={`${t('bookings.new.pickup', 'Pickup')}: ${formatDisplayTime(
+              pickupTime,
+            )}`}
+            secondary={`${t('bookings.new.return', 'Return')}: ${formatDisplayTime(returnTime)}`}
+            theme={theme}
+          />
+
+          {/* Options */}
+          {enabledOptions.length > 0 && (
+            <>
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: theme.border,
+                  marginVertical: 10,
+                }}
+              />
+              <Text
+                variant="bodySmall"
+                color={theme.textTertiary}
+                style={{ fontSize: 12, marginBottom: 8 }}
+              >
+                {t('bookings.new.options', 'Options')}
+              </Text>
+              <View className="flex-row flex-wrap" style={{ gap: 6 }}>
+                {enabledOptions.map((opt) => (
+                  <View
+                    key={opt.id}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 9999,
+                      backgroundColor: theme.accentSoft,
+                    }}
+                  >
+                    <Text
+                      variant="labelSmall"
+                      color={theme.accent}
+                      style={{
+                        fontFamily: fontFamilies.semiBold,
+                        fontSize: 11,
+                      }}
+                    >
+                      {opt.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Pricing breakdown */}
+          <View
+            style={{
+              height: 1,
+              backgroundColor: theme.border,
+              marginVertical: 12,
+            }}
+          />
+          <PricingLine
+            label={`€${selectedVehicle?.dailyRate ?? 0} × ${days} ${t('bookings.new.days', 'days')}`}
+            value={`€${pricing.subtotal}`}
+            theme={theme}
+          />
+          {pricing.optionsTotal > 0 && (
+            <PricingLine
+              label={t('bookings.new.optionsTotal', 'Options')}
+              value={`€${pricing.optionsTotal}`}
+              theme={theme}
+            />
+          )}
+          {pricing.deliveryFee > 0 && (
+            <PricingLine
+              label={t('bookings.new.delivery.optionLabel', 'Home delivery')}
+              value={`€${pricing.deliveryFee.toFixed(2)}`}
+              theme={theme}
+            />
+          )}
+          <PricingLine
+            label={t('bookings.new.deposit', 'Deposit')}
+            value={`€${pricing.deposit}`}
+            theme={theme}
+          />
+
+          {/* Total */}
+          <View
+            style={{
+              marginTop: 12,
+              paddingTop: 12,
+              borderTopWidth: 1,
+              borderTopColor: theme.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Text
+              variant="titleMedium"
+              style={{
+                fontFamily: fontFamilies.semiBold,
+                fontSize: 15,
+              }}
+            >
+              {t('bookings.new.total', 'Total')}
+            </Text>
+            <Text
+              variant="headlineMedium"
+              color={theme.accent}
+              style={{ fontFamily: fontFamilies.bold, fontSize: 22 }}
+            >
+              €{pricing.total}
+            </Text>
+          </View>
+        </View>
 
         {/* Action buttons */}
-        <View className="gap-3">
-          <Button
-            variant="primary"
-            size="lg"
-            fullWidth
+        <View style={{ gap: 10, marginTop: 4 }}>
+          <Pressable
             onPress={handleConfirm}
+            style={({ pressed }) => ({
+              height: 54,
+              borderRadius: 9999,
+              backgroundColor: theme.accent,
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: theme.accent,
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.25,
+              shadowRadius: 12,
+              elevation: 6,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            })}
           >
-            {t('bookings.new.confirm', 'Confirm Booking')}
-          </Button>
-
-          <Button
-            variant="secondary"
-            size="lg"
-            fullWidth
+            <Text
+              variant="bodyLarge"
+              color="#FFFFFF"
+              style={{ fontFamily: fontFamilies.semiBold, fontSize: 15 }}
+            >
+              {t('bookings.new.confirm', 'Confirm Booking')}
+            </Text>
+          </Pressable>
+          <Pressable
             onPress={handleSaveDraft}
+            style={({ pressed }) => ({
+              height: 52,
+              borderRadius: 9999,
+              backgroundColor: theme.surface,
+              borderWidth: 1.5,
+              borderColor: theme.accent,
+              alignItems: 'center',
+              justifyContent: 'center',
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            })}
           >
-            {t('bookings.new.saveDraft', 'Save as Draft')}
-          </Button>
+            <Text
+              variant="bodyLarge"
+              color={theme.accent}
+              style={{ fontFamily: fontFamilies.semiBold, fontSize: 15 }}
+            >
+              {t('bookings.new.saveDraft', 'Save as Draft')}
+            </Text>
+          </Pressable>
         </View>
       </Animated.View>
     );
@@ -1023,7 +1712,7 @@ export default function NewBookingScreen() {
       <View style={{ flex: 1 }}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingBottom: showNextBtn ? 90 : 32 }}
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingBottom: showNextBtn ? 180 : 120 }}
           keyboardShouldPersistTaps="handled"
         >
           {/* Header */}
@@ -1072,7 +1761,394 @@ export default function NewBookingScreen() {
             {t('bookings.new.next', 'Next')}
           </StickyButton>
         )}
+
+        {/* Conflict modal */}
+        <Modal
+          visible={conflictModal.visible}
+          transparent
+          animationType="fade"
+          onRequestClose={() =>
+            setConflictModal({ visible: false, conflicts: [] })
+          }
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: 'rgba(0,0,0,0.55)',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: theme.background,
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                padding: 20,
+                maxHeight: '80%',
+              }}
+            >
+              <View className="flex-row items-center mb-2" style={{ gap: 10 }}>
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    backgroundColor: theme.dangerSoft,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <AlertTriangle size={20} color={theme.danger} />
+                </View>
+                <Text variant="headlineSmall" className="flex-1">
+                  {t('bookings.conflict.modalTitle', 'Booking conflict')}
+                </Text>
+              </View>
+              <Text
+                variant="bodySmall"
+                color={theme.textSecondary}
+                className="mb-3"
+              >
+                {t(
+                  'bookings.conflict.modalSubtitle',
+                  'This vehicle is already booked over the following periods:',
+                )}
+              </Text>
+
+              <ScrollView
+                style={{ maxHeight: 260 }}
+                showsVerticalScrollIndicator={false}
+              >
+                {conflictModal.conflicts.map((c) => (
+                  <View
+                    key={c.id}
+                    style={{
+                      backgroundColor: theme.dangerSoft,
+                      borderRadius: 12,
+                      padding: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <View className="flex-row items-center justify-between">
+                      <Text variant="titleSmall" color={theme.danger}>
+                        #{c.id}
+                      </Text>
+                      <Text variant="caption" color={theme.textSecondary}>
+                        {c.status}
+                      </Text>
+                    </View>
+                    <Text variant="bodySmall" color={theme.textSecondary}>
+                      {c.clientName}
+                    </Text>
+                    <Text variant="caption" color={theme.textTertiary}>
+                      {c.startDate} → {c.endDate}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <View style={{ gap: 8, marginTop: 12 }}>
+                <Button
+                  variant="danger"
+                  fullWidth
+                  onPress={handleConflictCreateAnyway}
+                >
+                  {t(
+                    'bookings.conflict.createAnyway',
+                    'Create anyway (conflict)',
+                  )}
+                </Button>
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  onPress={handleConflictModifyDates}
+                >
+                  {t('bookings.conflict.modifyDates', 'Modify dates')}
+                </Button>
+                <Pressable
+                  onPress={handleConflictAbandon}
+                  style={{ paddingVertical: 10, alignItems: 'center' }}
+                >
+                  <Text variant="titleSmall" color={theme.textSecondary}>
+                    {t('bookings.conflict.abandon', 'Cancel')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
+  );
+}
+
+// ── VehicleHeroCard (Step 1) ─────────────────────────────────────────────────
+
+interface VehicleHeroCardProps {
+  vehicle: Vehicle;
+  index: number;
+  selected: boolean;
+  theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useTranslation>['t'];
+  onPress: () => void;
+}
+
+function VehicleHeroCard({
+  vehicle,
+  index,
+  selected,
+  theme,
+  t,
+  onPress,
+}: VehicleHeroCardProps) {
+  const img = getVehicleImage(vehicle.id);
+  return (
+    <Animated.View entering={FadeInDown.duration(320).delay(index * 40)}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => ({
+          borderRadius: 22,
+          overflow: 'hidden',
+          height: 160,
+          backgroundColor: theme.surfaceTertiary,
+          borderWidth: selected ? 2 : 1,
+          borderColor: selected ? theme.accent : theme.borderLight,
+          transform: [{ scale: pressed ? 0.99 : 1 }],
+        })}
+      >
+        {img ? (
+          <Image
+            source={img}
+            style={{ width: '100%', height: '100%' }}
+            contentFit="cover"
+            transition={260}
+          />
+        ) : (
+          <View className="flex-1 items-center justify-center">
+            <Car size={54} color={theme.textTertiary} strokeWidth={1.3} />
+          </View>
+        )}
+
+        {/* Bottom gradient for legibility */}
+        <LinearGradient
+          colors={[
+            'rgba(0,0,0,0)',
+            selected ? 'rgba(124,58,237,0.55)' : 'rgba(0,0,0,0.7)',
+          ]}
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 120,
+          }}
+          pointerEvents="none"
+        />
+
+        {/* Top-right price pill */}
+        <View
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            backgroundColor: theme.accent,
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 9999,
+            shadowColor: theme.accent,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 4,
+          }}
+        >
+          <Text
+            variant="labelSmall"
+            color="#FFFFFF"
+            style={{ fontFamily: fontFamilies.bold, fontSize: 12 }}
+          >
+            €{vehicle.dailyRate}/{t('bookings.new.perDay', 'day')}
+          </Text>
+        </View>
+
+        {/* Selection checkmark */}
+        {selected && (
+          <View
+            style={{
+              position: 'absolute',
+              top: 12,
+              left: 12,
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: theme.accent,
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: theme.accent,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.35,
+              shadowRadius: 8,
+            }}
+          >
+            <CheckCircle size={16} color="#FFFFFF" strokeWidth={2.2} />
+          </View>
+        )}
+
+        {/* Bottom info strip */}
+        <View
+          style={{
+            position: 'absolute',
+            left: 14,
+            right: 14,
+            bottom: 12,
+          }}
+        >
+          <Text
+            variant="headlineMedium"
+            color="#FFFFFF"
+            style={{
+              fontFamily: fontFamilies.bold,
+              fontSize: 18,
+              lineHeight: 22,
+            }}
+            numberOfLines={1}
+          >
+            {vehicle.name}
+          </Text>
+          <Text
+            variant="bodySmall"
+            color="rgba(255,255,255,0.85)"
+            style={{ fontSize: 11, marginTop: 2 }}
+            numberOfLines={1}
+          >
+            {vehicle.category} · {vehicle.licensePlate}
+          </Text>
+          <View
+            className="flex-row flex-wrap"
+            style={{ gap: 6, marginTop: 8 }}
+          >
+            <MiniPill label={String(vehicle.year)} />
+            <MiniPill label={vehicle.transmission} />
+            <MiniPill label={vehicle.fuelType} />
+          </View>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function MiniPill({ label }: { label: string }) {
+  return (
+    <View
+      style={{
+        paddingHorizontal: 9,
+        paddingVertical: 3,
+        borderRadius: 9999,
+        backgroundColor: 'rgba(255,255,255,0.18)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.25)',
+      }}
+    >
+      <Text
+        variant="labelSmall"
+        color="#FFFFFF"
+        style={{
+          fontFamily: fontFamilies.semiBold,
+          fontSize: 10,
+          letterSpacing: 0.2,
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// ── Summary helpers (Step 5) ─────────────────────────────────────────────────
+
+function SummaryRow({
+  label,
+  primary,
+  secondary,
+  theme,
+}: {
+  label: string;
+  primary: string;
+  secondary?: string;
+  theme: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <View
+      style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}
+    >
+      <Text
+        variant="bodySmall"
+        color={theme.textTertiary}
+        style={{ fontSize: 12 }}
+      >
+        {label}
+      </Text>
+      <View style={{ flex: 1, alignItems: 'flex-end' }}>
+        <Text
+          variant="bodyMedium"
+          style={{
+            fontFamily: fontFamilies.semiBold,
+            fontSize: 13,
+            color: theme.textPrimary,
+          }}
+          numberOfLines={1}
+        >
+          {primary}
+        </Text>
+        {secondary && (
+          <Text
+            variant="caption"
+            color={theme.textTertiary}
+            style={{ fontSize: 11, marginTop: 1 }}
+            numberOfLines={1}
+          >
+            {secondary}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function PricingLine({
+  label,
+  value,
+  theme,
+}: {
+  label: string;
+  value: string;
+  theme: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 6,
+      }}
+    >
+      <Text
+        variant="bodySmall"
+        color={theme.textSecondary}
+        style={{ fontSize: 12 }}
+      >
+        {label}
+      </Text>
+      <Text
+        variant="bodyMedium"
+        style={{
+          fontFamily: fontFamilies.semiBold,
+          fontSize: 13,
+          color: theme.textPrimary,
+        }}
+      >
+        {value}
+      </Text>
+    </View>
   );
 }

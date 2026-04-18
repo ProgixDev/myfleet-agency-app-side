@@ -5,11 +5,23 @@ export type BookingStatus =
   | 'completed'
   | 'cancelled';
 
+export interface DeliveryDetails {
+  address: string;
+  lat: number;
+  lng: number;
+  distanceKm: number;
+  /** One-time fee in the agency's configured currency. */
+  fee: number;
+}
+
 export interface BookingOption {
   id: string;
   label: string;
+  /** Per-day rate. Set to 0 for one-time options like delivery (see deliveryDetails.fee). */
   price: number;
   enabled: boolean;
+  /** Only set when id === 'delivery' and the agent resolved an address. */
+  deliveryDetails?: DeliveryDetails;
 }
 
 export interface PricingBreakdown {
@@ -18,6 +30,8 @@ export interface PricingBreakdown {
   subtotal: number;
   options: BookingOption[];
   optionsTotal: number;
+  /** One-time delivery fee (0 when no delivery option is enabled). */
+  deliveryFee: number;
   deposit: number;
   total: number;
 }
@@ -77,6 +91,24 @@ export interface Booking {
     postInspectionId?: string;
     contractId?: string;
     returnContractId?: string;
+  };
+
+  // Mileage (recorded at pickup / return)
+  startMileage?: number;
+  returnMileage?: number;
+  /** Total km included in the rental (absolute, not per-day). */
+  includedKm?: number;
+  /** Cost per km above includedKm, in CHF. */
+  extraKmRate?: number;
+  kmDriven?: number;
+  kmOverage?: number;
+  overageCost?: number;
+
+  /** Detected double-booking. Populated by the store; undefined when clean. */
+  conflict?: {
+    /** Other bookings this one overlaps with (on the same vehicle). */
+    withBookingIds: string[];
+    detectedAt: string;
   };
 }
 

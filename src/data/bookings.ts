@@ -10,6 +10,7 @@ export const mockBookings: Booking[] = [
       { id: 'ins', label: 'Insurance Plus', price: 15, enabled: true },
       { id: 'gps', label: 'GPS', price: 8, enabled: false },
     ], notes: 'Client régulier', createdAt: '2026-03-28',
+    startMileage: 12500, includedKm: 1400, extraKmRate: 0.3,
   },
   {
     id: 'bk2', vehicleId: 'v7', vehicleName: 'GLC', clientId: 'c5', clientName: 'Karim Haddad',
@@ -84,6 +85,8 @@ export const mockBookings: Booking[] = [
     startDate: '2026-03-10', endDate: '2026-03-15', status: 'completed', dailyRate: 130, totalAmount: 650,
     deposit: 500, pickupLocation: 'Agence Nice Aéroport', returnLocation: 'Agence Nice Aéroport',
     pickupTime: '09:00', returnTime: '17:00', options: [], notes: '', createdAt: '2026-03-05',
+    startMileage: 45230, returnMileage: 45892, includedKm: 500, extraKmRate: 0.3,
+    kmDriven: 662, kmOverage: 162, overageCost: 48.6,
   },
   {
     id: 'bk12', vehicleId: 'v4', vehicleName: 'Classe A', clientId: 'c4', clientName: 'Claire Martin',

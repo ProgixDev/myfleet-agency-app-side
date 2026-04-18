@@ -1,10 +1,20 @@
-import React, { useMemo } from 'react';
-import { View, Pressable } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  View,
+  Pressable,
+  Modal,
+  ScrollView,
+  Dimensions,
+  type DimensionValue,
+} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft,
   Camera,
@@ -17,73 +27,79 @@ import {
   ScanLine,
   PenTool,
   FileText,
+  GitCompareArrows,
+  X as XIcon,
+  type LucideIcon,
 } from 'lucide-react-native';
 
-import { ScreenWrapper } from '@/components/ui/ScreenWrapper';
 import { Text } from '@/components/ui/Text';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Divider } from '@/components/ui/Divider';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { shadows } from '@/theme/shadows';
 import { useTheme } from '@/hooks/useTheme';
 import { useToastStore } from '@/components/ui/Toast';
 import { formatDate, formatMileage } from '@/utils/format';
 import { useInspectionStore } from '@/stores/useInspectionStore';
 import { getVehicleImage } from '@/data/vehicleImages';
-import type { Inspection, CapturedPhoto, DamageSeverity } from '@/types/inspection';
+import { fontFamilies } from '@/theme/typography';
+import type {
+  Inspection,
+  CapturedPhoto,
+  DamageSeverity,
+} from '@/types/inspection';
 import { PHOTO_ANGLES } from '@/types/inspection';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const ACCENT = '#7C3AED';
-const ACCENT_END = '#A855F7';
-const SUCCESS = '#10B981';
-const DANGER = '#EF4444';
-const WARNING = '#F59E0B';
-const INFO = '#3B82F6';
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const HERO_HEIGHT = Math.round(SCREEN_WIDTH * 0.6);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-type TypeBadgeVariant = 'info' | 'warning' | 'accent';
+type TypeTone = { fg: string; bg: string };
 
-function getTypeBadge(type: Inspection['type']): { label: string; variant: TypeBadgeVariant } {
+function typeTone(
+  type: Inspection['type'],
+  theme: ReturnType<typeof useTheme>,
+): TypeTone {
   switch (type) {
     case 'pre-rental':
-      return { label: 'Pre-rental', variant: 'info' };
+      return { fg: theme.info, bg: theme.infoSoft };
     case 'post-rental':
-      return { label: 'Post-rental', variant: 'warning' };
+      return { fg: theme.warning, bg: theme.warningSoft };
     case 'routine':
-      return { label: 'Routine', variant: 'accent' };
+      return { fg: theme.accent, bg: theme.accentSoft };
   }
 }
 
-function severityVariant(severity: DamageSeverity): 'info' | 'warning' | 'danger' {
-  const map: Record<DamageSeverity, 'info' | 'warning' | 'danger'> = {
-    minor: 'info',
-    moderate: 'warning',
-    severe: 'danger',
-  };
-  return map[severity];
+function typeLabel(
+  type: Inspection['type'],
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  switch (type) {
+    case 'pre-rental':
+      return t('inspections.preRental', 'Pre-rental');
+    case 'post-rental':
+      return t('inspections.postRental', 'Post-rental');
+    case 'routine':
+      return t('inspections.routine', 'Routine');
+  }
 }
 
-function severityColor(severity: DamageSeverity): string {
-  const map: Record<DamageSeverity, string> = {
-    minor: INFO,
-    moderate: WARNING,
-    severe: DANGER,
-  };
-  return map[severity];
+function severityTone(
+  severity: DamageSeverity,
+  theme: ReturnType<typeof useTheme>,
+): { fg: string; bg: string } {
+  switch (severity) {
+    case 'minor':
+      return { fg: theme.info, bg: theme.infoSoft };
+    case 'moderate':
+      return { fg: theme.warning, bg: theme.warningSoft };
+    case 'severe':
+      return { fg: theme.danger, bg: theme.dangerSoft };
+  }
 }
 
 function severityOrder(severity: DamageSeverity): number {
-  const order: Record<DamageSeverity, number> = {
-    severe: 0,
-    moderate: 1,
-    minor: 2,
-  };
-  return order[severity];
+  return { severe: 0, moderate: 1, minor: 2 }[severity];
 }
 
 function capitalize(value: string): string {
@@ -98,12 +114,9 @@ interface DamageEntry {
 
 function collectDamages(inspection: Inspection): DamageEntry[] {
   const damages: DamageEntry[] = [];
-
   for (const photo of inspection.photos) {
     const angleInfo = PHOTO_ANGLES.find((a) => a.key === photo.angle);
     const angleLabel = angleInfo?.label ?? photo.angle;
-
-    // Manual annotations
     for (const annotation of photo.annotations) {
       damages.push({
         angleLabel,
@@ -111,8 +124,6 @@ function collectDamages(inspection: Inspection): DamageEntry[] {
         description: annotation.description,
       });
     }
-
-    // AI detections (not covered by manual annotations)
     if (photo.aiResult && photo.aiResult.damagesFound > 0) {
       const aiOnly = photo.aiResult.damagesFound - photo.annotations.length;
       for (let i = 0; i < Math.max(0, aiOnly); i++) {
@@ -124,29 +135,119 @@ function collectDamages(inspection: Inspection): DamageEntry[] {
       }
     }
   }
-
-  // Sort by severity: severe first
   damages.sort((a, b) => severityOrder(a.severity) - severityOrder(b.severity));
-
   return damages;
 }
 
+// ── Section label ───────────────────────────────────────────────────────────
+
+function SectionLabel({
+  theme,
+  children,
+}: {
+  theme: ReturnType<typeof useTheme>;
+  children: React.ReactNode;
+}) {
+  return (
+    <Text
+      variant="bodySmall"
+      color={theme.textTertiary}
+      style={{
+        fontFamily: fontFamilies.medium,
+        fontSize: 11,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: 8,
+        marginLeft: 4,
+      }}
+    >
+      {children}
+    </Text>
+  );
+}
+
+// ── Chip ────────────────────────────────────────────────────────────────────
+
+function Chip({
+  label,
+  fg,
+  bg,
+  icon: Icon,
+}: {
+  label: string;
+  fg: string;
+  bg: string;
+  icon?: LucideIcon;
+}) {
+  return (
+    <View
+      style={{
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 9999,
+        backgroundColor: bg,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        alignSelf: 'flex-start',
+      }}
+    >
+      {Icon && <Icon size={11} color={fg} strokeWidth={2.2} />}
+      <Text
+        variant="labelSmall"
+        color={fg}
+        style={{ fontFamily: fontFamilies.semiBold, fontSize: 11 }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 // ── Main Screen ─────────────────────────────────────────────────────────────
+
+interface FullscreenTarget {
+  photo: CapturedPhoto | null;
+  angleLabel: string;
+}
 
 export default function InspectionDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const showToast = useToastStore((s) => s.show);
 
-  const inspection = useInspectionStore((s) => s.inspections.find((i) => i.id === id));
+  const allInspections = useInspectionStore((s) => s.inspections);
+  const inspection = useMemo(
+    () => allInspections.find((i) => i.id === id),
+    [allInspections, id],
+  );
 
-  // ── Not found ───────────────────────────────────────────────────────────
+  const pair = useMemo(() => {
+    if (!inspection?.bookingId) return null;
+    const related = allInspections.filter(
+      (i) => i.bookingId === inspection.bookingId && i.id !== inspection.id,
+    );
+    if (inspection.type === 'pre-rental') {
+      const post = related.find((i) => i.type === 'post-rental');
+      return post ? { pre: inspection, post } : null;
+    }
+    if (inspection.type === 'post-rental') {
+      const pre = related.find((i) => i.type === 'pre-rental');
+      return pre ? { pre, post: inspection } : null;
+    }
+    return null;
+  }, [inspection, allInspections]);
+
+  const [compareMode, setCompareMode] = useState(false);
+  const [fullscreen, setFullscreen] = useState<FullscreenTarget | null>(null);
+
   if (!inspection) {
     return (
-      <ScreenWrapper scroll>
-        <View className="flex-1 items-center justify-center py-20">
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+        <View className="flex-1 items-center justify-center px-4 py-20">
           <EmptyState
             icon={ScanLine}
             title={t('inspections.detail.notFound', 'Inspection not found')}
@@ -158,61 +259,527 @@ export default function InspectionDetailScreen() {
             onAction={() => router.back()}
           />
         </View>
-      </ScreenWrapper>
+      </SafeAreaView>
     );
   }
 
-  const typeBadge = getTypeBadge(inspection.type);
   const totalDamages = inspection.totalDamagesAI + inspection.totalDamagesManual;
   const damages = useMemo(() => collectDamages(inspection), [inspection]);
   const severityCounts = useMemo(() => {
-    const counts: Record<DamageSeverity, number> = { minor: 0, moderate: 0, severe: 0 };
-    for (const d of damages) {
-      counts[d.severity]++;
-    }
+    const counts: Record<DamageSeverity, number> = {
+      minor: 0,
+      moderate: 0,
+      severe: 0,
+    };
+    for (const d of damages) counts[d.severity]++;
     return counts;
   }, [damages]);
 
-  // Map captured photos by angle for quick lookup
   const photoByAngle = useMemo(() => {
     const map = new Map<string, CapturedPhoto>();
-    for (const p of inspection.photos) {
-      map.set(p.angle, p);
-    }
+    for (const p of inspection.photos) map.set(p.angle, p);
     return map;
   }, [inspection.photos]);
 
   const vehicleImageUri = getVehicleImage(inspection.vehicleId);
+  const heroTotalHeight = HERO_HEIGHT + insets.top;
 
-  return (
-    <ScreenWrapper scroll padded>
-      {/* ================================================================
-          HEADER
-          ================================================================ */}
-      <Animated.View
-        entering={FadeInDown.duration(400)}
-        className="flex-row items-center justify-between pt-4 pb-4"
+  // ── Photo tile renderer ────────────────────────────────────────────────
+
+  const renderPhotoTile = (
+    angleLabel: string,
+    photo: CapturedPhoto | undefined,
+    width: DimensionValue,
+    aspectRatio: number,
+  ) => {
+    const hasDamages = photo?.aiResult && photo.aiResult.damagesFound > 0;
+    const annotationCount = photo?.annotations.length ?? 0;
+    return (
+      <Pressable
+        onPress={() => setFullscreen({ photo: photo ?? null, angleLabel })}
+        style={{
+          width,
+          aspectRatio,
+          borderRadius: 14,
+          overflow: 'hidden',
+          backgroundColor: theme.surfaceTertiary,
+        }}
       >
-        <Pressable
-          onPress={() => router.back()}
+        <View className="flex-1 items-center justify-center">
+          <Camera
+            size={26}
+            color={photo ? theme.textTertiary : theme.border}
+            strokeWidth={photo ? 1.5 : 1}
+          />
+        </View>
+        <View
           style={{
+            position: 'absolute',
+            top: 6,
+            left: 6,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            borderRadius: 9999,
+            paddingHorizontal: 7,
+            paddingVertical: 2,
+          }}
+        >
+          <Text
+            variant="labelSmall"
+            color="#FFFFFF"
+            style={{ fontSize: 9, fontFamily: fontFamilies.semiBold }}
+            numberOfLines={1}
+          >
+            {angleLabel}
+          </Text>
+        </View>
+        {photo && (
+          <View style={{ position: 'absolute', bottom: 6, right: 6 }}>
+            {hasDamages ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: theme.dangerSoft,
+                  borderRadius: 9999,
+                  paddingHorizontal: 7,
+                  paddingVertical: 2,
+                  gap: 3,
+                }}
+              >
+                <AlertTriangle size={10} color={theme.danger} />
+                <Text
+                  variant="labelSmall"
+                  color={theme.danger}
+                  style={{ fontSize: 9, fontFamily: fontFamilies.semiBold }}
+                >
+                  {photo.aiResult!.damagesFound}
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: theme.successSoft,
+                  borderRadius: 9999,
+                  paddingHorizontal: 7,
+                  paddingVertical: 2,
+                  gap: 3,
+                }}
+              >
+                <CheckCircle size={10} color={theme.success} />
+                <Text
+                  variant="labelSmall"
+                  color={theme.success}
+                  style={{ fontSize: 9, fontFamily: fontFamilies.semiBold }}
+                >
+                  OK
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+        {annotationCount > 0 && (
+          <View
+            style={{
+              position: 'absolute',
+              bottom: 6,
+              left: 6,
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              borderRadius: 9999,
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              gap: 3,
+            }}
+          >
+            <PenTool size={9} color="#FFFFFF" />
+            <Text
+              variant="labelSmall"
+              color="#FFFFFF"
+              style={{ fontSize: 9, fontFamily: fontFamilies.semiBold }}
+            >
+              {annotationCount}
+            </Text>
+          </View>
+        )}
+      </Pressable>
+    );
+  };
+
+  // ── Inspection section renderer (for paired stacked view) ─────────────
+
+  const renderInspectionSection = (insp: Inspection) => {
+    const photoMap = new Map<string, CapturedPhoto>();
+    for (const p of insp.photos) photoMap.set(p.angle, p);
+    const dmg = collectDamages(insp);
+
+    return (
+      <View style={{ gap: 14 }}>
+        <Text
+          variant="bodySmall"
+          color={theme.textSecondary}
+          style={{ fontSize: 12 }}
+        >
+          {formatDate(insp.date, 'long')} · {insp.inspectorName}
+        </Text>
+
+        <MileageFuelCard inspection={insp} theme={theme} t={t} />
+
+        <View>
+          <View className="flex-row items-center justify-between" style={{ marginBottom: 8 }}>
+            <Text
+              variant="titleMedium"
+              style={{ fontFamily: fontFamilies.semiBold, fontSize: 14 }}
+            >
+              {t('inspections.detail.photosSection', 'Photos')}
+            </Text>
+            <Chip
+              label={`${insp.photos.length}/8`}
+              fg={theme.accent}
+              bg={theme.accentSoft}
+            />
+          </View>
+          <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+            {PHOTO_ANGLES.map((a) =>
+              renderPhotoTile(a.label, photoMap.get(a.key), '48.5%', 4 / 3),
+            )}
+          </View>
+        </View>
+
+        <View>
+          <Text
+            variant="titleMedium"
+            style={{
+              fontFamily: fontFamilies.semiBold,
+              fontSize: 14,
+              marginBottom: 8,
+            }}
+          >
+            {t('inspections.detail.damageSummary', 'Damage Summary')}
+          </Text>
+          {dmg.length === 0 ? (
+            <View
+              style={{
+                backgroundColor: theme.successSoft,
+                borderRadius: 14,
+                padding: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <CheckCircle size={16} color={theme.success} />
+              <Text
+                variant="bodySmall"
+                color={theme.success}
+                style={{ fontFamily: fontFamilies.semiBold, fontSize: 12 }}
+              >
+                {t('inspections.detail.noDamage', 'No damage detected')}
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: 6 }}>
+              {dmg.map((d, i) => (
+                <DamageRow
+                  key={`${insp.id}-${d.angleLabel}-${d.severity}-${i}`}
+                  damage={d}
+                  theme={theme}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+
+        {insp.notes.trim().length > 0 && (
+          <View
+            style={{
+              backgroundColor: theme.surface,
+              borderRadius: 14,
+              padding: 14,
+              flexDirection: 'row',
+              gap: 10,
+              borderWidth: 1,
+              borderColor: theme.borderLight,
+            }}
+          >
+            <FileText
+              size={14}
+              color={theme.textTertiary}
+              style={{ marginTop: 2 }}
+            />
+            <Text
+              variant="bodySmall"
+              color={theme.textSecondary}
+              style={{ flex: 1, fontSize: 12, lineHeight: 17 }}
+            >
+              {insp.notes}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // ── Compare grid renderer ──────────────────────────────────────────────
+
+  const renderCompareView = (pre: Inspection, post: Inspection) => {
+    const preMap = new Map<string, CapturedPhoto>();
+    for (const p of pre.photos) preMap.set(p.angle, p);
+    const postMap = new Map<string, CapturedPhoto>();
+    for (const p of post.photos) postMap.set(p.angle, p);
+
+    return (
+      <View style={{ gap: 12 }}>
+        <View className="flex-row items-center" style={{ gap: 8 }}>
+          <View style={{ width: 28 }} />
+          <View className="flex-1 items-center">
+            <Chip
+              label={t('inspections.detail.preRentalTitle', 'Before')}
+              fg={theme.info}
+              bg={theme.infoSoft}
+            />
+          </View>
+          <View className="flex-1 items-center">
+            <Chip
+              label={t('inspections.detail.postRentalTitle', 'After')}
+              fg={theme.warning}
+              bg={theme.warningSoft}
+            />
+          </View>
+        </View>
+
+        {PHOTO_ANGLES.map((a) => (
+          <View
+            key={a.key}
+            className="flex-row items-center"
+            style={{ gap: 8 }}
+          >
+            <View style={{ width: 28 }}>
+              <Text
+                variant="caption"
+                color={theme.textSecondary}
+                style={{
+                  fontSize: 10,
+                  textAlign: 'center',
+                  fontFamily: fontFamilies.medium,
+                }}
+                numberOfLines={2}
+              >
+                {a.label}
+              </Text>
+            </View>
+            <View className="flex-1">
+              {renderPhotoTile(a.label, preMap.get(a.key), '100%', 4 / 3)}
+            </View>
+            <View className="flex-1">
+              {renderPhotoTile(a.label, postMap.get(a.key), '100%', 4 / 3)}
+            </View>
+          </View>
+        ))}
+
+        <View className="flex-row" style={{ gap: 10, marginTop: 4 }}>
+          <View style={{ flex: 1 }}>
+            <StatDuoCard
+              title={formatMileage(pre.mileage)}
+              subtitle={`${t('inspections.detail.fuel', 'Fuel')}: ${pre.fuelLevel}%`}
+              tone="info"
+              theme={theme}
+              t={t}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <StatDuoCard
+              title={formatMileage(post.mileage)}
+              subtitle={`${t('inspections.detail.fuel', 'Fuel')}: ${post.fuelLevel}%`}
+              tone="warning"
+              theme={theme}
+              t={t}
+            />
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  // ── Fullscreen modal ────────────────────────────────────────────────────
+
+  const fullscreenModal = (
+    <Modal
+      visible={fullscreen !== null}
+      animationType="fade"
+      transparent
+      onRequestClose={() => setFullscreen(null)}
+    >
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.92)',
+          justifyContent: 'center',
+        }}
+      >
+        <View
+          className="flex-row items-center justify-between"
+          style={{
+            paddingHorizontal: 16,
+            paddingTop: insets.top + 6,
+            paddingBottom: 16,
+          }}
+        >
+          <Text
+            variant="titleMedium"
+            color="#FFFFFF"
+            style={{ fontFamily: fontFamilies.semiBold }}
+          >
+            {fullscreen?.angleLabel ?? ''}
+          </Text>
+          <Pressable
+            onPress={() => setFullscreen(null)}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: 'rgba(255,255,255,0.14)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <XIcon size={20} color="#FFFFFF" />
+          </Pressable>
+        </View>
+        <Pressable
+          className="flex-1 items-center justify-center"
+          onPress={() => setFullscreen(null)}
+        >
+          <View
+            style={{
+              width: '90%',
+              aspectRatio: 4 / 3,
+              borderRadius: 20,
+              backgroundColor: '#1f2937',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+            }}
+          >
+            <Camera size={64} color="#FFFFFF" strokeWidth={1.2} />
+            {fullscreen?.photo?.aiResult?.damagesFound ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: 'rgba(239,68,68,0.3)',
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 9999,
+                }}
+              >
+                <AlertTriangle size={14} color={theme.danger} />
+                <Text
+                  variant="bodySmall"
+                  color={theme.danger}
+                  style={{ fontFamily: fontFamilies.semiBold }}
+                >
+                  {fullscreen.photo.aiResult.damagesFound} détection(s)
+                </Text>
+              </View>
+            ) : fullscreen?.photo ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: 'rgba(16,185,129,0.3)',
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 9999,
+                }}
+              >
+                <CheckCircle size={14} color={theme.success} />
+                <Text
+                  variant="bodySmall"
+                  color={theme.success}
+                  style={{ fontFamily: fontFamilies.semiBold }}
+                >
+                  OK
+                </Text>
+              </View>
+            ) : (
+              <Text variant="bodySmall" color="#9CA3AF">
+                {t('inspections.detail.noNotes', 'No photo available')}
+              </Text>
+            )}
+          </View>
+          <Text variant="caption" color="#9CA3AF" className="mt-4">
+            {t('inspections.detail.closeFullscreen', 'Tap anywhere to close')}
+          </Text>
+        </Pressable>
+      </View>
+    </Modal>
+  );
+
+  // ── Hero component (shared by single + paired) ─────────────────────────
+
+  const HeroSection = (
+    <Animated.View entering={FadeIn.duration(400)}>
+      <View
+        style={{
+          width: SCREEN_WIDTH,
+          height: heroTotalHeight,
+          backgroundColor: theme.surfaceTertiary,
+        }}
+      >
+        {vehicleImageUri ? (
+          <Image
+            source={vehicleImageUri}
+            style={{ width: '100%', height: '100%' }}
+            contentFit="cover"
+            transition={300}
+          />
+        ) : (
+          <View className="flex-1 items-center justify-center">
+            <Camera size={60} color={theme.textTertiary} strokeWidth={1.3} />
+          </View>
+        )}
+
+        <LinearGradient
+          colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)']}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: insets.top + 80,
+          }}
+          pointerEvents="none"
+        />
+
+        <Pressable
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+          hitSlop={10}
+          style={{
+            position: 'absolute',
+            top: insets.top + 8,
+            left: 16,
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: theme.surfaceSecondary,
+            backgroundColor: 'rgba(255,255,255,0.92)',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <ChevronLeft size={20} color={theme.textPrimary} />
+          <ChevronLeft size={22} color="#111" strokeWidth={2.2} />
         </Pressable>
-
-        <Text variant="headlineLarge">
-          {t('inspections.detail.title', 'Inspection Report')}
-        </Text>
 
         <Pressable
           onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             showToast({
               variant: 'info',
               title: t('inspections.detail.comingSoon', 'Coming soon'),
@@ -222,595 +789,954 @@ export default function InspectionDetailScreen() {
               ),
             });
           }}
+          hitSlop={10}
           style={{
+            position: 'absolute',
+            top: insets.top + 8,
+            right: 16,
             width: 40,
             height: 40,
             borderRadius: 20,
-            borderWidth: 1.5,
-            borderColor: theme.border,
-            backgroundColor: theme.surface,
+            backgroundColor: 'rgba(255,255,255,0.92)',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Share2 size={18} color={theme.textSecondary} />
+          <Share2 size={18} color="#111" strokeWidth={2} />
         </Pressable>
-      </Animated.View>
 
-      {/* ================================================================
-          HERO SUMMARY CARD
-          ================================================================ */}
-      <Animated.View entering={FadeInDown.duration(400).delay(100)}>
         <View
           style={{
-            backgroundColor: theme.surface,
-            borderRadius: 20,
-            padding: 20,
-            ...shadows.md,
+            position: 'absolute',
+            bottom: 14,
+            alignSelf: 'center',
+            paddingHorizontal: 12,
+            paddingVertical: 5,
+            borderRadius: 9999,
+            backgroundColor: 'rgba(0,0,0,0.55)',
           }}
         >
-          {/* Vehicle photo */}
-          {vehicleImageUri && (
+          <Text
+            variant="labelSmall"
+            color="#FFFFFF"
+            style={{ fontFamily: fontFamilies.semiBold, fontSize: 11 }}
+          >
+            #{inspection.id.slice(0, 8)}
+          </Text>
+        </View>
+      </View>
+    </Animated.View>
+  );
+
+  // ── Paired layout ───────────────────────────────────────────────────────
+
+  if (pair) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <StatusBar style="light" />
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}
+        >
+          {HeroSection}
+
+          <Animated.View
+            entering={FadeInDown.duration(420).delay(80)}
+            style={{
+              marginTop: -28,
+              marginHorizontal: 16,
+              backgroundColor: theme.surface,
+              borderRadius: 24,
+              padding: 18,
+              borderWidth: 1,
+              borderColor: theme.borderLight,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.08,
+              shadowRadius: 16,
+              elevation: 6,
+            }}
+          >
+            <Text
+              variant="headlineMedium"
+              style={{
+                fontFamily: fontFamilies.bold,
+                fontSize: 22,
+                lineHeight: 26,
+              }}
+              numberOfLines={1}
+            >
+              {pair.pre.vehicleName}
+            </Text>
+            <Text
+              variant="bodySmall"
+              color={theme.textTertiary}
+              style={{ fontSize: 12, marginTop: 4 }}
+              numberOfLines={1}
+            >
+              {pair.pre.vehicleId}
+              {pair.pre.clientName ? ` · ${pair.pre.clientName}` : ''}
+            </Text>
+            <View className="flex-row flex-wrap" style={{ gap: 6, marginTop: 10 }}>
+              <Chip
+                label={t('inspections.preRental', 'Pre-rental')}
+                fg={theme.info}
+                bg={theme.infoSoft}
+              />
+              <Chip
+                label={t('inspections.postRental', 'Post-rental')}
+                fg={theme.warning}
+                bg={theme.warningSoft}
+              />
+              <Chip
+                label={t(
+                  'inspections.detail.pairedSubtitle',
+                  'Pre + Post-rental',
+                )}
+                fg={theme.accent}
+                bg={theme.accentSoft}
+              />
+            </View>
+          </Animated.View>
+
+          {/* Compare toggle capsule */}
+          <Animated.View
+            entering={FadeInDown.duration(400).delay(140)}
+            style={{ marginTop: 16, marginHorizontal: 16 }}
+          >
             <View
               style={{
-                width: '100%',
-                height: 160,
-                borderRadius: 16,
-                overflow: 'hidden',
-                marginBottom: 16,
+                flexDirection: 'row',
+                padding: 4,
+                borderRadius: 9999,
                 backgroundColor: theme.surfaceTertiary,
               }}
             >
-              <Image
-                source={vehicleImageUri}
-                style={{ width: '100%', height: '100%' }}
-                contentFit="cover"
-                transition={300}
+              <CompareModePill
+                active={!compareMode}
+                label={t('inspections.detail.stackedView', 'Stacked')}
+                theme={theme}
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setCompareMode(false);
+                }}
+              />
+              <CompareModePill
+                active={compareMode}
+                label={t('inspections.detail.compare', 'Compare')}
+                icon={GitCompareArrows}
+                theme={theme}
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setCompareMode(true);
+                }}
               />
             </View>
+          </Animated.View>
+
+          {/* Body */}
+          {compareMode ? (
+            <Animated.View
+              entering={FadeInDown.duration(400).delay(200)}
+              style={{ marginTop: 18, marginHorizontal: 16 }}
+            >
+              {renderCompareView(pair.pre, pair.post)}
+            </Animated.View>
+          ) : (
+            <>
+              <Animated.View
+                entering={FadeInDown.duration(400).delay(200)}
+                style={{ marginTop: 22, marginHorizontal: 16 }}
+              >
+                <View
+                  className="flex-row items-center"
+                  style={{ gap: 8, marginBottom: 10 }}
+                >
+                  <View
+                    style={{
+                      width: 4,
+                      height: 18,
+                      borderRadius: 2,
+                      backgroundColor: theme.info,
+                    }}
+                  />
+                  <Text
+                    variant="titleMedium"
+                    style={{
+                      fontFamily: fontFamilies.semiBold,
+                      fontSize: 15,
+                    }}
+                  >
+                    {t(
+                      'inspections.detail.preRentalTitle',
+                      'State before rental',
+                    )}
+                  </Text>
+                </View>
+                {renderInspectionSection(pair.pre)}
+              </Animated.View>
+
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: theme.border,
+                  marginVertical: 22,
+                  marginHorizontal: 16,
+                }}
+              />
+
+              <Animated.View
+                entering={FadeInDown.duration(400).delay(250)}
+                style={{ marginHorizontal: 16 }}
+              >
+                <View
+                  className="flex-row items-center"
+                  style={{ gap: 8, marginBottom: 10 }}
+                >
+                  <View
+                    style={{
+                      width: 4,
+                      height: 18,
+                      borderRadius: 2,
+                      backgroundColor: theme.warning,
+                    }}
+                  />
+                  <Text
+                    variant="titleMedium"
+                    style={{
+                      fontFamily: fontFamilies.semiBold,
+                      fontSize: 15,
+                    }}
+                  >
+                    {t(
+                      'inspections.detail.postRentalTitle',
+                      'State after rental',
+                    )}
+                  </Text>
+                </View>
+                {renderInspectionSection(pair.post)}
+              </Animated.View>
+            </>
           )}
 
-          {/* Vehicle name + ID */}
-          <Text variant="headlineMedium">{inspection.vehicleName}</Text>
-          <Text variant="caption" color={theme.textTertiary} className="mt-0.5">
-            {inspection.vehicleId}
-          </Text>
+          {/* Share */}
+          <Animated.View
+            entering={FadeInDown.duration(400).delay(380)}
+            style={{ marginTop: 28, marginHorizontal: 16 }}
+          >
+            <ShareReportButton theme={theme} t={t} onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              showToast({
+                variant: 'info',
+                title: t('inspections.detail.comingSoon', 'Coming soon'),
+                message: t(
+                  'inspections.detail.shareMessage',
+                  'Report sharing will be available soon.',
+                ),
+              });
+            }} />
+          </Animated.View>
+        </ScrollView>
+        {fullscreenModal}
+      </View>
+    );
+  }
 
-          {/* Type + Status badges */}
-          <View className="flex-row items-center mt-3" style={{ gap: 8 }}>
-            <Badge variant={typeBadge.variant} size="md">
-              {typeBadge.label}
-            </Badge>
-            <Badge
-              variant={inspection.status === 'draft' ? 'warning' : 'success'}
-              size="md"
-            >
-              {inspection.status === 'draft'
-                ? t('inspections.draft', 'Draft')
-                : t('inspections.completed', 'Completed')}
-            </Badge>
-          </View>
+  // ── Single layout ──────────────────────────────────────────────────────
 
-          {/* Date + Inspector + Client info row */}
-          <View className="flex-row items-center flex-wrap mt-3">
-            <Text variant="bodySmall" color={theme.textSecondary}>
-              {formatDate(inspection.date, 'long')}
-            </Text>
-            <Text variant="bodySmall" color={theme.textTertiary} className="mx-1.5">
-              {'\u00B7'}
-            </Text>
-            <Text variant="bodySmall" color={theme.textSecondary}>
-              {inspection.inspectorName}
-            </Text>
-            {inspection.clientName != null && (
-              <>
-                <Text variant="bodySmall" color={theme.textTertiary} className="mx-1.5">
-                  {'\u00B7'}
-                </Text>
-                <Text variant="bodySmall" color={theme.textSecondary}>
-                  {inspection.clientName}
-                </Text>
-              </>
-            )}
-          </View>
+  const tone = typeTone(inspection.type, theme);
+  const statusTone =
+    inspection.status === 'draft'
+      ? { fg: theme.warning, bg: theme.warningSoft }
+      : { fg: theme.success, bg: theme.successSoft };
 
-          <Divider className="my-4" />
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <StatusBar style="light" />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}
+      >
+        {HeroSection}
 
-          {/* 3-column stats row */}
-          <View className="flex-row">
-            {/* Photos */}
-            <View className="flex-1 items-center">
-              <View className="flex-row items-center" style={{ gap: 4 }}>
-                <Camera size={14} color={theme.textTertiary} />
-                <Text variant="caption" color={theme.textTertiary}>
-                  {t('inspections.detail.photos', 'Photos')}
-                </Text>
-              </View>
-              <Text variant="headlineSmall" className="mt-1">
-                {inspection.photos.length}/8
-              </Text>
-            </View>
-
-            {/* AI Damages */}
-            <View className="flex-1 items-center">
-              <View className="flex-row items-center" style={{ gap: 4 }}>
-                <ScanLine
-                  size={14}
-                  color={inspection.totalDamagesAI > 0 ? DANGER : SUCCESS}
-                />
-                <Text variant="caption" color={theme.textTertiary}>
-                  {t('inspections.detail.aiDamages', 'AI')}
-                </Text>
-              </View>
-              <Text
-                variant="headlineSmall"
-                color={inspection.totalDamagesAI > 0 ? DANGER : SUCCESS}
-                className="mt-1"
-              >
-                {inspection.totalDamagesAI}
-              </Text>
-            </View>
-
-            {/* Manual */}
-            <View className="flex-1 items-center">
-              <View className="flex-row items-center" style={{ gap: 4 }}>
-                <PenTool size={14} color={theme.textTertiary} />
-                <Text variant="caption" color={theme.textTertiary}>
-                  {t('inspections.detail.manual', 'Manual')}
-                </Text>
-              </View>
-              <Text variant="headlineSmall" className="mt-1">
-                {inspection.totalDamagesManual}
-              </Text>
-            </View>
-          </View>
-
-          {/* Total damage banner */}
-          <View
-            className="flex-row items-center mt-4"
+        {/* Floating info card */}
+        <Animated.View
+          entering={FadeInDown.duration(420).delay(80)}
+          style={{
+            marginTop: -28,
+            marginHorizontal: 16,
+            backgroundColor: theme.surface,
+            borderRadius: 24,
+            padding: 18,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.08,
+            shadowRadius: 16,
+            elevation: 6,
+          }}
+        >
+          <Text
+            variant="headlineMedium"
             style={{
-              backgroundColor: totalDamages === 0 ? '#10B98115' : '#EF444415',
-              borderRadius: 16,
-              padding: 14,
-              width: '100%',
+              fontFamily: fontFamilies.bold,
+              fontSize: 22,
+              lineHeight: 26,
+            }}
+            numberOfLines={1}
+          >
+            {inspection.vehicleName}
+          </Text>
+          <Text
+            variant="bodySmall"
+            color={theme.textTertiary}
+            style={{ fontSize: 12, marginTop: 4 }}
+            numberOfLines={1}
+          >
+            {formatDate(inspection.date, 'long')} · {inspection.inspectorName}
+            {inspection.clientName ? ` · ${inspection.clientName}` : ''}
+          </Text>
+          <View className="flex-row flex-wrap" style={{ gap: 6, marginTop: 10 }}>
+            <Chip
+              label={typeLabel(inspection.type, t)}
+              fg={tone.fg}
+              bg={tone.bg}
+            />
+            <Chip
+              label={
+                inspection.status === 'draft'
+                  ? t('inspections.draft', 'Draft')
+                  : t('inspections.completed', 'Completed')
+              }
+              fg={statusTone.fg}
+              bg={statusTone.bg}
+            />
+          </View>
+
+          {/* 3-up mini stats */}
+          <View className="flex-row" style={{ gap: 8, marginTop: 14 }}>
+            <MiniStat
+              icon={Camera}
+              value={`${inspection.photos.length}/8`}
+              label={t('inspections.detail.photos', 'Photos')}
+              tone={{ fg: theme.accent, bg: theme.accentSoft }}
+              theme={theme}
+            />
+            <MiniStat
+              icon={ScanLine}
+              value={String(inspection.totalDamagesAI)}
+              label={t('inspections.detail.aiDamages', 'AI')}
+              tone={
+                inspection.totalDamagesAI > 0
+                  ? { fg: theme.danger, bg: theme.dangerSoft }
+                  : { fg: theme.success, bg: theme.successSoft }
+              }
+              theme={theme}
+            />
+            <MiniStat
+              icon={PenTool}
+              value={String(inspection.totalDamagesManual)}
+              label={t('inspections.detail.manual', 'Manual')}
+              tone={{ fg: theme.info, bg: theme.infoSoft }}
+              theme={theme}
+            />
+          </View>
+
+          {/* Total banner */}
+          <View
+            className="flex-row items-center"
+            style={{
+              backgroundColor:
+                totalDamages === 0 ? theme.successSoft : theme.dangerSoft,
+              borderRadius: 14,
+              padding: 12,
+              marginTop: 14,
+              gap: 8,
             }}
           >
             {totalDamages === 0 ? (
               <>
-                <CheckCircle size={20} color={SUCCESS} />
-                <Text variant="titleMedium" color={SUCCESS} className="ml-2">
+                <CheckCircle size={18} color={theme.success} />
+                <Text
+                  variant="titleMedium"
+                  color={theme.success}
+                  style={{ fontFamily: fontFamilies.semiBold, fontSize: 13 }}
+                >
                   {t('inspections.detail.clean', 'Clean inspection')}
                 </Text>
               </>
             ) : (
               <>
-                <AlertTriangle size={20} color={DANGER} />
-                <Text variant="titleMedium" color={DANGER} className="ml-2">
-                  {totalDamages} {t('inspections.detail.damagesFound', 'damages found')}
+                <AlertTriangle size={18} color={theme.danger} />
+                <Text
+                  variant="titleMedium"
+                  color={theme.danger}
+                  style={{ fontFamily: fontFamilies.semiBold, fontSize: 13 }}
+                >
+                  {totalDamages}{' '}
+                  {t('inspections.detail.damagesFound', 'damages found')}
                 </Text>
               </>
             )}
           </View>
-        </View>
-      </Animated.View>
+        </Animated.View>
 
-      {/* ================================================================
-          MILEAGE & FUEL CARD
-          ================================================================ */}
-      <Animated.View entering={FadeInDown.duration(400).delay(200)} className="mt-4">
-        <View
-          style={{
-            backgroundColor: theme.surface,
-            borderRadius: 20,
-            padding: 20,
-            ...shadows.sm,
-          }}
+        {/* Mileage & fuel */}
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(140)}
+          style={{ marginTop: 16, marginHorizontal: 16 }}
         >
-          <View className="flex-row">
-            {/* Mileage */}
-            <View className="flex-1">
-              <View className="flex-row items-center" style={{ gap: 6 }}>
-                <View
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 8,
-                    backgroundColor: '#7C3AED15',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Gauge size={14} color={ACCENT} />
-                </View>
-                <Text variant="caption" color={theme.textTertiary}>
-                  {t('inspections.detail.mileage', 'Mileage')}
-                </Text>
-              </View>
-              <Text variant="headlineSmall" className="mt-2">
-                {formatMileage(inspection.mileage)}
-              </Text>
-            </View>
+          <SectionLabel theme={theme}>
+            {t('inspections.detail.mileageFuel', 'Vehicle State')}
+          </SectionLabel>
+          <MileageFuelCard inspection={inspection} theme={theme} t={t} />
+        </Animated.View>
 
-            {/* Fuel */}
-            <View className="flex-1">
-              <View className="flex-row items-center" style={{ gap: 6 }}>
-                <View
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 8,
-                    backgroundColor:
-                      inspection.fuelLevel <= 25
-                        ? '#EF444415'
-                        : inspection.fuelLevel <= 50
-                          ? '#F59E0B15'
-                          : '#10B98115',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Fuel
-                    size={14}
-                    color={
-                      inspection.fuelLevel <= 25
-                        ? DANGER
-                        : inspection.fuelLevel <= 50
-                          ? WARNING
-                          : SUCCESS
-                    }
-                  />
-                </View>
-                <Text variant="caption" color={theme.textTertiary}>
-                  {t('inspections.detail.fuel', 'Fuel Level')}
-                </Text>
-              </View>
-              <Text variant="headlineSmall" className="mt-2">
-                {inspection.fuelLevel}%
-              </Text>
-              <ProgressBar
-                progress={inspection.fuelLevel / 100}
-                color={
-                  inspection.fuelLevel <= 25
-                    ? DANGER
-                    : inspection.fuelLevel <= 50
-                      ? WARNING
-                      : SUCCESS
-                }
-                height={6}
-                className="mt-2"
+        {/* Photo grid */}
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(200)}
+          style={{ marginTop: 18, marginHorizontal: 16 }}
+        >
+          <View
+            className="flex-row items-center justify-between"
+            style={{ marginBottom: 8 }}
+          >
+            <SectionLabel theme={theme}>
+              {t('inspections.detail.photosSection', 'Photos')}
+            </SectionLabel>
+            <View style={{ marginBottom: 8, marginRight: 4 }}>
+              <Chip
+                label={`${inspection.photos.length}/8`}
+                fg={theme.accent}
+                bg={theme.accentSoft}
               />
             </View>
           </View>
-        </View>
-      </Animated.View>
-
-      {/* ================================================================
-          PHOTO GRID
-          ================================================================ */}
-      <Animated.View entering={FadeInDown.duration(400).delay(300)} className="mt-6">
-        {/* Section title + count badge */}
-        <View className="flex-row items-center justify-between mb-3">
-          <Text variant="headlineSmall">
-            {t('inspections.detail.photosSection', 'Photos')}
-          </Text>
-          <Badge variant="accent" size="sm">
-            {inspection.photos.length}/8
-          </Badge>
-        </View>
-
-        {/* 2-column grid */}
-        <View className="flex-row flex-wrap" style={{ gap: 10 }}>
-          {PHOTO_ANGLES.map((angle) => {
-            const photo = photoByAngle.get(angle.key);
-            const hasDamages = photo?.aiResult && photo.aiResult.damagesFound > 0;
-            const annotationCount = photo?.annotations.length ?? 0;
-
-            return (
-              <View
-                key={angle.key}
-                style={{
-                  width: '48.5%',
-                  aspectRatio: 4 / 3,
-                  borderRadius: 16,
-                  overflow: 'hidden',
-                  backgroundColor: theme.surface,
-                  ...shadows.sm,
-                }}
-              >
-                {/* Photo area */}
-                <View
-                  className="flex-1"
-                  style={{ backgroundColor: theme.surfaceTertiary }}
-                >
-                  {/* Center icon */}
-                  <View className="flex-1 items-center justify-center">
-                    <Camera
-                      size={28}
-                      color={photo ? theme.textTertiary : theme.border}
-                      strokeWidth={photo ? 1.5 : 1}
-                    />
-                  </View>
-
-                  {/* Top-left: angle label pill */}
-                  <View
-                    style={{
-                      position: 'absolute',
-                      top: 8,
-                      left: 8,
-                      backgroundColor: 'rgba(0,0,0,0.45)',
-                      borderRadius: 9999,
-                      paddingHorizontal: 8,
-                      paddingVertical: 3,
-                    }}
-                  >
-                    <Text
-                      variant="labelSmall"
-                      color="#FFFFFF"
-                      numberOfLines={1}
-                      style={{ fontSize: 9 }}
-                    >
-                      {angle.label}
-                    </Text>
-                  </View>
-
-                  {/* Bottom-right: AI result badge */}
-                  {photo && (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        bottom: 8,
-                        right: 8,
-                      }}
-                    >
-                      {hasDamages ? (
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            backgroundColor: '#EF444420',
-                            borderRadius: 9999,
-                            paddingHorizontal: 6,
-                            paddingVertical: 2,
-                            gap: 3,
-                          }}
-                        >
-                          <AlertTriangle size={10} color={DANGER} />
-                          <Text variant="labelSmall" color={DANGER} style={{ fontSize: 9 }}>
-                            {photo.aiResult!.damagesFound}
-                          </Text>
-                        </View>
-                      ) : (
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            backgroundColor: '#10B98120',
-                            borderRadius: 9999,
-                            paddingHorizontal: 6,
-                            paddingVertical: 2,
-                            gap: 3,
-                          }}
-                        >
-                          <CheckCircle size={10} color={SUCCESS} />
-                          <Text variant="labelSmall" color={SUCCESS} style={{ fontSize: 9 }}>
-                            OK
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-
-                  {/* Bottom-left: annotation indicator */}
-                  {annotationCount > 0 && (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        bottom: 8,
-                        left: 8,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        backgroundColor: 'rgba(0,0,0,0.45)',
-                        borderRadius: 9999,
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        gap: 3,
-                      }}
-                    >
-                      <PenTool size={9} color="#FFFFFF" />
-                      <Text variant="labelSmall" color="#FFFFFF" style={{ fontSize: 9 }}>
-                        {annotationCount}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      </Animated.View>
-
-      {/* ================================================================
-          DAMAGE SUMMARY
-          ================================================================ */}
-      <Animated.View entering={FadeInDown.duration(400).delay(400)} className="mt-6">
-        <Text variant="headlineSmall" className="mb-3">
-          {t('inspections.detail.damageSummary', 'Damage Summary')}
-        </Text>
-
-        {damages.length === 0 ? (
-          <View className="py-8">
-            <EmptyState
-              icon={CheckCircle}
-              title={t('inspections.detail.noDamage', 'No damage detected')}
-              subtitle="All angles passed AI inspection"
-            />
-          </View>
-        ) : (
-          <View>
-            {/* Severity breakdown badges */}
-            <View className="flex-row items-center mb-4" style={{ gap: 8 }}>
-              {severityCounts.severe > 0 && (
-                <Badge variant="danger" size="md">
-                  {severityCounts.severe} {t('inspections.detail.severe', 'Severe')}
-                </Badge>
-              )}
-              {severityCounts.moderate > 0 && (
-                <Badge variant="warning" size="md">
-                  {severityCounts.moderate} {t('inspections.detail.moderate', 'Moderate')}
-                </Badge>
-              )}
-              {severityCounts.minor > 0 && (
-                <Badge variant="info" size="md">
-                  {severityCounts.minor} {t('inspections.detail.minor', 'Minor')}
-                </Badge>
-              )}
-            </View>
-
-            {/* Damage list */}
-            {damages.map((damage, index) => (
-              <View
-                key={`${damage.angleLabel}-${damage.severity}-${index}`}
-                style={{
-                  backgroundColor: theme.surface,
-                  borderRadius: 16,
-                  padding: 14,
-                  marginBottom: 8,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  ...shadows.sm,
-                }}
-              >
-                {/* Severity dot */}
-                <View
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: severityColor(damage.severity),
-                    marginRight: 12,
-                  }}
-                />
-
-                {/* Content */}
-                <View className="flex-1 mr-2">
-                  <Text variant="titleSmall" numberOfLines={1}>
-                    {damage.angleLabel}
-                  </Text>
-                  <Text
-                    variant="bodySmall"
-                    color={theme.textSecondary}
-                    className="mt-0.5"
-                    numberOfLines={2}
-                  >
-                    {damage.description}
-                  </Text>
-                </View>
-
-                {/* Severity badge */}
-                <Badge variant={severityVariant(damage.severity)} size="sm">
-                  {capitalize(damage.severity)}
-                </Badge>
+          <View className="flex-row flex-wrap" style={{ gap: 10 }}>
+            {PHOTO_ANGLES.map((angle) => (
+              <View key={angle.key} style={{ width: '48.5%' }}>
+                {renderPhotoTile(
+                  angle.label,
+                  photoByAngle.get(angle.key),
+                  '100%',
+                  4 / 3,
+                )}
               </View>
             ))}
           </View>
-        )}
-      </Animated.View>
+        </Animated.View>
 
-      {/* ================================================================
-          NOTES
-          ================================================================ */}
-      <Animated.View entering={FadeInDown.duration(400).delay(500)} className="mt-6">
-        <Text variant="headlineSmall" className="mb-3">
-          {t('inspections.detail.notes', 'Notes')}
-        </Text>
-
-        <View
-          style={{
-            backgroundColor: theme.surface,
-            borderRadius: 16,
-            padding: 16,
-            ...shadows.sm,
-          }}
+        {/* Damage summary */}
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(260)}
+          style={{ marginTop: 22, marginHorizontal: 16 }}
         >
-          <View className="flex-row items-start" style={{ gap: 10 }}>
-            <View
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 10,
-                backgroundColor: theme.surfaceSecondary,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginTop: 1,
-              }}
-            >
-              <FileText size={16} color={theme.textTertiary} />
+          <SectionLabel theme={theme}>
+            {t('inspections.detail.damageSummary', 'Damage Summary')}
+          </SectionLabel>
+
+          {damages.length === 0 ? (
+            <View className="py-6">
+              <EmptyState
+                icon={CheckCircle}
+                title={t('inspections.detail.noDamage', 'No damage detected')}
+                subtitle={t(
+                  'inspections.detail.noDamageDesc',
+                  'All angles passed AI inspection',
+                )}
+              />
             </View>
-            <View className="flex-1">
-              {inspection.notes.trim().length > 0 ? (
-                <Text variant="bodyMedium" color={theme.textSecondary}>
-                  {inspection.notes}
-                </Text>
-              ) : (
-                <Text variant="bodyMedium" color={theme.textTertiary}>
-                  {t('inspections.detail.noNotes', 'No notes added')}
-                </Text>
+          ) : (
+            <View>
+              {(severityCounts.severe +
+                severityCounts.moderate +
+                severityCounts.minor >
+                0) && (
+                <View
+                  className="flex-row"
+                  style={{ gap: 6, marginBottom: 12, flexWrap: 'wrap' }}
+                >
+                  {severityCounts.severe > 0 && (
+                    <Chip
+                      label={`${severityCounts.severe} ${t('inspections.detail.severe', 'Severe')}`}
+                      fg={theme.danger}
+                      bg={theme.dangerSoft}
+                    />
+                  )}
+                  {severityCounts.moderate > 0 && (
+                    <Chip
+                      label={`${severityCounts.moderate} ${t('inspections.detail.moderate', 'Moderate')}`}
+                      fg={theme.warning}
+                      bg={theme.warningSoft}
+                    />
+                  )}
+                  {severityCounts.minor > 0 && (
+                    <Chip
+                      label={`${severityCounts.minor} ${t('inspections.detail.minor', 'Minor')}`}
+                      fg={theme.info}
+                      bg={theme.infoSoft}
+                    />
+                  )}
+                </View>
               )}
-            </View>
-          </View>
-        </View>
-      </Animated.View>
 
-      {/* ================================================================
-          ACTION BUTTONS
-          ================================================================ */}
-      <Animated.View entering={FadeInDown.duration(400).delay(600)} className="mt-8 mb-8">
-        <Pressable
-          onPress={() => {
-            showToast({
-              variant: 'info',
-              title: t('inspections.detail.comingSoon', 'Coming soon'),
-              message: t(
-                'inspections.detail.shareMessage',
-                'Report sharing will be available soon.',
-              ),
-            });
-          }}
-          style={{ borderRadius: 9999, overflow: 'hidden', ...shadows.accent }}
+              <View style={{ gap: 8 }}>
+                {damages.map((damage, index) => (
+                  <DamageRow
+                    key={`${damage.angleLabel}-${damage.severity}-${index}`}
+                    damage={damage}
+                    theme={theme}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+        </Animated.View>
+
+        {/* Notes */}
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(320)}
+          style={{ marginTop: 22, marginHorizontal: 16 }}
         >
-          <LinearGradient
-            colors={[ACCENT, ACCENT_END]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+          <SectionLabel theme={theme}>
+            {t('inspections.detail.notes', 'Notes')}
+          </SectionLabel>
+          <View
             style={{
-              borderRadius: 9999,
-              height: 52,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
+              backgroundColor: theme.surface,
+              borderRadius: 16,
+              padding: 14,
+              borderWidth: 1,
+              borderColor: theme.borderLight,
             }}
           >
-            <Share2 size={18} color="#FFFFFF" />
-            <Text variant="bodyLarge" color="#FFFFFF" className="font-semibold">
-              {t('inspections.detail.shareReport', 'Share Report')}
-            </Text>
-          </LinearGradient>
-        </Pressable>
+            {inspection.notes.trim().length > 0 ? (
+              <Text
+                variant="bodyMedium"
+                color={theme.textSecondary}
+                style={{ fontSize: 13, lineHeight: 19 }}
+              >
+                {inspection.notes}
+              </Text>
+            ) : (
+              <Text
+                variant="bodyMedium"
+                color={theme.textTertiary}
+                style={{ fontSize: 13 }}
+              >
+                {t('inspections.detail.noNotes', 'No notes added')}
+              </Text>
+            )}
+          </View>
+        </Animated.View>
 
-        {inspection.status === 'draft' && (
-          <Button
-            variant="secondary"
-            fullWidth
-            size="lg"
-            leftIcon={Play}
-            className="mt-3"
-            onPress={() => router.push('/(inspections)/new')}
+        {/* Actions */}
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(380)}
+          style={{ marginTop: 26, marginHorizontal: 16 }}
+        >
+          <ShareReportButton
+            theme={theme}
+            t={t}
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              showToast({
+                variant: 'info',
+                title: t('inspections.detail.comingSoon', 'Coming soon'),
+                message: t(
+                  'inspections.detail.shareMessage',
+                  'Report sharing will be available soon.',
+                ),
+              });
+            }}
+          />
+
+          {inspection.status === 'draft' && (
+            <View style={{ marginTop: 10 }}>
+              <Button
+                variant="secondary"
+                fullWidth
+                size="lg"
+                leftIcon={Play}
+                onPress={() => router.push('/(inspections)/new')}
+              >
+                {t('inspections.detail.resume', 'Resume Inspection')}
+              </Button>
+            </View>
+          )}
+        </Animated.View>
+      </ScrollView>
+      {fullscreenModal}
+    </View>
+  );
+}
+
+// ── Subcomponents ──────────────────────────────────────────────────────────
+
+function MiniStat({
+  icon: Icon,
+  value,
+  label,
+  tone,
+  theme,
+}: {
+  icon: LucideIcon;
+  value: string;
+  label: string;
+  tone: { fg: string; bg: string };
+  theme: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: theme.surfaceTertiary,
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 8,
+        alignItems: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 12,
+          backgroundColor: tone.bg,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 4,
+        }}
+      >
+        <Icon size={12} color={tone.fg} strokeWidth={2.2} />
+      </View>
+      <Text
+        variant="titleMedium"
+        color={tone.fg}
+        style={{ fontFamily: fontFamilies.bold, fontSize: 15 }}
+      >
+        {value}
+      </Text>
+      <Text
+        variant="caption"
+        color={theme.textTertiary}
+        style={{ fontSize: 10, marginTop: 1 }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function MileageFuelCard({
+  inspection,
+  theme,
+  t,
+}: {
+  inspection: Inspection;
+  theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useTranslation>['t'];
+}) {
+  const fuelColor =
+    inspection.fuelLevel <= 25
+      ? theme.danger
+      : inspection.fuelLevel <= 50
+        ? theme.warning
+        : theme.success;
+  const fuelBg =
+    inspection.fuelLevel <= 25
+      ? theme.dangerSoft
+      : inspection.fuelLevel <= 50
+        ? theme.warningSoft
+        : theme.successSoft;
+
+  return (
+    <View
+      style={{
+        backgroundColor: theme.surface,
+        borderRadius: 18,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: theme.borderLight,
+        flexDirection: 'row',
+        gap: 14,
+      }}
+    >
+      <View style={{ flex: 1 }}>
+        <View className="flex-row items-center" style={{ gap: 6 }}>
+          <View
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: 11,
+              backgroundColor: theme.accentSoft,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            {t('inspections.detail.resume', 'Resume Inspection')}
-          </Button>
-        )}
-      </Animated.View>
-    </ScreenWrapper>
+            <Gauge size={12} color={theme.accent} strokeWidth={2.2} />
+          </View>
+          <Text
+            variant="caption"
+            color={theme.textTertiary}
+            style={{ fontSize: 11 }}
+          >
+            {t('inspections.detail.mileage', 'Mileage')}
+          </Text>
+        </View>
+        <Text
+          variant="headlineSmall"
+          style={{
+            fontFamily: fontFamilies.bold,
+            fontSize: 18,
+            marginTop: 6,
+          }}
+        >
+          {formatMileage(inspection.mileage)}
+        </Text>
+      </View>
+      <View
+        style={{
+          width: 1,
+          backgroundColor: theme.border,
+        }}
+      />
+      <View style={{ flex: 1 }}>
+        <View className="flex-row items-center" style={{ gap: 6 }}>
+          <View
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: 11,
+              backgroundColor: fuelBg,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Fuel size={12} color={fuelColor} strokeWidth={2.2} />
+          </View>
+          <Text
+            variant="caption"
+            color={theme.textTertiary}
+            style={{ fontSize: 11 }}
+          >
+            {t('inspections.detail.fuel', 'Fuel Level')}
+          </Text>
+        </View>
+        <Text
+          variant="headlineSmall"
+          style={{
+            fontFamily: fontFamilies.bold,
+            fontSize: 18,
+            marginTop: 6,
+          }}
+        >
+          {inspection.fuelLevel}%
+        </Text>
+        <ProgressBar
+          progress={inspection.fuelLevel / 100}
+          color={fuelColor}
+          height={5}
+          className="mt-2"
+        />
+      </View>
+    </View>
+  );
+}
+
+function DamageRow({
+  damage,
+  theme,
+}: {
+  damage: DamageEntry;
+  theme: ReturnType<typeof useTheme>;
+}) {
+  const tone = severityTone(damage.severity, theme);
+  return (
+    <View
+      style={{
+        backgroundColor: theme.surface,
+        borderRadius: 14,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: theme.borderLight,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: tone.fg,
+          marginRight: 10,
+        }}
+      />
+      <View style={{ flex: 1, marginRight: 8 }}>
+        <Text
+          variant="titleSmall"
+          style={{ fontFamily: fontFamilies.semiBold, fontSize: 13 }}
+          numberOfLines={1}
+        >
+          {damage.angleLabel}
+        </Text>
+        <Text
+          variant="bodySmall"
+          color={theme.textSecondary}
+          style={{ fontSize: 12, marginTop: 2 }}
+          numberOfLines={2}
+        >
+          {damage.description}
+        </Text>
+      </View>
+      <Chip
+        label={capitalize(damage.severity)}
+        fg={tone.fg}
+        bg={tone.bg}
+      />
+    </View>
+  );
+}
+
+function CompareModePill({
+  active,
+  label,
+  icon: Icon,
+  theme,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  icon?: LucideIcon;
+  theme: ReturnType<typeof useTheme>;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 9,
+        borderRadius: 9999,
+        backgroundColor: active ? theme.surface : 'transparent',
+        gap: 6,
+        transform: [{ scale: pressed ? 0.98 : 1 }],
+      })}
+    >
+      {Icon && (
+        <Icon
+          size={14}
+          color={active ? theme.accent : theme.textTertiary}
+          strokeWidth={2}
+        />
+      )}
+      <Text
+        variant="labelSmall"
+        color={active ? theme.accent : theme.textTertiary}
+        style={{ fontFamily: fontFamilies.semiBold, fontSize: 12 }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function StatDuoCard({
+  title,
+  subtitle,
+  tone,
+  theme,
+  t,
+}: {
+  title: string;
+  subtitle: string;
+  tone: 'info' | 'warning';
+  theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useTranslation>['t'];
+}) {
+  return (
+    <View
+      style={{
+        backgroundColor: theme.surface,
+        borderRadius: 14,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: theme.borderLight,
+      }}
+    >
+      <Text
+        variant="caption"
+        color={theme.textTertiary}
+        style={{ fontSize: 11 }}
+      >
+        {t('inspections.detail.mileage', 'Mileage')}
+      </Text>
+      <Text
+        variant="titleMedium"
+        style={{
+          fontFamily: fontFamilies.bold,
+          fontSize: 14,
+          marginTop: 2,
+        }}
+      >
+        {title}
+      </Text>
+      <Text
+        variant="caption"
+        color={tone === 'info' ? theme.info : theme.warning}
+        style={{
+          fontSize: 11,
+          marginTop: 6,
+          fontFamily: fontFamilies.medium,
+        }}
+      >
+        {subtitle}
+      </Text>
+    </View>
+  );
+}
+
+function ShareReportButton({
+  theme,
+  t,
+  onPress,
+}: {
+  theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useTranslation>['t'];
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        borderRadius: 9999,
+        backgroundColor: theme.accent,
+        height: 52,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 12,
+        elevation: 6,
+        transform: [{ scale: pressed ? 0.98 : 1 }],
+      })}
+    >
+      <Share2 size={18} color="#FFFFFF" />
+      <Text
+        variant="bodyLarge"
+        color="#FFFFFF"
+        style={{ fontFamily: fontFamilies.semiBold, fontSize: 15 }}
+      >
+        {t('inspections.detail.shareReport', 'Share Report')}
+      </Text>
+    </Pressable>
   );
 }

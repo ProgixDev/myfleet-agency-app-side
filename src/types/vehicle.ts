@@ -78,4 +78,8 @@ export interface Vehicle {
   damageRecords: DamageRecord[];
   media: VehicleMedia;
   quantity: number;
+  /** Default km included per rental — copied onto Booking at creation. */
+  includedKm?: number;
+  /** Default cost per km above includedKm, in CHF. */
+  extraKmRate?: number;
 }

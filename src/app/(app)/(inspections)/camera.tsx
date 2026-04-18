@@ -335,12 +335,17 @@ export default function CameraScreen() {
         style={{ backgroundColor: '#F8F8FC' }}
       >
         <View
-          className="items-center justify-center w-16 h-16 rounded-full mb-4"
-          style={{ backgroundColor: '#7C3AED15' }}
+          className="items-center justify-center mb-5"
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 20,
+            backgroundColor: '#7C3AED15',
+          }}
         >
-          <Camera size={28} color={ACCENT} />
+          <ScanLine size={28} color={ACCENT} strokeWidth={1.8} />
         </View>
-        <Text variant="headlineSmall" align="center">
+        <Text variant="headlineSmall" align="center" style={{ fontSize: 18 }}>
           No Inspection in Progress
         </Text>
         <Text
@@ -348,9 +353,26 @@ export default function CameraScreen() {
           color="#6E6E82"
           align="center"
           className="mt-2"
+          style={{ fontSize: 13 }}
         >
           Start a new inspection to begin capturing photos.
         </Text>
+        <View style={{ marginTop: 24 }}>
+          <Pressable
+            onPress={() => router.replace('/(app)/(inspections)/new')}
+            style={({ pressed }) => ({
+              paddingHorizontal: 22,
+              paddingVertical: 12,
+              borderRadius: 9999,
+              backgroundColor: ACCENT,
+              transform: [{ scale: pressed ? 0.97 : 1 }],
+            })}
+          >
+            <Text variant="bodyMedium" color="#FFFFFF" style={{ fontSize: 14 }}>
+              New inspection
+            </Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -366,38 +388,34 @@ export default function CameraScreen() {
           entering={FadeInDown.duration(400)}
           className="items-center w-full"
         >
-          {/* Animated success circle */}
+          {/* Solid accent success circle */}
           <Animated.View
             style={[
               {
                 width: 88,
                 height: 88,
                 borderRadius: 44,
+                backgroundColor: ACCENT,
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: 24,
-                ...shadows.accent,
+                marginBottom: 20,
+                shadowColor: ACCENT,
+                shadowOffset: { width: 0, height: 10 },
+                shadowOpacity: 0.35,
+                shadowRadius: 18,
+                elevation: 8,
               },
               successScaleStyle,
             ]}
           >
-            <LinearGradient
-              colors={[ACCENT, ACCENT_END]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{
-                width: 88,
-                height: 88,
-                borderRadius: 44,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Check size={44} color="#FFFFFF" strokeWidth={2.5} />
-            </LinearGradient>
+            <Check size={40} color="#FFFFFF" strokeWidth={2.6} />
           </Animated.View>
 
-          <Text variant="headlineLarge" align="center">
+          <Text
+            variant="headlineLarge"
+            align="center"
+            style={{ fontSize: 22 }}
+          >
             All Photos Captured!
           </Text>
 
@@ -405,34 +423,49 @@ export default function CameraScreen() {
             variant="bodyMedium"
             color="#6E6E82"
             align="center"
-            className="mt-3"
+            className="mt-2"
+            style={{ fontSize: 13 }}
           >
             {capturedPhotos.length} of {TOTAL_ANGLES} angles documented
           </Text>
 
-          {/* Stats row */}
-          <View className="flex-row items-center justify-center mt-5" style={{ gap: 12 }}>
+          {/* Stats pills */}
+          <View className="flex-row items-center justify-center mt-5" style={{ gap: 8 }}>
             <View
-              className="flex-row items-center px-4 py-2"
+              className="flex-row items-center"
               style={{
                 backgroundColor: '#10B98115',
                 borderRadius: 9999,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                gap: 6,
               }}
             >
-              <CheckCircle size={14} color={SUCCESS} />
-              <Text variant="bodySmall" color={SUCCESS} className="ml-1.5">
+              <CheckCircle size={13} color={SUCCESS} />
+              <Text
+                variant="labelSmall"
+                color={SUCCESS}
+                style={{ fontSize: 12, fontWeight: '600' }}
+              >
                 {cleanCount} clean
               </Text>
             </View>
             <View
-              className="flex-row items-center px-4 py-2"
+              className="flex-row items-center"
               style={{
                 backgroundColor: '#EF444415',
                 borderRadius: 9999,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                gap: 6,
               }}
             >
-              <AlertTriangle size={14} color={DANGER} />
-              <Text variant="bodySmall" color={DANGER} className="ml-1.5">
+              <AlertTriangle size={13} color={DANGER} />
+              <Text
+                variant="labelSmall"
+                color={DANGER}
+                style={{ fontSize: 12, fontWeight: '600' }}
+              >
                 {issueCount} with issues
               </Text>
             </View>
@@ -486,25 +519,66 @@ export default function CameraScreen() {
               <CornerBracket position="bottom-left" />
               <CornerBracket position="bottom-right" />
 
+              {/* Accent soft glow behind icon */}
+              <View
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  width: 180,
+                  height: 180,
+                  marginLeft: -90,
+                  marginTop: -90,
+                  borderRadius: 90,
+                  backgroundColor: 'rgba(124,58,237,0.08)',
+                }}
+              />
+
               {/* Center content */}
               <View className="flex-1 items-center justify-center">
-                <Car size={72} color="rgba(255,255,255,0.2)" strokeWidth={0.8} />
+                {/* Angle icon in accent-soft tile */}
+                <View
+                  style={{
+                    width: 88,
+                    height: 88,
+                    borderRadius: 24,
+                    backgroundColor: 'rgba(124,58,237,0.15)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(124,58,237,0.35)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 18,
+                  }}
+                >
+                  <Car size={42} color={ACCENT} strokeWidth={1.4} />
+                </View>
                 <Text
-                  variant="headlineSmall"
+                  variant="headlineLarge"
                   color="#FFFFFF"
                   align="center"
-                  className="mt-4"
+                  style={{ fontSize: 24, fontWeight: '700' }}
                 >
                   {currentAngle?.label ?? ''}
                 </Text>
-                <Text
-                  variant="bodySmall"
-                  color="rgba(255,255,255,0.5)"
-                  align="center"
-                  className="mt-2"
+                <View
+                  style={{
+                    marginTop: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 5,
+                    borderRadius: 9999,
+                    backgroundColor: 'rgba(255,255,255,0.08)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.1)',
+                  }}
                 >
-                  Position the vehicle
-                </Text>
+                  <Text
+                    variant="labelSmall"
+                    color="rgba(255,255,255,0.75)"
+                    style={{ fontSize: 11, letterSpacing: 0.3 }}
+                  >
+                    Position the vehicle · Tap to capture
+                  </Text>
+                </View>
               </View>
             </View>
           </Animated.View>
@@ -769,52 +843,98 @@ export default function CameraScreen() {
 
       {/* ── Top Bar (absolute, safe area aware) ───────────────────────── */}
       <View
-        className="absolute left-0 right-0 z-10 flex-row items-center justify-between px-4"
+        className="absolute left-0 right-0 z-10 px-4"
         style={{ top: insets.top + 8 }}
       >
-        {/* Close button */}
-        <Pressable
-          onPress={handleClose}
-          className="w-10 h-10 rounded-full items-center justify-center"
-          style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
-        >
-          <X size={20} color="#FFFFFF" />
-        </Pressable>
+        <View className="flex-row items-center justify-between">
+          {/* Close button */}
+          <Pressable
+            onPress={handleClose}
+            className="w-10 h-10 rounded-full items-center justify-center"
+            style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+          >
+            <X size={20} color="#FFFFFF" />
+          </Pressable>
 
-        {/* Progress pill */}
-        <View
-          className="flex-row items-center px-4 py-2"
-          style={{
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            borderRadius: 9999,
-          }}
-        >
-          <Text variant="bodySmall" color="#FFFFFF">
-            {currentIndex + 1}/{TOTAL_ANGLES}
-          </Text>
-          <Text variant="bodySmall" color="rgba(255,255,255,0.5)" className="mx-1.5">
-            {'\u00B7'}
-          </Text>
-          <Text variant="bodySmall" color="#FFFFFF">
-            {currentAngle?.label ?? ''}
-          </Text>
+          {/* Progress pill */}
+          <View
+            className="flex-row items-center"
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.12)',
+              borderRadius: 9999,
+              paddingHorizontal: 14,
+              paddingVertical: 7,
+              gap: 6,
+            }}
+          >
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 9999,
+                backgroundColor: ACCENT,
+              }}
+            >
+              <Text
+                variant="labelSmall"
+                color="#FFFFFF"
+                style={{ fontSize: 11, fontWeight: '700' }}
+              >
+                {currentIndex + 1}/{TOTAL_ANGLES}
+              </Text>
+            </View>
+            <Text
+              variant="labelSmall"
+              color="#FFFFFF"
+              style={{ fontSize: 12, fontWeight: '600' }}
+              numberOfLines={1}
+            >
+              {currentAngle?.label ?? ''}
+            </Text>
+          </View>
+
+          {/* Flash toggle */}
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setFlashOn((prev) => !prev);
+            }}
+            className="w-10 h-10 rounded-full items-center justify-center"
+            style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+          >
+            {flashOn ? (
+              <Zap size={20} color="#FFFFFF" />
+            ) : (
+              <ZapOff size={20} color="rgba(255,255,255,0.6)" />
+            )}
+          </Pressable>
         </View>
 
-        {/* Flash toggle */}
-        <Pressable
-          onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setFlashOn((prev) => !prev);
-          }}
-          className="w-10 h-10 rounded-full items-center justify-center"
-          style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+        {/* Segmented progress — one cell per angle */}
+        <View
+          className="flex-row"
+          style={{ marginTop: 10, gap: 4 }}
         >
-          {flashOn ? (
-            <Zap size={20} color="#FFFFFF" />
-          ) : (
-            <ZapOff size={20} color="rgba(255,255,255,0.6)" />
-          )}
-        </Pressable>
+          {PHOTO_ANGLES.map((angle, idx) => {
+            const isDone = isAngleCaptured(angle.key);
+            const isCurrent = idx === currentIndex;
+            return (
+              <View
+                key={`seg-${angle.key}`}
+                style={{
+                  flex: 1,
+                  height: 3,
+                  borderRadius: 2,
+                  backgroundColor: isDone
+                    ? ACCENT
+                    : isCurrent
+                      ? 'rgba(124,58,237,0.55)'
+                      : 'rgba(255,255,255,0.12)',
+                }}
+              />
+            );
+          })}
+        </View>
       </View>
 
       {/* ── Bottom Area (absolute) ──────────────────────────────────────── */}
@@ -822,90 +942,148 @@ export default function CameraScreen() {
         className="absolute left-0 right-0 z-10"
         style={{ bottom: insets.bottom + 8 }}
       >
-        {/* Thumbnail Strip */}
-        <View className="mb-4 px-2">
+        {/* Thumbnail Strip with angle labels */}
+        <View className="mb-4">
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{
-              paddingHorizontal: 12,
-              gap: 8,
+              paddingHorizontal: 16,
+              gap: 10,
               alignItems: 'center',
             }}
           >
             {PHOTO_ANGLES.map((angle, idx) => {
               const captured = isAngleCaptured(angle.key);
               const isCurrent = idx === currentIndex;
+              const bg = captured
+                ? 'rgba(124,58,237,0.18)'
+                : isCurrent
+                  ? 'rgba(124,58,237,0.08)'
+                  : 'rgba(255,255,255,0.06)';
+              const borderColor = isCurrent
+                ? ACCENT
+                : captured
+                  ? 'rgba(124,58,237,0.4)'
+                  : 'rgba(255,255,255,0.08)';
 
               return (
                 <View
                   key={angle.key}
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    backgroundColor: captured
-                      ? '#7C3AED15'
-                      : 'rgba(255,255,255,0.08)',
-                    borderWidth: isCurrent ? 2 : 0,
-                    borderColor: isCurrent ? ACCENT : 'transparent',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+                  style={{ alignItems: 'center', gap: 4, width: 56 }}
                 >
-                  {captured ? (
-                    <Check size={16} color={ACCENT} strokeWidth={2.5} />
-                  ) : (
-                    <Text variant="labelSmall" color="rgba(255,255,255,0.4)">
-                      {idx + 1}
-                    </Text>
-                  )}
+                  <View
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 14,
+                      backgroundColor: bg,
+                      borderWidth: isCurrent ? 2 : 1,
+                      borderColor,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {captured ? (
+                      <View
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          backgroundColor: ACCENT,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Check size={13} color="#FFFFFF" strokeWidth={3} />
+                      </View>
+                    ) : (
+                      <Text
+                        variant="labelSmall"
+                        color={
+                          isCurrent ? '#FFFFFF' : 'rgba(255,255,255,0.45)'
+                        }
+                        style={{
+                          fontSize: 13,
+                          fontWeight: isCurrent ? '700' : '600',
+                        }}
+                      >
+                        {idx + 1}
+                      </Text>
+                    )}
+                  </View>
+                  <Text
+                    variant="labelSmall"
+                    color={
+                      isCurrent
+                        ? '#FFFFFF'
+                        : captured
+                          ? 'rgba(255,255,255,0.55)'
+                          : 'rgba(255,255,255,0.35)'
+                    }
+                    style={{
+                      fontSize: 9,
+                      fontWeight: isCurrent ? '700' : '500',
+                      letterSpacing: 0.2,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {angle.label}
+                  </Text>
                 </View>
               );
             })}
           </ScrollView>
         </View>
 
-        {/* Current Angle Label */}
-        <Text variant="headlineSmall" color="#FFFFFF" align="center">
-          {currentAngle?.label ?? ''}
-        </Text>
-
         {/* Capture Button — only in preview */}
-        <View className="items-center mt-4 mb-2">
+        <View className="items-center mt-2 mb-2">
           {phase === 'preview' ? (
-            <Pressable onPress={handleCapture}>
+            <Pressable
+              onPress={handleCapture}
+              style={({ pressed }) => ({
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              })}
+            >
               <Animated.View
                 style={[
                   {
-                    width: 76,
-                    height: 76,
-                    borderRadius: 38,
-                    backgroundColor: '#FFFFFF',
+                    width: 78,
+                    height: 78,
+                    borderRadius: 39,
+                    borderWidth: 3,
+                    borderColor: 'rgba(255,255,255,0.9)',
                     alignItems: 'center',
                     justifyContent: 'center',
                     shadowColor: ACCENT,
                     shadowOffset: { width: 0, height: 0 },
-                    shadowRadius: 20,
-                    elevation: 8,
+                    shadowRadius: 24,
+                    elevation: 10,
                   },
                   captureGlowStyle,
                 ]}
               >
                 <View
                   style={{
-                    width: 66,
-                    height: 66,
-                    borderRadius: 33,
-                    borderWidth: 3,
-                    borderColor: ACCENT,
-                    backgroundColor: 'transparent',
+                    width: 60,
+                    height: 60,
+                    borderRadius: 30,
+                    backgroundColor: ACCENT,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    shadowColor: ACCENT,
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.5,
+                    shadowRadius: 10,
+                    elevation: 6,
                   }}
-                />
+                >
+                  <Camera size={22} color="#FFFFFF" strokeWidth={2.2} />
+                </View>
               </Animated.View>
             </Pressable>
           ) : (
-            <View style={{ width: 76, height: 76 }} />
+            <View style={{ width: 78, height: 78 }} />
           )}
         </View>
       </View>

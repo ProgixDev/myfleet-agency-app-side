@@ -3,9 +3,11 @@ import { Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
-  withSequence,
   withSpring,
   withTiming,
+  FadeInDown,
+  FadeOutDown,
+  LinearTransition,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -13,6 +15,7 @@ import type { LucideIcon } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 import { fontFamilies } from '@/theme/typography';
+import { useStickyCtaStore } from '@/stores/useStickyCtaStore';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,31 +42,28 @@ interface TabButtonProps {
 function TabButton({ tab, isActive, onPress }: TabButtonProps) {
   const theme = useTheme();
   const scale = useSharedValue(1);
-  const dotOpacity = useSharedValue(isActive ? 1 : 0);
+  const indicator = useSharedValue(isActive ? 1 : 0);
 
   useEffect(() => {
-    if (isActive) {
-      scale.value = withSequence(
-        withSpring(1.12, { damping: 12, stiffness: 300 }),
-        withSpring(1.0, { damping: 14, stiffness: 280 }),
-      );
-      dotOpacity.value = withTiming(1, { duration: 200 });
-    } else {
-      scale.value = withTiming(1.0, { duration: 150 });
-      dotOpacity.value = withTiming(0, { duration: 150 });
-    }
-  }, [isActive, scale, dotOpacity]);
+    indicator.value = withTiming(isActive ? 1 : 0, { duration: 250 });
+    scale.value = withSpring(isActive ? 1.04 : 1, {
+      damping: 14,
+      stiffness: 260,
+    });
+  }, [isActive, indicator, scale]);
+
+  const circleStyle = useAnimatedStyle(() => ({
+    opacity: indicator.value,
+    transform: [{ scale: 0.6 + indicator.value * 0.4 }],
+  }));
 
   const iconStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
-  const dotStyle = useAnimatedStyle(() => ({
-    opacity: dotOpacity.value,
-  }));
-
   const Icon = tab.icon;
-  const iconColor = isActive ? theme.navBarActive : theme.navBarInactive;
+  const inactiveIconColor = theme.textSecondary;
+  const activeIconColor = '#FFFFFF';
 
   return (
     <Pressable
@@ -71,42 +71,55 @@ function TabButton({ tab, isActive, onPress }: TabButtonProps) {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
+      hitSlop={8}
       style={{
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
+        paddingVertical: 6,
       }}
     >
-      {/* Active dot */}
-      <Animated.View
-        style={[
-          dotStyle,
-          {
-            width: 5,
-            height: 5,
-            borderRadius: 2.5,
-            backgroundColor: theme.navBarActive,
-            marginBottom: 3,
-          },
-        ]}
-      />
-
-      {/* Icon */}
-      <Animated.View style={iconStyle}>
-        <Icon
-          size={22}
-          color={iconColor}
-          strokeWidth={isActive ? 2.2 : 1.8}
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Animated.View
+          style={[
+            circleStyle,
+            {
+              position: 'absolute',
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: theme.accent,
+              shadowColor: theme.accent,
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.35,
+              shadowRadius: 8,
+              elevation: 4,
+            },
+          ]}
         />
-      </Animated.View>
+        <Animated.View style={iconStyle}>
+          <Icon
+            size={20}
+            color={isActive ? activeIconColor : inactiveIconColor}
+            strokeWidth={isActive ? 2.2 : 1.8}
+          />
+        </Animated.View>
+      </View>
 
-      {/* Label */}
       <Animated.Text
         style={{
-          fontFamily: isActive ? fontFamilies.medium : fontFamilies.regular,
-          fontSize: 9,
-          color: iconColor,
+          fontFamily: isActive ? fontFamilies.semiBold : fontFamilies.regular,
+          fontSize: 10,
+          color: isActive ? theme.accent : theme.textTertiary,
           marginTop: 2,
+          letterSpacing: 0.2,
         }}
         numberOfLines={1}
       >
@@ -116,37 +129,123 @@ function TabButton({ tab, isActive, onPress }: TabButtonProps) {
   );
 }
 
-// ── Tab Bar ──────────────────────────────────────────────────────────────────
+// ── Sticky CTA row (docks on top of the tab buttons within the same shell) ──
 
-const TAB_HEIGHT = 56;
+function StickyCtaRow() {
+  const theme = useTheme();
+  const cta = useStickyCtaStore((s) => s.cta);
+  if (!cta) return null;
+
+  const variant = cta.variant ?? 'primary';
+  const bg =
+    variant === 'secondary'
+      ? theme.surfaceTertiary
+      : variant === 'danger'
+        ? theme.danger
+        : theme.accent;
+  const fg =
+    variant === 'secondary' ? theme.textPrimary : '#FFFFFF';
+
+  const LeftIcon = cta.leftIcon;
+  const RightIcon = cta.rightIcon;
+
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(260).springify()}
+      exiting={FadeOutDown.duration(200)}
+      style={{
+        paddingHorizontal: 4,
+        paddingTop: 4,
+        paddingBottom: 6,
+      }}
+    >
+      <Pressable
+        onPress={() => {
+          if (cta.disabled) return;
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          cta.onPress();
+        }}
+        disabled={cta.disabled}
+        style={({ pressed }) => ({
+          height: 48,
+          borderRadius: 9999,
+          backgroundColor: bg,
+          opacity: cta.disabled ? 0.5 : 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          transform: [{ scale: pressed && !cta.disabled ? 0.98 : 1 }],
+        })}
+      >
+        {LeftIcon && <LeftIcon size={18} color={fg} strokeWidth={2.2} />}
+        <Animated.Text
+          style={{
+            color: fg,
+            fontFamily: fontFamilies.semiBold,
+            fontSize: 15,
+            letterSpacing: 0.2,
+          }}
+          numberOfLines={1}
+        >
+          {cta.label}
+        </Animated.Text>
+        {RightIcon && <RightIcon size={18} color={fg} strokeWidth={2.2} />}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ── Tab Bar (floating container — expands when CTA is present) ──────────────
 
 export function TabBar({ tabs, activeTab, onTabPress }: TabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const bottomPad = Math.max(insets.bottom - 8, 0);
+  const hasCta = useStickyCtaStore((s) => s.cta !== null);
 
   return (
     <View
       style={{
-        backgroundColor: theme.navBar,
-        paddingBottom: bottomPad,
+        position: 'absolute',
+        bottom: Math.max(insets.bottom, 14),
+        left: 14,
+        right: 14,
       }}
+      pointerEvents="box-none"
     >
-      <View
+      <Animated.View
+        layout={LinearTransition.duration(220)}
         style={{
-          height: TAB_HEIGHT,
-          flexDirection: 'row',
+          backgroundColor: theme.surface,
+          borderRadius: hasCta ? 26 : 9999,
+          borderWidth: 1,
+          borderColor: theme.borderLight,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.12,
+          shadowRadius: 20,
+          elevation: 12,
+          overflow: 'hidden',
         }}
       >
-        {tabs.map((tab) => (
-          <TabButton
-            key={tab.name}
-            tab={tab}
-            isActive={activeTab === tab.name}
-            onPress={() => onTabPress(tab.name)}
-          />
-        ))}
-      </View>
+        <StickyCtaRow />
+        <View
+          style={{
+            flexDirection: 'row',
+            paddingHorizontal: 8,
+            paddingVertical: 8,
+          }}
+        >
+          {tabs.map((tab) => (
+            <TabButton
+              key={tab.name}
+              tab={tab}
+              isActive={activeTab === tab.name}
+              onPress={() => onTabPress(tab.name)}
+            />
+          ))}
+        </View>
+      </Animated.View>
     </View>
   );
 }

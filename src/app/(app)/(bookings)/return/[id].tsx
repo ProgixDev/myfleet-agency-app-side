@@ -27,6 +27,7 @@ import {
   PenTool,
   Car,
   RotateCcw,
+  FileText,
 } from 'lucide-react-native';
 
 import { Text } from '@/components/ui/Text';
@@ -35,6 +36,14 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Divider } from '@/components/ui/Divider';
 import { IconButton } from '@/components/ui/IconButton';
+import { Input } from '@/components/ui/Input';
+import { useToastStore } from '@/components/ui/Toast';
+import {
+  useBookingStore,
+  DEFAULT_INCLUDED_KM,
+  DEFAULT_EXTRA_KM_RATE,
+} from '@/stores/useBookingStore';
+import { useInspectionStore } from '@/stores/useInspectionStore';
 import { useTheme } from '@/hooks/useTheme';
 import { shadows } from '@/theme/shadows';
 
@@ -304,15 +313,26 @@ export default function ReturnScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
   const theme = useTheme();
+  const storeBooking = useBookingStore((s) =>
+    id ? s.bookings.find((b) => b.id === id) : undefined,
+  );
+  const closeBookingWithReturn = useBookingStore((s) => s.closeBookingWithReturn);
+  const preRentalInspection = useInspectionStore((s) =>
+    id
+      ? s.inspections.find(
+          (i) => i.bookingId === id && i.type === 'pre-rental',
+        )
+      : undefined,
+  );
+  const showToast = useToastStore((s) => s.show);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [completed, setCompleted] = useState(false);
 
   // Step 1 state
   const [fuelLevel, setFuelLevel] = useState<number | null>(null);
-  const [mileageRecorded, setMileageRecorded] = useState(false);
   const [keysReturned, setKeysReturned] = useState(false);
-  const [mileageValue, setMileageValue] = useState('45,892');
+  const [mileageValue, setMileageValue] = useState('');
 
   // Step 2 state
   const [capturedAngles, setCapturedAngles] = useState<Set<number>>(new Set());
@@ -323,7 +343,23 @@ export default function ReturnScreen() {
   const [clientSigned, setClientSigned] = useState(false);
 
   const booking = MOCK_BOOKING;
-  const allChecked = fuelLevel !== null && mileageRecorded && keysReturned;
+
+  // ── Mileage (pulled from the real booking when available) ────────────────
+  const startMileage = storeBooking?.startMileage ?? null;
+  const includedKm = storeBooking?.includedKm ?? DEFAULT_INCLUDED_KM;
+  const extraKmRate = storeBooking?.extraKmRate ?? DEFAULT_EXTRA_KM_RATE;
+
+  const parsedReturn = Number.parseInt(mileageValue.replace(/[^0-9]/g, ''), 10);
+  const hasReturnInput = mileageValue.trim().length > 0 && Number.isFinite(parsedReturn);
+  const isReturnMileageValid =
+    hasReturnInput && startMileage != null && parsedReturn > startMileage;
+
+  const kmDriven =
+    isReturnMileageValid && startMileage != null ? parsedReturn - startMileage : 0;
+  const kmOverage = Math.max(0, kmDriven - includedKm);
+  const overageCost = Math.round(kmOverage * extraKmRate * 100) / 100;
+
+  const allChecked = fuelLevel !== null && isReturnMileageValid && keysReturned;
 
   const confirmDetections = MOCK_RETURN_DETECTIONS.filter(
     (d) => d.confidence >= 90
@@ -370,9 +406,57 @@ export default function ReturnScreen() {
   }, [currentStep, router]);
 
   const handleComplete = useCallback(() => {
+    if (!id) {
+      showToast({
+        variant: 'error',
+        title: t('bookings.mileage.errorBookingNotFound', 'Booking not found'),
+      });
+      return;
+    }
+
+    if (!isReturnMileageValid) {
+      showToast({
+        variant: 'error',
+        title: t(
+          'bookings.mileage.errorReturnBelowStart',
+          'Return mileage must be higher than departure',
+        ),
+      });
+      return;
+    }
+
+    const result = closeBookingWithReturn(id, {
+      returnMileage: parsedReturn,
+      fuelLevel,
+    });
+
+    if (!result.ok) {
+      const messageKey =
+        result.error === 'returnBelowStart'
+          ? 'bookings.mileage.errorReturnBelowStart'
+          : result.error === 'missingStartMileage'
+            ? 'bookings.mileage.errorMissingStart'
+            : result.error === 'bookingNotFound'
+              ? 'bookings.mileage.errorBookingNotFound'
+              : 'bookings.mileage.errorInvalid';
+      showToast({
+        variant: 'error',
+        title: t(messageKey, result.error),
+      });
+      return;
+    }
+
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCompleted(true);
-  }, []);
+  }, [
+    id,
+    isReturnMileageValid,
+    parsedReturn,
+    fuelLevel,
+    closeBookingWithReturn,
+    showToast,
+    t,
+  ]);
 
   // ── Success Screen ──────────────────────────────────────────────────────
 
@@ -501,6 +585,90 @@ export default function ReturnScreen() {
         </View>
       </Card>
 
+      {/* Pre-rental reference (read-only) */}
+      {preRentalInspection && (
+        <Pressable
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push(`/(app)/(inspections)/${preRentalInspection.id}` as never);
+          }}
+          style={{
+            backgroundColor: theme.surface,
+            borderRadius: 16,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: theme.border,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <View
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                backgroundColor: theme.accentSoft,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <FileText size={15} color={theme.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="titleMedium" style={{ fontWeight: '600' }}>
+                {t('return.preRentalReference.title', 'Pre-rental reference')}
+              </Text>
+              <Text variant="caption" color={theme.textTertiary}>
+                {t(
+                  'return.preRentalReference.subtitle',
+                  'Condition recorded at pickup',
+                )}
+              </Text>
+            </View>
+            <Badge variant="info" size="sm">
+              {preRentalInspection.date}
+            </Badge>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text variant="caption" color={theme.textTertiary}>
+                {t('return.preRentalReference.mileage', 'Mileage at pickup')}
+              </Text>
+              <Text variant="bodyMedium" style={{ fontWeight: '600', marginTop: 2 }}>
+                {preRentalInspection.mileage.toLocaleString()} km
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="caption" color={theme.textTertiary}>
+                {t('return.preRentalReference.fuel', 'Fuel at pickup')}
+              </Text>
+              <Text variant="bodyMedium" style={{ fontWeight: '600', marginTop: 2 }}>
+                {preRentalInspection.fuelLevel}%
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="caption" color={theme.textTertiary}>
+                {t('return.preRentalReference.damages', 'Pre-existing damages')}
+              </Text>
+              <Text
+                variant="bodyMedium"
+                color={
+                  preRentalInspection.totalDamagesAI +
+                    preRentalInspection.totalDamagesManual >
+                  0
+                    ? theme.warning
+                    : theme.success
+                }
+                style={{ fontWeight: '600', marginTop: 2 }}
+              >
+                {preRentalInspection.totalDamagesAI +
+                  preRentalInspection.totalDamagesManual}
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+      )}
+
       {/* Fuel Level */}
       <Card>
         <Text variant="titleLarge" style={{ marginBottom: 4 }}>
@@ -556,24 +724,148 @@ export default function ReturnScreen() {
         </View>
       </Card>
 
-      {/* Mileage & Keys */}
+      {/* Mileage */}
+      <Card>
+        <Text variant="titleLarge" style={{ marginBottom: 4 }}>
+          {t('bookings.mileage.sectionTitle', 'Mileage')}
+        </Text>
+        <Text
+          variant="bodySmall"
+          color={theme.textSecondary}
+          style={{ marginBottom: 12 }}
+        >
+          {t('bookings.mileage.helperIncluded', {
+            defaultValue: '{{included}} km included · CHF {{rate}} / extra km',
+            included: includedKm,
+            rate: extraKmRate.toFixed(2),
+          })}
+        </Text>
+
+        {/* Departure km — read-only */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            backgroundColor: theme.surfaceSecondary,
+            borderRadius: 12,
+            marginBottom: 12,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Gauge size={16} color={theme.textTertiary} />
+            <Text variant="bodySmall" color={theme.textSecondary}>
+              {t('bookings.mileage.startMileageReadonly', 'Departure mileage')}
+            </Text>
+          </View>
+          <Text variant="bodyMedium" style={{ fontWeight: '600' }}>
+            {startMileage != null
+              ? `${startMileage.toLocaleString()} ${t('bookings.mileage.unit', 'km')}`
+              : '—'}
+          </Text>
+        </View>
+
+        {/* Return mileage — input */}
+        <Input
+          label={t('bookings.mileage.returnMileageLabel', 'Return mileage')}
+          placeholder={t('bookings.mileage.returnMileagePlaceholder', 'Enter mileage')}
+          value={mileageValue}
+          onChangeText={(text) => setMileageValue(text.replace(/[^0-9]/g, ''))}
+          keyboardType="number-pad"
+          leftIcon={Gauge}
+          error={
+            hasReturnInput && startMileage != null && parsedReturn <= startMileage
+              ? t(
+                  'bookings.mileage.errorReturnBelowStart',
+                  'Return mileage must be higher than departure',
+                )
+              : startMileage == null
+                ? t('bookings.mileage.errorMissingStart', 'Departure mileage missing')
+                : undefined
+          }
+        />
+
+        {/* Live computation panel */}
+        {isReturnMileageValid && (
+          <View style={{ marginTop: 12, gap: 8 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                backgroundColor: theme.surfaceSecondary,
+                borderRadius: 10,
+              }}
+            >
+              <Text variant="bodySmall" color={theme.textSecondary}>
+                {t('bookings.mileage.kmDriven', 'Km driven')}
+              </Text>
+              <Text variant="bodySmall" color={theme.accent} style={{ fontWeight: '700' }}>
+                {kmDriven.toLocaleString()} {t('bookings.mileage.unit', 'km')}
+              </Text>
+            </View>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                backgroundColor: kmOverage > 0 ? theme.warningSoft : theme.surfaceSecondary,
+                borderRadius: 10,
+              }}
+            >
+              <Text
+                variant="bodySmall"
+                color={kmOverage > 0 ? theme.warning : theme.textSecondary}
+              >
+                {t('bookings.mileage.overage', 'Overage')}
+              </Text>
+              <Text
+                variant="bodySmall"
+                color={kmOverage > 0 ? theme.warning : theme.textSecondary}
+                style={{ fontWeight: '700' }}
+              >
+                {kmOverage.toLocaleString()} {t('bookings.mileage.unit', 'km')}
+              </Text>
+            </View>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                backgroundColor: kmOverage > 0 ? theme.warningSoft : theme.surfaceSecondary,
+                borderRadius: 10,
+              }}
+            >
+              <Text
+                variant="bodySmall"
+                color={kmOverage > 0 ? theme.warning : theme.textSecondary}
+              >
+                {t('bookings.mileage.extraCost', 'Extra cost')}
+              </Text>
+              <Text
+                variant="bodySmall"
+                color={kmOverage > 0 ? theme.warning : theme.textSecondary}
+                style={{ fontWeight: '700' }}
+              >
+                CHF {overageCost.toFixed(2)}
+              </Text>
+            </View>
+          </View>
+        )}
+      </Card>
+
+      {/* Keys */}
       <Card>
         <Text variant="titleLarge" style={{ marginBottom: 12 }}>
           {t('return.checklist.returnItems', {
             defaultValue: 'Return Items',
           })}
         </Text>
-
-        <ChecklistItem
-          icon={Gauge}
-          label={t('return.checklist.mileage', {
-            defaultValue: 'Mileage recorded',
-          })}
-          subtitle={`${mileageValue} km (${t('return.checklist.mileageOut', { defaultValue: 'out' })}: ${booking.mileageOut.toLocaleString()} km)`}
-          checked={mileageRecorded}
-          onToggle={() => setMileageRecorded((v) => !v)}
-        />
-        <View style={{ height: 1, backgroundColor: theme.borderLight, marginHorizontal: 16 }} />
         <ChecklistItem
           icon={Key}
           label={t('return.checklist.keys', {
@@ -1027,28 +1319,57 @@ export default function ReturnScreen() {
         <View style={{ gap: 8 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text variant="bodySmall" color={theme.textSecondary}>
-              {t('return.comparison.mileageOut', { defaultValue: 'Mileage Out' })}
+              {t('bookings.mileage.startMileageReadonly', 'Departure mileage')}
             </Text>
             <Text variant="bodySmall" style={{ fontWeight: '600' }}>
-              {booking.mileageOut.toLocaleString()} km
+              {startMileage != null
+                ? `${startMileage.toLocaleString()} ${t('bookings.mileage.unit', 'km')}`
+                : '—'}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text variant="bodySmall" color={theme.textSecondary}>
-              {t('return.comparison.mileageIn', { defaultValue: 'Mileage In' })}
+              {t('bookings.mileage.returnMileageStored', 'Return mileage')}
             </Text>
             <Text variant="bodySmall" style={{ fontWeight: '600' }}>
-              {mileageValue} km
+              {hasReturnInput
+                ? `${parsedReturn.toLocaleString()} ${t('bookings.mileage.unit', 'km')}`
+                : '—'}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text variant="bodySmall" color={theme.textSecondary}>
-              {t('return.comparison.driven', { defaultValue: 'Distance Driven' })}
+              {t('bookings.mileage.kmDriven', 'Km driven')}
             </Text>
             <Text variant="bodySmall" color={theme.accent} style={{ fontWeight: '700' }}>
-              662 km
+              {kmDriven.toLocaleString()} {t('bookings.mileage.unit', 'km')}
             </Text>
           </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text variant="bodySmall" color={theme.textSecondary}>
+              {t('bookings.mileage.overage', 'Overage')}
+            </Text>
+            <Text
+              variant="bodySmall"
+              color={kmOverage > 0 ? theme.warning : theme.textSecondary}
+              style={{ fontWeight: '700' }}
+            >
+              {kmOverage.toLocaleString()} {t('bookings.mileage.unit', 'km')}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text variant="bodySmall" color={theme.textSecondary}>
+              {t('bookings.mileage.extraCost', 'Extra cost')}
+            </Text>
+            <Text
+              variant="bodySmall"
+              color={kmOverage > 0 ? theme.warning : theme.textSecondary}
+              style={{ fontWeight: '700' }}
+            >
+              CHF {overageCost.toFixed(2)}
+            </Text>
+          </View>
+          <Divider />
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text variant="bodySmall" color={theme.textSecondary}>
               {t('return.comparison.fuelReturn', { defaultValue: 'Fuel Level' })}

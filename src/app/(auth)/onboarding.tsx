@@ -3,10 +3,12 @@ import { Dimensions, Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import Animated, {
   FadeIn,
+  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -15,25 +17,28 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { ArrowRight, ChevronRight } from "lucide-react-native";
 
-import { Button } from "@/components/ui/Button";
 import { useSettingsStore } from "@/stores/useSettingsStore";
 import { fontFamilies } from "@/theme/typography";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
+const ACCENT = "#7C3AED";
+const ACCENT_SOFT = "#A855F7";
+
 const SLIDES = [
   {
     key: "screen1" as const,
-    image: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&q=80",
+    image: require("../../../assets/images/onb1.jpg"),
   },
   {
     key: "screen2" as const,
-    image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80",
+    image: require("../../../assets/images/onb2.jpg"),
   },
   {
     key: "screen3" as const,
-    image: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&q=80",
+    image: require("../../../assets/images/onb3.jpg"),
   },
 ];
 
@@ -49,14 +54,13 @@ export default function OnboardingScreen() {
   const updateIndex = useCallback(
     (idx: number) => {
       if (idx !== activeIndex) {
-        // Fade out, swap text, fade in
         textOpacity.value = withTiming(0, { duration: 150 }, () => {
           runOnJS(setActiveIndex)(idx);
-          textOpacity.value = withTiming(1, { duration: 250 });
+          textOpacity.value = withTiming(1, { duration: 280 });
         });
       }
     },
-    [activeIndex, textOpacity]
+    [activeIndex, textOpacity],
   );
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -77,10 +81,9 @@ export default function OnboardingScreen() {
         x: nextIndex * SCREEN_WIDTH,
         animated: true,
       });
-      // Trigger text transition immediately
       textOpacity.value = withTiming(0, { duration: 150 }, () => {
         runOnJS(setActiveIndex)(nextIndex);
-        textOpacity.value = withTiming(1, { duration: 250 });
+        textOpacity.value = withTiming(1, { duration: 280 });
       });
     } else {
       completeOnboarding();
@@ -102,10 +105,10 @@ export default function OnboardingScreen() {
   }));
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0F0A1A" }}>
+    <View style={{ flex: 1, backgroundColor: "#0A0510" }}>
       <StatusBar style="light" />
 
-      {/* ── Image carousel (only images swipe) ──────────────────── */}
+      {/* ── Image carousel (full-bleed) ─────────────────────────── */}
       <Animated.ScrollView
         ref={scrollRef}
         horizontal
@@ -122,110 +125,317 @@ export default function OnboardingScreen() {
             style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
           >
             <Image
-              source={{ uri: slide.image }}
-              style={{
-                width: SCREEN_WIDTH,
-                height: SCREEN_HEIGHT,
-              }}
+              source={slide.image}
+              style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
               contentFit="cover"
-              transition={300}
+              transition={400}
             />
           </View>
         ))}
       </Animated.ScrollView>
 
-      {/* ── Dark purple gradient overlay (fixed) ────────────────── */}
+      {/* ── Bottom gradient (keeps the text card legible on any image) ── */}
       <LinearGradient
         colors={[
           "transparent",
-          "rgba(15, 10, 26, 0.25)",
-          "rgba(15, 10, 26, 0.7)",
-          "rgba(15, 10, 26, 0.92)",
-          "rgba(15, 10, 26, 1)",
+          "rgba(10, 5, 16, 0.35)",
+          "rgba(10, 5, 16, 0.85)",
+          "rgba(10, 5, 16, 1)",
         ]}
-        locations={[0, 0.3, 0.55, 0.75, 1]}
+        locations={[0, 0.35, 0.7, 1]}
         style={{
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
-          height: SCREEN_HEIGHT * 0.58,
+          height: SCREEN_HEIGHT * 0.62,
         }}
         pointerEvents="none"
       />
 
-      {/* ── Fixed bottom content (text crossfades, doesn't scroll) ── */}
+      {/* ── Top bar: centered logo + skip pill on the right ─────── */}
       <View
         style={{
           position: "absolute",
-          bottom: 0,
+          top: 60,
           left: 0,
           right: 0,
-          paddingHorizontal: 24,
-          paddingBottom: 44,
+          alignItems: "center",
+          zIndex: 10,
         }}
+        pointerEvents="box-none"
       >
-        {/* Title + description with fade transition */}
-        <Animated.View style={textAnimatedStyle}>
-          <Animated.Text
+        <Animated.View entering={FadeIn.duration(500)}>
+          <BlurView
+            intensity={30}
+            tint="dark"
             style={{
-              fontFamily: fontFamilies.bold,
-              fontSize: 28,
-              lineHeight: 36,
-              color: "#FFFFFF",
-              marginBottom: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              width: 48,
+              height: 48,
+              borderRadius: 9999,
+              overflow: "hidden",
+              borderWidth: 1,
+              borderColor: "rgba(255, 255, 255, 0.15)",
             }}
           >
-            {t(`auth.onboarding.${currentSlide.key}.title`)}
-          </Animated.Text>
-
-          <Animated.Text
-            style={{
-              fontFamily: fontFamilies.regular,
-              fontSize: 15,
-              lineHeight: 22,
-              color: "rgba(255, 255, 255, 0.65)",
-              marginBottom: 28,
-            }}
-          >
-            {t(`auth.onboarding.${currentSlide.key}.subtitle`)}
-          </Animated.Text>
+            <Image
+              source={require("../../../assets/images/logo.png")}
+              style={{ width: 30, height: 30 }}
+              contentFit="contain"
+            />
+          </BlurView>
         </Animated.View>
-
-        {/* Pagination dots */}
-        <View className="flex-row items-center justify-center mb-6 gap-2">
-          {SLIDES.map((_, i) => (
-            <PaginationDot key={i} index={i} scrollX={scrollX} />
-          ))}
-        </View>
-
-        {/* Button */}
-        <Button variant="primary" size="lg" fullWidth onPress={handleNext}>
-          {isLastSlide
-            ? t("auth.onboarding.getStarted")
-            : t("auth.onboarding.next")}
-        </Button>
       </View>
 
-      {/* ── Skip button (top right, fixed) ──────────────────────── */}
       {!isLastSlide && (
         <Animated.View
-          entering={FadeIn.duration(400)}
-          style={{ position: "absolute", top: 60, right: 20, zIndex: 10 }}
+          entering={FadeIn.duration(500)}
+          style={{ position: "absolute", top: 66, right: 20, zIndex: 10 }}
         >
-          <Pressable onPress={handleSkip} hitSlop={12}>
-            <Animated.Text
+          <Pressable onPress={handleSkip} hitSlop={10}>
+            <BlurView
+              intensity={30}
+              tint="dark"
               style={{
-                fontFamily: fontFamilies.medium,
-                fontSize: 15,
-                color: "rgba(255, 255, 255, 0.75)",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingLeft: 14,
+                paddingRight: 10,
+                paddingVertical: 8,
+                borderRadius: 9999,
+                overflow: "hidden",
+                borderWidth: 1,
+                borderColor: "rgba(255, 255, 255, 0.15)",
               }}
             >
-              {t("auth.onboarding.skip")}
-            </Animated.Text>
+              <Animated.Text
+                style={{
+                  fontFamily: fontFamilies.medium,
+                  fontSize: 13,
+                  color: "rgba(255, 255, 255, 0.9)",
+                }}
+              >
+                {t("auth.onboarding.skip")}
+              </Animated.Text>
+              <ChevronRight
+                size={14}
+                color="rgba(255, 255, 255, 0.9)"
+                strokeWidth={2}
+              />
+            </BlurView>
           </Pressable>
         </Animated.View>
       )}
+
+      {/* ── Bottom glass card ──────────────────────────────────── */}
+      <Animated.View
+        entering={FadeInDown.duration(600).delay(150)}
+        style={{
+          position: "absolute",
+          bottom: 40,
+          left: 16,
+          right: 16,
+        }}
+      >
+        <View
+          style={{
+            borderRadius: 32,
+            overflow: "hidden",
+            borderWidth: 1,
+            borderColor: "rgba(255, 255, 255, 0.08)",
+          }}
+        >
+          <BlurView
+            intensity={50}
+            tint="dark"
+            style={{
+              padding: 22,
+              backgroundColor: "rgba(10, 5, 16, 0.55)",
+            }}
+          >
+            {/* Step chip + pagination row */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 16,
+              }}
+            >
+              <View
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 5,
+                  borderRadius: 9999,
+                  backgroundColor: "rgba(124, 58, 237, 0.2)",
+                  borderWidth: 1,
+                  borderColor: "rgba(124, 58, 237, 0.4)",
+                }}
+              >
+                <Animated.Text
+                  style={{
+                    fontFamily: fontFamilies.semiBold,
+                    fontSize: 11,
+                    color: ACCENT_SOFT,
+                    letterSpacing: 1,
+                  }}
+                >
+                  {t("auth.onboarding.stepIndicator", {
+                    current: String(activeIndex + 1).padStart(2, "0"),
+                    total: String(SLIDES.length).padStart(2, "0"),
+                  })}
+                </Animated.Text>
+              </View>
+
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                {SLIDES.map((_, i) => (
+                  <PaginationDot key={i} index={i} scrollX={scrollX} />
+                ))}
+              </View>
+            </View>
+
+            {/* Title + subtitle with fade transition */}
+            <Animated.View style={textAnimatedStyle}>
+              <Animated.Text
+                style={{
+                  fontFamily: fontFamilies.bold,
+                  fontSize: 28,
+                  lineHeight: 34,
+                  color: "#FFFFFF",
+                  marginBottom: 10,
+                  letterSpacing: -0.5,
+                }}
+              >
+                {t(`auth.onboarding.${currentSlide.key}.title`)}
+              </Animated.Text>
+
+              <Animated.Text
+                style={{
+                  fontFamily: fontFamilies.regular,
+                  fontSize: 14,
+                  lineHeight: 21,
+                  color: "rgba(255, 255, 255, 0.7)",
+                  marginBottom: 16,
+                }}
+              >
+                {t(`auth.onboarding.${currentSlide.key}.subtitle`)}
+              </Animated.Text>
+
+              {/* Feature chips row */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  marginBottom: 22,
+                }}
+              >
+                {["chip1", "chip2", "chip3"].map((chipKey) => (
+                  <View
+                    key={chipKey}
+                    style={{
+                      paddingHorizontal: 11,
+                      paddingVertical: 6,
+                      borderRadius: 9999,
+                      backgroundColor: "rgba(255, 255, 255, 0.08)",
+                      borderWidth: 1,
+                      borderColor: "rgba(255, 255, 255, 0.12)",
+                    }}
+                  >
+                    <Animated.Text
+                      style={{
+                        fontFamily: fontFamilies.medium,
+                        fontSize: 11,
+                        color: "rgba(255, 255, 255, 0.85)",
+                        letterSpacing: 0.2,
+                      }}
+                    >
+                      {t(`auth.onboarding.${currentSlide.key}.${chipKey}`)}
+                    </Animated.Text>
+                  </View>
+                ))}
+              </View>
+            </Animated.View>
+
+            {/* CTA pill with accent icon circle + chevron trio */}
+            <Pressable
+              onPress={handleNext}
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.85 : 1,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              })}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "rgba(255, 255, 255, 0.08)",
+                  borderRadius: 9999,
+                  padding: 6,
+                  paddingRight: 18,
+                  borderWidth: 1,
+                  borderColor: "rgba(124, 58, 237, 0.35)",
+                }}
+              >
+                <View
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 21,
+                    backgroundColor: ACCENT,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    shadowColor: ACCENT,
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.6,
+                    shadowRadius: 12,
+                    elevation: 8,
+                  }}
+                >
+                  <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.2} />
+                </View>
+                <Animated.Text
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    fontFamily: fontFamilies.semiBold,
+                    fontSize: 15,
+                    color: "#FFFFFF",
+                    letterSpacing: 0.3,
+                    marginLeft: -42,
+                  }}
+                >
+                  {isLastSlide
+                    ? t("auth.onboarding.getStarted")
+                    : t("auth.onboarding.next")}
+                </Animated.Text>
+                <View style={{ flexDirection: "row", gap: 2 }}>
+                  <ChevronRight
+                    size={14}
+                    color="rgba(168, 85, 247, 0.5)"
+                    strokeWidth={2.4}
+                  />
+                  <ChevronRight
+                    size={14}
+                    color="rgba(168, 85, 247, 0.75)"
+                    strokeWidth={2.4}
+                    style={{ marginLeft: -8 }}
+                  />
+                  <ChevronRight
+                    size={14}
+                    color={ACCENT_SOFT}
+                    strokeWidth={2.4}
+                    style={{ marginLeft: -8 }}
+                  />
+                </View>
+              </View>
+            </Pressable>
+          </BlurView>
+        </View>
+      </Animated.View>
     </View>
   );
 }
@@ -245,12 +455,12 @@ function PaginationDot({
       index * SCREEN_WIDTH,
       (index + 1) * SCREEN_WIDTH,
     ];
-    const width = interpolate(scrollX.value, inputRange, [8, 24, 8], "clamp");
+    const width = interpolate(scrollX.value, inputRange, [6, 22, 6], "clamp");
     const opacity = interpolate(
       scrollX.value,
       inputRange,
-      [0.35, 1, 0.35],
-      "clamp"
+      [0.3, 1, 0.3],
+      "clamp",
     );
 
     return { width, opacity };
@@ -260,9 +470,9 @@ function PaginationDot({
     <Animated.View
       style={[
         {
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: "#FFFFFF",
+          height: 6,
+          borderRadius: 3,
+          backgroundColor: ACCENT_SOFT,
         },
         style,
       ]}

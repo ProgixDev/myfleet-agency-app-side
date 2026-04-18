@@ -43,6 +43,15 @@ export const useSettingsStore = create<SettingsStore>()(
     {
       name: 'my-fleet-settings',
       storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Partial<SettingsState>;
+        if (version < 1) {
+          // One-shot reset so users see onboarding after the splash rewrite.
+          return { ...state, hasSeenOnboarding: false } as SettingsState;
+        }
+        return state as SettingsState;
+      },
     },
   ),
 );

@@ -1,14 +1,16 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Pressable,
   FlatList,
+  ScrollView,
   RefreshControl,
+  TextInput,
   type ListRenderItemInfo,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
@@ -18,20 +20,20 @@ import {
   List,
   ChevronRight,
   SearchX,
+  Search,
+  X,
 } from 'lucide-react-native';
 
 import { ScreenWrapper } from '@/components/ui/ScreenWrapper';
 import { Text } from '@/components/ui/Text';
-import { SearchBar } from '@/components/ui/SearchBar';
-import { Chip, ChipGroup } from '@/components/ui/Chip';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { IconButton } from '@/components/ui/IconButton';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { mockVehicles } from '@/data/vehicles';
 import { getVehicleImage } from '@/data/vehicleImages';
-import { shadows } from '@/theme/shadows';
+import { matchesVehicleQuery } from '@/utils/vehicleSearch';
+import { fontFamilies } from '@/theme/typography';
 import type { Vehicle, VehicleStatus, VehicleBrand } from '@/types/vehicle';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -39,13 +41,6 @@ import type { Vehicle, VehicleStatus, VehicleBrand } from '@/types/vehicle';
 const ALL_BRANDS = Array.from(
   new Set(mockVehicles.map((v) => v.brand)),
 ).sort() as VehicleBrand[];
-
-const STATUS_OPTIONS: { label: string; value: VehicleStatus | null }[] = [
-  { label: 'All', value: null },
-  { label: 'Available', value: 'available' },
-  { label: 'Rented', value: 'rented' },
-  { label: 'Maintenance', value: 'maintenance' },
-];
 
 function countByStatus(status: VehicleStatus | null): number {
   if (status === null) return mockVehicles.length;
@@ -65,53 +60,59 @@ export default function FleetScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
+  const params = useLocalSearchParams<{ status?: string }>();
 
-  // State
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<VehicleStatus | null>(null);
   const [brandFilter, setBrandFilter] = useState<VehicleBrand | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [refreshing, setRefreshing] = useState(false);
 
-  // Filtering
+  useEffect(() => {
+    const valid: VehicleStatus[] = ['available', 'rented', 'maintenance', 'reserved'];
+    if (params.status && (valid as string[]).includes(params.status)) {
+      setStatusFilter(params.status as VehicleStatus);
+    }
+  }, [params.status]);
+
   const filtered = useMemo(() => {
     return mockVehicles.filter((v) => {
       if (statusFilter && v.status !== statusFilter) return false;
       if (brandFilter && v.brand !== brandFilter) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        return (
-          v.name.toLowerCase().includes(q) ||
-          v.brand.toLowerCase().includes(q) ||
-          v.licensePlate.toLowerCase().includes(q)
-        );
-      }
-      return true;
+      return matchesVehicleQuery(v, search);
     });
   }, [statusFilter, brandFilter, search]);
 
-  // Handlers
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    setTimeout(() => setRefreshing(false), 800);
   }, []);
 
   const handleToggleView = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setViewMode((prev) => (prev === 'grid' ? 'list' : 'grid'));
   }, []);
 
   const handleAddVehicle = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Navigate to add vehicle screen (placeholder)
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, []);
 
   const navigateToVehicle = useCallback(
     (id: string) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       router.push(`/(app)/(fleet)/${id}`);
     },
     [router],
+  );
+
+  const statusOptions: { label: string; value: VehicleStatus | null }[] = useMemo(
+    () => [
+      { label: t('fleet.filter.all', 'All'), value: null },
+      { label: t('fleet.filter.available', 'Available'), value: 'available' },
+      { label: t('fleet.filter.rented', 'Rented'), value: 'rented' },
+      { label: t('fleet.filter.maintenance', 'Maintenance'), value: 'maintenance' },
+    ],
+    [t],
   );
 
   // ── Grid Card ──────────────────────────────────────────────────────────────
@@ -119,182 +120,371 @@ export default function FleetScreen() {
   const renderGridCard = useCallback(
     ({ item, index }: ListRenderItemInfo<Vehicle>) => (
       <Animated.View
-        entering={FadeInDown.delay(index * 50).duration(400)}
-        className="flex-1"
-        style={{ maxWidth: '50%' }}
+        entering={FadeInDown.delay(index * 40).duration(350)}
+        style={{ flex: 1 }}
       >
         <Pressable
           onPress={() => navigateToVehicle(item.id)}
-          style={{ backgroundColor: theme.surface, ...shadows.sm }}
-          className="rounded-2xl overflow-hidden m-1.5"
+          style={({ pressed }) => ({
+            backgroundColor: theme.surface,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+            overflow: 'hidden',
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+          })}
         >
-          {/* Vehicle photo */}
-          <View style={{ backgroundColor: theme.surfaceTertiary }} className="h-28 overflow-hidden">
+          <View
+            style={{
+              height: 120,
+              backgroundColor: theme.surfaceTertiary,
+            }}
+          >
             {getVehicleImage(item.id) ? (
               <Image
                 source={getVehicleImage(item.id)!}
-                style={{ width: '100%', height: 112 }}
+                style={{ width: '100%', height: '100%' }}
                 contentFit="cover"
                 transition={200}
               />
             ) : (
               <View className="flex-1 items-center justify-center">
-                <Car size={36} color={theme.textTertiary} strokeWidth={1.5} />
+                <Car size={32} color={theme.textTertiary} strokeWidth={1.4} />
               </View>
             )}
           </View>
 
-          {/* Info */}
-          <View className="p-3">
-            <Text variant="titleMedium" numberOfLines={1}>
+          <View style={{ padding: 12 }}>
+            <Text
+              variant="titleMedium"
+              style={{ fontFamily: fontFamilies.semiBold, fontSize: 14 }}
+              numberOfLines={1}
+            >
               {item.name}
             </Text>
             <Text
               variant="caption"
               color={theme.textTertiary}
+              style={{ fontSize: 11, marginTop: 1 }}
               numberOfLines={1}
-              className="mt-0.5"
             >
               {item.category}
             </Text>
-            <View className="mt-2">
+            <Text
+              variant="caption"
+              color={theme.textSecondary}
+              style={{
+                fontFamily: fontFamilies.medium,
+                fontSize: 11,
+                marginTop: 2,
+              }}
+              numberOfLines={1}
+            >
+              {item.licensePlate}
+            </Text>
+            <View style={{ marginTop: 8 }}>
               <StatusBadge status={item.status} size="sm" />
             </View>
-            <Text variant="bodySmall" color={theme.accent} className="mt-2">
-              {'\u20AC'}{item.dailyRate}/day
+            <Text
+              variant="bodySmall"
+              color={theme.accent}
+              style={{
+                fontFamily: fontFamilies.bold,
+                fontSize: 13,
+                marginTop: 8,
+              }}
+            >
+              {'\u20AC'}{item.dailyRate}
+              <Text
+                variant="caption"
+                color={theme.textTertiary}
+                style={{ fontFamily: fontFamilies.medium, fontSize: 10 }}
+              >
+                {' '}/ {t('bookings.detail.perDay', 'day')}
+              </Text>
             </Text>
           </View>
         </Pressable>
       </Animated.View>
     ),
-    [navigateToVehicle, theme],
+    [navigateToVehicle, theme, t],
   );
 
   // ── List Row ───────────────────────────────────────────────────────────────
 
   const renderListRow = useCallback(
     ({ item, index }: ListRenderItemInfo<Vehicle>) => (
-      <Animated.View entering={FadeInDown.delay(index * 40).duration(350)}>
+      <Animated.View entering={FadeInDown.delay(index * 30).duration(300)}>
         <Pressable
           onPress={() => navigateToVehicle(item.id)}
-          style={{ backgroundColor: theme.surface }}
-          className="flex-row rounded-xl py-3 px-3 mb-2 items-center"
+          style={({ pressed }) => ({
+            backgroundColor: theme.surface,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+            flexDirection: 'row',
+            padding: 10,
+            marginBottom: 10,
+            alignItems: 'center',
+            transform: [{ scale: pressed ? 0.99 : 1 }],
+          })}
         >
-          {/* Thumbnail */}
           <View
-            style={{ backgroundColor: theme.surfaceTertiary, width: 64, height: 48 }}
-            className="rounded-lg overflow-hidden"
+            style={{
+              width: 76,
+              height: 56,
+              borderRadius: 12,
+              backgroundColor: theme.surfaceTertiary,
+              overflow: 'hidden',
+            }}
           >
             {getVehicleImage(item.id) ? (
               <Image
                 source={getVehicleImage(item.id)!}
-                style={{ width: 64, height: 48 }}
+                style={{ width: '100%', height: '100%' }}
                 contentFit="cover"
                 transition={200}
               />
             ) : (
               <View className="flex-1 items-center justify-center">
-                <Car size={24} color={theme.textTertiary} strokeWidth={1.5} />
+                <Car size={22} color={theme.textTertiary} strokeWidth={1.5} />
               </View>
             )}
           </View>
 
-          {/* Info */}
-          <View className="flex-1 ml-3">
-            <Text variant="titleMedium" numberOfLines={1}>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text
+              variant="titleMedium"
+              style={{ fontFamily: fontFamilies.semiBold, fontSize: 14 }}
+              numberOfLines={1}
+            >
               {item.name}
             </Text>
             <Text
               variant="bodySmall"
               color={theme.textSecondary}
+              style={{ fontSize: 12, marginTop: 1 }}
               numberOfLines={1}
-              className="mt-0.5"
             >
               {item.brand} {'\u00B7'} {item.category}
             </Text>
+            <Text
+              variant="caption"
+              color={theme.textTertiary}
+              style={{
+                fontFamily: fontFamilies.medium,
+                fontSize: 11,
+                marginTop: 2,
+              }}
+              numberOfLines={1}
+            >
+              {item.licensePlate}
+            </Text>
           </View>
 
-          {/* Right */}
-          <View className="items-end ml-2">
-            <StatusBadge status={item.status} size="sm" />
-            <ChevronRight
-              size={18}
-              color={theme.textTertiary}
-              style={{ marginTop: 8 }}
-            />
+          <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+            <Text
+              variant="bodySmall"
+              color={theme.accent}
+              style={{ fontFamily: fontFamilies.bold, fontSize: 13 }}
+            >
+              {'\u20AC'}{item.dailyRate}
+            </Text>
+            <View style={{ marginTop: 4 }}>
+              <StatusBadge status={item.status} size="sm" />
+            </View>
           </View>
+          <ChevronRight
+            size={16}
+            color={theme.textTertiary}
+            style={{ marginLeft: 6 }}
+          />
         </Pressable>
       </Animated.View>
     ),
     [navigateToVehicle, theme],
   );
 
-  // ── Key extractor ──────────────────────────────────────────────────────────
-
   const keyExtractor = useCallback((item: Vehicle) => item.id, []);
 
-  // ── Header Component ───────────────────────────────────────────────────────
+  // ── Header ─────────────────────────────────────────────────────────────────
 
   const ListHeader = useMemo(
     () => (
       <View>
-        {/* Header row */}
-        <View className="pt-6 pb-4 flex-row items-center justify-between">
-          <Text variant="headlineLarge">{t('fleet.title')}</Text>
-          <View className="flex-row items-center gap-2">
-            <IconButton
-              icon={viewMode === 'grid' ? List : LayoutGrid}
-              variant="ghost"
-              size="sm"
+        {/* Title bar */}
+        <Animated.View
+          entering={FadeInDown.duration(350)}
+          className="flex-row items-center justify-between"
+          style={{ paddingTop: 12, paddingBottom: 12 }}
+        >
+          <View className="flex-row items-center" style={{ gap: 10 }}>
+            <Text
+              variant="headlineLarge"
+              style={{ fontFamily: fontFamilies.bold, fontSize: 22 }}
+            >
+              {t('fleet.title', 'Flotte')}
+            </Text>
+            <View
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 3,
+                borderRadius: 9999,
+                backgroundColor: theme.accentSoft,
+              }}
+            >
+              <Text
+                variant="labelSmall"
+                color={theme.accent}
+                style={{ fontFamily: fontFamilies.semiBold, fontSize: 11 }}
+              >
+                {mockVehicles.length}
+              </Text>
+            </View>
+          </View>
+
+          <View className="flex-row" style={{ gap: 8 }}>
+            <Pressable
               onPress={handleToggleView}
-            />
+              hitSlop={8}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: theme.surface,
+                borderWidth: 1,
+                borderColor: theme.borderLight,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {viewMode === 'grid' ? (
+                <List size={18} color={theme.textPrimary} strokeWidth={2} />
+              ) : (
+                <LayoutGrid size={18} color={theme.textPrimary} strokeWidth={2} />
+              )}
+            </Pressable>
             {isAdmin && (
-              <IconButton
-                icon={Plus}
-                variant="filled"
-                size="sm"
+              <Pressable
                 onPress={handleAddVehicle}
-              />
+                hitSlop={8}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: theme.accent,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Plus size={18} color="#FFFFFF" strokeWidth={2.4} />
+              </Pressable>
             )}
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Search */}
-        <SearchBar
-          value={search}
-          onChangeText={setSearch}
-          placeholder={t('fleet.searchPlaceholder', 'Search vehicles...')}
-          className="mb-3"
-        />
-
-        {/* Status filter chips */}
-        <ChipGroup className="mb-2">
-          {STATUS_OPTIONS.map((opt) => (
-            <Chip
-              key={opt.label}
-              label={`${opt.label} (${countByStatus(opt.value)})`}
-              selected={statusFilter === opt.value}
-              onPress={() => setStatusFilter(opt.value)}
-            />
-          ))}
-        </ChipGroup>
-
-        {/* Brand filter chips */}
-        <ChipGroup className="mb-3">
-          <Chip
-            label={`All (${countByBrand(null)})`}
-            selected={brandFilter === null}
-            onPress={() => setBrandFilter(null)}
+        {/* Search pill */}
+        <Animated.View
+          entering={FadeInDown.delay(60).duration(350)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: 9999,
+            backgroundColor: theme.surface,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+          }}
+        >
+          <Search size={16} color={theme.textTertiary} strokeWidth={2} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder={t(
+              'fleet.searchPlaceholder',
+              'Search by name, model or plate',
+            )}
+            placeholderTextColor={theme.textTertiary}
+            style={{
+              flex: 1,
+              marginLeft: 8,
+              fontSize: 14,
+              color: theme.textPrimary,
+              fontFamily: fontFamilies.regular,
+              padding: 0,
+            }}
           />
-          {ALL_BRANDS.map((brand) => (
-            <Chip
-              key={brand}
-              label={`${brand} (${countByBrand(brand)})`}
-              selected={brandFilter === brand}
-              onPress={() => setBrandFilter(brand)}
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch('')} hitSlop={8}>
+              <X size={14} color={theme.textTertiary} />
+            </Pressable>
+          )}
+        </Animated.View>
+
+        {/* Status rail */}
+        <Animated.View
+          entering={FadeInDown.delay(100).duration(350)}
+          style={{ marginTop: 14 }}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingRight: 4 }}
+          >
+            {statusOptions.map((opt) => {
+              const selected = statusFilter === opt.value;
+              return (
+                <FilterPill
+                  key={opt.label}
+                  label={`${opt.label} (${countByStatus(opt.value)})`}
+                  selected={selected}
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setStatusFilter(opt.value);
+                  }}
+                  theme={theme}
+                />
+              );
+            })}
+          </ScrollView>
+        </Animated.View>
+
+        {/* Brand rail */}
+        <Animated.View
+          entering={FadeInDown.delay(140).duration(350)}
+          style={{ marginTop: 10 }}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingRight: 4 }}
+          >
+            <FilterPill
+              label={`${t('fleet.filter.all', 'All')} (${countByBrand(null)})`}
+              selected={brandFilter === null}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setBrandFilter(null);
+              }}
+              theme={theme}
             />
-          ))}
-        </ChipGroup>
+            {ALL_BRANDS.map((brand) => (
+              <FilterPill
+                key={brand}
+                label={`${brand} (${countByBrand(brand)})`}
+                selected={brandFilter === brand}
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setBrandFilter(brand);
+                }}
+                theme={theme}
+              />
+            ))}
+          </ScrollView>
+        </Animated.View>
+
+        <View style={{ height: 14 }} />
       </View>
     ),
     [
@@ -304,12 +494,12 @@ export default function FleetScreen() {
       search,
       statusFilter,
       brandFilter,
+      statusOptions,
       handleToggleView,
       handleAddVehicle,
+      theme,
     ],
   );
-
-  // ── Empty list component ───────────────────────────────────────────────────
 
   const ListEmpty = useMemo(
     () => (
@@ -327,8 +517,6 @@ export default function FleetScreen() {
     [t],
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <ScreenWrapper padded={false}>
       <FlatList
@@ -336,17 +524,17 @@ export default function FleetScreen() {
         renderItem={viewMode === 'grid' ? renderGridCard : renderListRow}
         keyExtractor={keyExtractor}
         numColumns={viewMode === 'grid' ? 2 : 1}
-        key={viewMode} // force re-mount on column change
+        key={viewMode}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={ListEmpty}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: 16,
-          paddingBottom: 100,
+          paddingBottom: 110,
           flexGrow: 1,
         }}
         columnWrapperStyle={
-          viewMode === 'grid' ? { gap: 0 } : undefined
+          viewMode === 'grid' ? { gap: 12, marginBottom: 12 } : undefined
         }
         refreshControl={
           <RefreshControl
@@ -357,5 +545,39 @@ export default function FleetScreen() {
         }
       />
     </ScreenWrapper>
+  );
+}
+
+// ── FilterPill ────────────────────────────────────────────────────────────────
+
+interface FilterPillProps {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  theme: ReturnType<typeof useTheme>;
+}
+
+function FilterPill({ label, selected, onPress, theme }: FilterPillProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 9999,
+        backgroundColor: selected ? theme.accent : theme.surface,
+        borderWidth: 1,
+        borderColor: selected ? theme.accent : theme.borderLight,
+        transform: [{ scale: pressed ? 0.97 : 1 }],
+      })}
+    >
+      <Text
+        variant="labelSmall"
+        color={selected ? '#FFFFFF' : theme.textSecondary}
+        style={{ fontFamily: fontFamilies.semiBold, fontSize: 12 }}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }

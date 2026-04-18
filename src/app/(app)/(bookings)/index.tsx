@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Pressable, FlatList, RefreshControl } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -9,6 +9,7 @@ import {
   CalendarDays,
   CalendarOff,
   Car,
+  AlertTriangle,
 } from 'lucide-react-native';
 
 import { ScreenWrapper } from '@/components/ui/ScreenWrapper';
@@ -20,10 +21,10 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { IconButton } from '@/components/ui/IconButton';
 import { useTheme } from '@/hooks/useTheme';
 import { formatDate } from '@/utils/format';
-import { mockBookings } from '@/data/bookings';
+import { useBookingStore } from '@/stores/useBookingStore';
 import type { Booking, BookingStatus } from '@/types/booking';
 
-type FilterValue = BookingStatus | 'upcoming' | null;
+type FilterValue = BookingStatus | 'upcoming' | 'conflict' | null;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -160,19 +161,38 @@ export default function BookingsScreen() {
   const { t } = useTranslation();
   const theme = useTheme();
   const router = useRouter();
+  const params = useLocalSearchParams<{ filter?: string }>();
+  const bookings = useBookingStore((s) => s.bookings);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterValue>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Honour deep-link filter query param (e.g. from the dashboard's conflict card
+  // or the statistics tiles — accepts any of the chip filter values).
+  useEffect(() => {
+    const valid: FilterValue[] = [
+      'conflict',
+      'active',
+      'upcoming',
+      'completed',
+      'cancelled',
+      'pending',
+      'confirmed',
+    ];
+    if (params.filter && (valid as string[]).includes(params.filter)) {
+      setFilter(params.filter as FilterValue);
+    }
+  }, [params.filter]);
+
   // Sort newest createdAt first
   const sortedBookings = useMemo(
     () =>
-      [...mockBookings].sort(
+      [...bookings].sort(
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       ),
-    [],
+    [bookings],
   );
 
   // Apply search filter on sorted bookings (used for chip counts)
@@ -193,6 +213,11 @@ export default function BookingsScreen() {
     if (filter === 'upcoming') {
       return searchFiltered.filter((b) => matchesUpcoming(b.status));
     }
+    if (filter === 'conflict') {
+      return searchFiltered.filter(
+        (b) => b.conflict && b.conflict.withBookingIds.length > 0,
+      );
+    }
     return searchFiltered.filter((b) => b.status === filter);
   }, [searchFiltered, filter]);
 
@@ -204,6 +229,9 @@ export default function BookingsScreen() {
       upcoming: searchFiltered.filter((b) => matchesUpcoming(b.status)).length,
       completed: searchFiltered.filter((b) => b.status === 'completed').length,
       cancelled: searchFiltered.filter((b) => b.status === 'cancelled').length,
+      conflict: searchFiltered.filter(
+        (b) => b.conflict && b.conflict.withBookingIds.length > 0,
+      ).length,
     }),
     [searchFiltered],
   );
@@ -303,6 +331,13 @@ export default function BookingsScreen() {
             selected={filter === 'cancelled'}
             onPress={() => handleFilterPress('cancelled')}
           />
+          {counts.conflict > 0 && (
+            <Chip
+              label={`${t('bookings.conflict.filterChip', 'Conflicts')} (${counts.conflict})`}
+              selected={filter === 'conflict'}
+              onPress={() => handleFilterPress('conflict')}
+            />
+          )}
         </ChipGroup>
       </View>
     ),

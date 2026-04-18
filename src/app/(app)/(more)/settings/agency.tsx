@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Pressable, Switch } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Pressable, Switch, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import {
@@ -15,6 +16,10 @@ import {
   Banknote,
   Bell,
   CalendarX,
+  Truck,
+  Search,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -26,10 +31,26 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Divider } from '@/components/ui/Divider';
 import { Avatar } from '@/components/ui/Avatar';
+import { Input } from '@/components/ui/Input';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useToastStore } from '@/components/ui/Toast';
-import { useAgencySettingsStore, type AutoCancelHours } from '@/stores/useAgencySettingsStore';
+import {
+  useAgencySettingsStore,
+  useCurrentAgencySettings,
+  type AutoCancelHours,
+} from '@/stores/useAgencySettingsStore';
+import {
+  useAgencyStore,
+  useAgencyList,
+  useCurrentAgency,
+} from '@/stores/useAgencyStore';
+import {
+  geocodeAddress,
+  buildStaticMapUrl,
+  MapsApiKeyMissingError,
+  GeocodingError,
+} from '@/services/mapsService';
 
 // ── Mock data ───────────────────────────────────────────────────────────────
 
@@ -72,10 +93,160 @@ export default function AgencyScreen() {
   const showToast = useToastStore((s) => s.show);
   const [autoReminders, setAutoReminders] = useState(true);
 
-  const autoCancelEnabled = useAgencySettingsStore((s) => s.bookingPolicies.autoCancelUnpaid);
-  const autoCancelHours = useAgencySettingsStore((s) => s.bookingPolicies.autoCancelAfterHours);
+  const currentSettings = useCurrentAgencySettings();
+  const autoCancelEnabled = currentSettings.bookingPolicies.autoCancelUnpaid;
+  const autoCancelHours = currentSettings.bookingPolicies.autoCancelAfterHours;
   const setAutoCancelEnabled = useAgencySettingsStore((s) => s.setAutoCancelEnabled);
   const setAutoCancelHours = useAgencySettingsStore((s) => s.setAutoCancelHours);
+
+  // ── Delivery settings ──────────────────────────────────────────────
+  const delivery = currentSettings.delivery;
+  const setDeliveryEnabled = useAgencySettingsStore((s) => s.setDeliveryEnabled);
+  const setDeliveryBasePoint = useAgencySettingsStore((s) => s.setDeliveryBasePoint);
+  const setDeliveryRate = useAgencySettingsStore((s) => s.setDeliveryRate);
+  const setDeliveryMinFee = useAgencySettingsStore((s) => s.setDeliveryMinFee);
+  const setDeliveryMaxDistance = useAgencySettingsStore((s) => s.setDeliveryMaxDistance);
+
+  // ── Tenant switcher (dev only) ─────────────────────────────────────
+  const currentAgency = useCurrentAgency();
+  const allAgencies = useAgencyList();
+  const setCurrentAgencyId = useAgencyStore((s) => s.setCurrentAgencyId);
+
+  const [deliveryLabel, setDeliveryLabel] = useState(delivery.basePointLabel);
+  const [deliveryAddress, setDeliveryAddress] = useState(delivery.basePointAddress);
+  const [resolvedLat, setResolvedLat] = useState<number>(delivery.basePointLat);
+  const [resolvedLng, setResolvedLng] = useState<number>(delivery.basePointLng);
+  const [resolvedAddress, setResolvedAddress] = useState<string>(
+    delivery.basePointAddress && delivery.basePointLat !== 0 ? delivery.basePointAddress : '',
+  );
+  const [deliveryRate, setDeliveryRateInput] = useState(
+    delivery.ratePerKm > 0 ? String(delivery.ratePerKm) : '',
+  );
+  const [deliveryMinFee, setDeliveryMinFeeInput] = useState(
+    delivery.minFee != null ? String(delivery.minFee) : '',
+  );
+  const [deliveryMaxDistance, setDeliveryMaxDistanceInput] = useState(
+    delivery.maxDistanceKm != null ? String(delivery.maxDistanceKm) : '',
+  );
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Reset the editable form when switching tenants so the inputs reflect the
+  // newly-selected agency's persisted values.
+  useEffect(() => {
+    setDeliveryLabel(delivery.basePointLabel);
+    setDeliveryAddress(delivery.basePointAddress);
+    setResolvedLat(delivery.basePointLat);
+    setResolvedLng(delivery.basePointLng);
+    setResolvedAddress(
+      delivery.basePointAddress && delivery.basePointLat !== 0
+        ? delivery.basePointAddress
+        : '',
+    );
+    setDeliveryRateInput(delivery.ratePerKm > 0 ? String(delivery.ratePerKm) : '');
+    setDeliveryMinFeeInput(delivery.minFee != null ? String(delivery.minFee) : '');
+    setDeliveryMaxDistanceInput(
+      delivery.maxDistanceKm != null ? String(delivery.maxDistanceKm) : '',
+    );
+    setSearchError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentAgency.id]);
+
+  const hasResolved = resolvedLat !== 0 || resolvedLng !== 0;
+  const staticMapUrl = hasResolved
+    ? buildStaticMapUrl(resolvedLat, resolvedLng, { width: 600, height: 240 })
+    : null;
+
+  const handleSearchAddress = useCallback(async () => {
+    if (!deliveryAddress.trim()) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const result = await geocodeAddress(deliveryAddress);
+      setResolvedLat(result.lat);
+      setResolvedLng(result.lng);
+      setResolvedAddress(result.formattedAddress);
+    } catch (err) {
+      let key = 'settings.delivery.errorUnknown';
+      if (err instanceof MapsApiKeyMissingError) {
+        key = 'settings.delivery.apiKeyMissing';
+      } else if (err instanceof GeocodingError) {
+        key =
+          err.code === 'ZERO_RESULTS'
+            ? 'settings.delivery.errorZeroResults'
+            : err.code === 'OVER_QUERY_LIMIT'
+              ? 'settings.delivery.errorQuota'
+              : err.code === 'REQUEST_DENIED'
+                ? 'settings.delivery.errorRequestDenied'
+                : err.code === 'NETWORK'
+                  ? 'settings.delivery.errorNetwork'
+                  : 'settings.delivery.errorUnknown';
+      }
+      const message = t(key, 'Error');
+      setSearchError(message);
+      showToast({ variant: 'error', title: message });
+    } finally {
+      setSearching(false);
+    }
+  }, [deliveryAddress, showToast, t]);
+
+  const handleSaveDelivery = useCallback(() => {
+    const rate = Number.parseFloat(deliveryRate.replace(',', '.'));
+    if (!Number.isFinite(rate) || rate <= 0) {
+      showToast({
+        variant: 'error',
+        title: t('settings.delivery.rateInvalid', 'Invalid rate per km'),
+      });
+      return;
+    }
+
+    const parsedMinFee = deliveryMinFee.trim()
+      ? Number.parseFloat(deliveryMinFee.replace(',', '.'))
+      : undefined;
+    const parsedMaxDistance = deliveryMaxDistance.trim()
+      ? Number.parseFloat(deliveryMaxDistance.replace(',', '.'))
+      : undefined;
+
+    setDeliveryBasePoint({
+      label: deliveryLabel.trim(),
+      address: resolvedAddress || deliveryAddress.trim(),
+      lat: resolvedLat,
+      lng: resolvedLng,
+    });
+    setDeliveryRate(rate);
+    setDeliveryMinFee(
+      parsedMinFee != null && Number.isFinite(parsedMinFee) && parsedMinFee >= 0
+        ? parsedMinFee
+        : undefined,
+    );
+    setDeliveryMaxDistance(
+      parsedMaxDistance != null && Number.isFinite(parsedMaxDistance) && parsedMaxDistance > 0
+        ? parsedMaxDistance
+        : undefined,
+    );
+
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showToast({
+      variant: 'success',
+      title: t('settings.delivery.saved', 'Delivery settings saved'),
+    });
+  }, [
+    deliveryAddress,
+    deliveryLabel,
+    deliveryMaxDistance,
+    deliveryMinFee,
+    deliveryRate,
+    resolvedAddress,
+    resolvedLat,
+    resolvedLng,
+    setDeliveryBasePoint,
+    setDeliveryMaxDistance,
+    setDeliveryMinFee,
+    setDeliveryRate,
+    showToast,
+    t,
+  ]);
 
   const comingSoon = () => {
     showToast({
@@ -149,11 +320,58 @@ export default function AgencyScreen() {
         </Text>
       </Animated.View>
 
+      {/* Dev-only tenant switcher */}
+      {__DEV__ && allAgencies.length > 1 && (
+        <Animated.View entering={FadeInDown.duration(400).delay(25)} className="mb-4">
+          <Card>
+            <View className="flex-row items-center mb-2" style={{ gap: 6 }}>
+              <Badge variant="warning" size="sm">
+                DEV
+              </Badge>
+              <Text variant="titleMedium">Agency switcher</Text>
+            </View>
+            <Text variant="bodySmall" color={theme.textSecondary} className="mb-3">
+              Active: {currentAgency.name} ({currentAgency.id})
+            </Text>
+            <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+              {allAgencies.map((agency) => {
+                const isActive = agency.id === currentAgency.id;
+                return (
+                  <Pressable
+                    key={agency.id}
+                    onPress={() => {
+                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setCurrentAgencyId(agency.id);
+                    }}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 9999,
+                      backgroundColor: isActive ? theme.accent : theme.surfaceSecondary,
+                      borderWidth: 1,
+                      borderColor: isActive ? theme.accent : theme.border,
+                    }}
+                  >
+                    <Text
+                      variant="labelSmall"
+                      color={isActive ? '#FFFFFF' : theme.textSecondary}
+                      style={{ fontWeight: isActive ? '700' : '500' }}
+                    >
+                      {agency.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Card>
+        </Animated.View>
+      )}
+
       {/* Agency Info Card */}
       <Animated.View entering={FadeInDown.duration(400).delay(50)} className="mb-4">
         <Card>
           <Text variant="headlineMedium" className="mb-3">
-            {AGENCY_INFO.name}
+            {currentAgency.name || AGENCY_INFO.name}
           </Text>
 
           <View className="flex-row items-center mb-2">
@@ -306,6 +524,174 @@ export default function AgencyScreen() {
               thumbColor={autoReminders ? theme.accent : theme.textTertiary}
             />
           </View>
+        </Card>
+      </Animated.View>
+
+      {/* Delivery */}
+      <Animated.View entering={FadeInDown.duration(400).delay(225)} className="mb-4">
+        <Card>
+          <View className="flex-row items-center mb-1">
+            <Truck size={20} color={theme.accent} strokeWidth={1.8} />
+            <Text variant="headlineSmall" className="ml-2 flex-1">
+              {t('settings.delivery.sectionTitle', 'Delivery')}
+            </Text>
+            <Switch
+              value={delivery.enabled}
+              onValueChange={(val) => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setDeliveryEnabled(val);
+              }}
+              trackColor={{ false: theme.surfaceTertiary, true: theme.accentSoft }}
+              thumbColor={delivery.enabled ? theme.accent : theme.textTertiary}
+            />
+          </View>
+          <Text variant="bodySmall" color={theme.textSecondary} className="mb-4">
+            {t(
+              'settings.delivery.sectionSubtitle',
+              'Configure base point and per-km rate',
+            )}
+          </Text>
+
+          {delivery.enabled && (
+            <View style={{ gap: 14 }}>
+              <Input
+                label={t('settings.delivery.basePointLabel', 'Base point name')}
+                placeholder={t(
+                  'settings.delivery.basePointLabelPlaceholder',
+                  'E.g. Geneva-Centre agency',
+                )}
+                value={deliveryLabel}
+                onChangeText={setDeliveryLabel}
+              />
+
+              <View>
+                <Input
+                  label={t('settings.delivery.basePointAddress', 'Base address')}
+                  placeholder={t(
+                    'settings.delivery.basePointAddressPlaceholder',
+                    'Street, number, postcode, city',
+                  )}
+                  value={deliveryAddress}
+                  onChangeText={(text) => {
+                    setDeliveryAddress(text);
+                    if (searchError) setSearchError(null);
+                  }}
+                  leftIcon={MapPin}
+                  error={searchError ?? undefined}
+                />
+                <View className="mt-3">
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    leftIcon={Search}
+                    disabled={searching || deliveryAddress.trim().length === 0}
+                    onPress={handleSearchAddress}
+                  >
+                    {searching
+                      ? t('settings.delivery.searching', 'Searching…')
+                      : t('settings.delivery.search', 'Search')}
+                  </Button>
+                </View>
+              </View>
+
+              {searching && (
+                <View className="flex-row items-center" style={{ gap: 8 }}>
+                  <ActivityIndicator color={theme.accent} />
+                  <Text variant="bodySmall" color={theme.textSecondary}>
+                    {t('settings.delivery.searching', 'Searching…')}
+                  </Text>
+                </View>
+              )}
+
+              {!searching && hasResolved && (
+                <View
+                  style={{
+                    backgroundColor: theme.successSoft,
+                    borderRadius: 14,
+                    padding: 12,
+                    gap: 8,
+                  }}
+                >
+                  <View className="flex-row items-center" style={{ gap: 8 }}>
+                    <CheckCircle2 size={16} color={theme.success} />
+                    <Text variant="titleSmall" color={theme.success}>
+                      {t('settings.delivery.resolved', 'Address resolved')}
+                    </Text>
+                  </View>
+                  <Text variant="bodySmall" color={theme.textPrimary}>
+                    {resolvedAddress || deliveryAddress}
+                  </Text>
+                  <Text variant="caption" color={theme.textTertiary}>
+                    {t('settings.delivery.coordinates', 'Coordinates')}:{' '}
+                    {resolvedLat.toFixed(6)}, {resolvedLng.toFixed(6)}
+                  </Text>
+                  {staticMapUrl && (
+                    <Image
+                      source={staticMapUrl}
+                      style={{ width: '100%', height: 140, borderRadius: 10 }}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  )}
+                </View>
+              )}
+
+              {!searching && !hasResolved && searchError && (
+                <View className="flex-row items-center" style={{ gap: 8 }}>
+                  <AlertCircle size={14} color={theme.danger} />
+                  <Text variant="bodySmall" color={theme.danger}>
+                    {searchError}
+                  </Text>
+                </View>
+              )}
+
+              <Input
+                label={`${t('settings.delivery.ratePerKm', 'Rate per km')} (${delivery.currency})`}
+                placeholder={t('settings.delivery.ratePerKmPlaceholder', 'E.g. 1.50')}
+                value={deliveryRate}
+                onChangeText={(text) =>
+                  setDeliveryRateInput(text.replace(/[^0-9.,]/g, ''))
+                }
+                keyboardType="decimal-pad"
+                leftIcon={Banknote}
+              />
+
+              <View className="flex-row" style={{ gap: 10 }}>
+                <View className="flex-1">
+                  <Input
+                    label={t('settings.delivery.minFee', 'Minimum fee (optional)')}
+                    placeholder={t('settings.delivery.minFeePlaceholder', 'E.g. 10')}
+                    value={deliveryMinFee}
+                    onChangeText={(text) =>
+                      setDeliveryMinFeeInput(text.replace(/[^0-9.,]/g, ''))
+                    }
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+                <View className="flex-1">
+                  <Input
+                    label={t(
+                      'settings.delivery.maxDistance',
+                      'Max distance in km (optional)',
+                    )}
+                    placeholder={t(
+                      'settings.delivery.maxDistancePlaceholder',
+                      'E.g. 50',
+                    )}
+                    value={deliveryMaxDistance}
+                    onChangeText={(text) =>
+                      setDeliveryMaxDistanceInput(text.replace(/[^0-9.,]/g, ''))
+                    }
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+              </View>
+
+              <Button variant="primary" fullWidth onPress={handleSaveDelivery}>
+                {t('settings.delivery.save', 'Save delivery settings')}
+              </Button>
+            </View>
+          )}
         </Card>
       </Animated.View>
 

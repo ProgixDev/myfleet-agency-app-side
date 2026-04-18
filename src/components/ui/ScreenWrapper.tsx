@@ -46,7 +46,7 @@ export function ScreenWrapper({
         <ScrollView
           bounces
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 110 }}
           refreshControl={
             onRefresh != null ? (
               <RefreshControl
@@ -60,7 +60,7 @@ export function ScreenWrapper({
           {content}
         </ScrollView>
       ) : (
-        content
+        <View style={{ flex: 1, paddingBottom: 110 }}>{content}</View>
       )}
     </SafeAreaView>
   );

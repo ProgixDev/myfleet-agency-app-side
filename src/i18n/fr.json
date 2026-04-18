@@ -31,17 +31,27 @@
       "skip": "Passer",
       "next": "Suivant",
       "getStarted": "Commencer",
+      "stepIndicator": "{{current}} / {{total}}",
       "screen1": {
         "title": "Votre Flotte, Sous Contrôle",
-        "subtitle": "Gérez toute votre flotte en temps réel. Disponibilité, réservations et maintenance — tout en un seul endroit."
+        "subtitle": "Gérez toute votre flotte en temps réel. Disponibilité, réservations et maintenance — tout en un seul endroit.",
+        "chip1": "Temps réel",
+        "chip2": "Réservations",
+        "chip3": "Maintenance"
       },
       "screen2": {
         "title": "Inspections Intelligentes",
-        "subtitle": "Détectez rayures, bosses et dommages automatiquement. Avant et après — chaque détail capturé."
+        "subtitle": "Détectez rayures, bosses et dommages automatiquement. Avant et après — chaque détail capturé.",
+        "chip1": "IA embarquée",
+        "chip2": "Avant / Après",
+        "chip3": "Rapports PDF"
       },
       "screen3": {
         "title": "Prêt à Transformer Votre Agence ?",
-        "subtitle": "Rejoignez des centaines d'agences qui utilisent déjà My Fleet pour optimiser leurs opérations."
+        "subtitle": "Rejoignez des centaines d'agences qui utilisent déjà My Fleet pour optimiser leurs opérations.",
+        "chip1": "Multi-agences",
+        "chip2": "Analytics",
+        "chip3": "Support 24/7"
       }
     },
     "welcome": {
@@ -49,7 +59,10 @@
       "tagline": "Gestion de flotte intelligente",
       "getStarted": "Commencer",
       "signIn": "Se connecter",
-      "haveAccount": "J'ai déjà un compte"
+      "haveAccount": "J'ai déjà un compte",
+      "chip1": "Multi-agences",
+      "chip2": "IA inspection",
+      "chip3": "Analytics"
     },
     "loginScreen": {
       "title": "Bon retour",
@@ -59,7 +72,8 @@
       "forgotPassword": "Mot de passe oublié ?",
       "signIn": "Se connecter",
       "noAccount": "Pas encore de compte ?",
-      "register": "S'inscrire"
+      "register": "S'inscrire",
+      "continueWithPhone": "Continuer avec téléphone"
     },
     "registerScreen": {
       "title": "Créer un compte",
@@ -76,7 +90,64 @@
       "confirmPasswordPlaceholder": "Confirmez votre mot de passe",
       "createAccount": "Créer un compte",
       "hasAccount": "Déjà un compte ?",
-      "signIn": "Se connecter"
+      "signIn": "Se connecter",
+      "stepIndicator": "{{current}} / {{total}}",
+      "continue": "Continuer",
+      "step1": {
+        "title": "Parlez-nous de vous",
+        "subtitle": "Quelques informations sur le responsable du compte"
+      },
+      "step2": {
+        "title": "Votre agence",
+        "subtitle": "Comment vos clients la trouveront",
+        "city": "Ville",
+        "cityPlaceholder": "Genève",
+        "fleetSize": "Taille de votre flotte",
+        "fleetSizeS": "1 — 10",
+        "fleetSizeM": "11 — 50",
+        "fleetSizeL": "51 — 200",
+        "fleetSizeXl": "200 +"
+      },
+      "step3": {
+        "title": "Sécurisez votre compte",
+        "subtitle": "Choisissez un mot de passe solide",
+        "strengthWeak": "Faible",
+        "strengthMedium": "Moyen",
+        "strengthStrong": "Fort",
+        "cguText": "J'accepte les conditions générales",
+        "cguLink": "Conditions générales d'utilisation"
+      },
+      "step4": {
+        "title": "Documents légaux",
+        "subtitle": "Optionnel — vous pouvez téléverser plus tard",
+        "kbis": "Extrait K-bis",
+        "kbisHint": "Moins de 3 mois",
+        "license": "Licence d'exploitation",
+        "licenseHint": "Agrément location de véhicules",
+        "insurance": "Assurance RC Pro",
+        "insuranceHint": "Attestation en cours de validité",
+        "upload": "Téléverser",
+        "uploaded": "Téléversé",
+        "skipForNow": "Je téléverserai plus tard",
+        "finalize": "Créer mon compte"
+      }
+    },
+    "phoneLoginScreen": {
+      "title": "Connexion par téléphone",
+      "subtitle": "Nous vous enverrons un code à 6 chiffres",
+      "phoneLabel": "Numéro de téléphone",
+      "phonePlaceholder": "+33 6 12 34 56 78",
+      "continue": "Recevoir le code"
+    },
+    "otpScreen": {
+      "title": "Entrez le code",
+      "subtitle": "Un code à 6 chiffres a été envoyé au",
+      "verify": "Vérifier",
+      "resend": "Renvoyer le code",
+      "resendIn": "Renvoyer dans {{seconds}}s",
+      "didNotReceive": "Vous n'avez rien reçu ?",
+      "invalid": "Code invalide. Essayez à nouveau.",
+      "changeNumber": "Changer de numéro"
     },
     "forgotScreen": {
       "title": "Réinitialiser le mot de passe",
@@ -129,7 +200,8 @@
       "photos": "Photos",
       "video": "Vidéo Intérieur",
       "noVideo": "Aucune vidéo disponible"
-    }
+    },
+    "searchPlaceholder": "Rechercher par nom, modèle ou plaque"
   },
   "booking": {
     "title": "Réservations",
@@ -266,7 +338,26 @@
     "returnAt": "Retour à",
     "overdue": "En retard",
     "dueIn": "Dans {{hours}}h",
-    "dueSoon": "Bientôt"
+    "dueSoon": "Bientôt",
+    "statistics": "Statistiques",
+    "statisticsHint": "Véhicules, revenus, flotte",
+    "tabActivity": "Activité",
+    "tabNotifications": "Notifications",
+    "fab": {
+      "create": "Créer",
+      "newInspection": "Inspection",
+      "newBooking": "Réservation",
+      "newClient": "Client"
+    },
+    "statsScreen": {
+      "title": "Statistiques",
+      "subtitle": "État de votre flotte",
+      "fleetBreakdown": "Répartition de la flotte",
+      "bookings": "Réservations",
+      "bookingsActive": "En cours",
+      "bookingsUpcoming": "À venir",
+      "bookingsCompleted": "Terminées"
+    }
   },
   "settings": {
     "title": "Paramètres",
@@ -283,6 +374,35 @@
       "hours48": "48 heures",
       "days3": "3 jours",
       "days7": "7 jours"
+    },
+    "delivery": {
+      "sectionTitle": "Livraison",
+      "sectionSubtitle": "Configurer le point de départ et le tarif par km",
+      "enabled": "Activer la livraison",
+      "enabledHelp": "Proposer la livraison à domicile aux clients",
+      "basePointLabel": "Nom du point de départ",
+      "basePointLabelPlaceholder": "Ex. Agence Genève-Centre",
+      "basePointAddress": "Adresse de référence",
+      "basePointAddressPlaceholder": "Rue, numéro, code postal, ville",
+      "search": "Rechercher",
+      "searching": "Recherche en cours…",
+      "resolved": "Adresse résolue",
+      "coordinates": "Coordonnées",
+      "ratePerKm": "Tarif par km",
+      "ratePerKmPlaceholder": "Ex. 1.50",
+      "minFee": "Frais minimum (optionnel)",
+      "minFeePlaceholder": "Ex. 10",
+      "maxDistance": "Distance maximum en km (optionnel)",
+      "maxDistancePlaceholder": "Ex. 50",
+      "save": "Enregistrer la livraison",
+      "saved": "Paramètres de livraison enregistrés",
+      "rateInvalid": "Tarif par km invalide",
+      "apiKeyMissing": "Jeton Mapbox manquant. Définissez EXPO_PUBLIC_MAPBOX_TOKEN.",
+      "errorZeroResults": "Aucun résultat pour cette adresse",
+      "errorQuota": "Quota Mapbox dépassé",
+      "errorRequestDenied": "Requête refusée (vérifiez la clé API)",
+      "errorNetwork": "Erreur réseau",
+      "errorUnknown": "Erreur inattendue"
     }
   },
   "agency": {
@@ -338,7 +458,129 @@
       "mileage": "Kilométrage relevé",
       "keys": "Clés rendues"
     },
-    "success": "Retour Terminé !"
+    "success": "Retour Terminé !",
+    "preRentalReference": {
+      "title": "Référence avant location",
+      "subtitle": "État documenté au départ",
+      "mileage": "Kilométrage au départ",
+      "fuel": "Carburant au départ",
+      "damages": "Dommages pré-existants",
+      "noPreRental": "Aucune inspection pré-location disponible"
+    }
+  },
+  "inspections": {
+    "detail": {
+      "preRentalTitle": "État avant location",
+      "postRentalTitle": "État après location",
+      "compare": "Comparer",
+      "compareHelp": "Vue côte-à-côte pour repérer les différences",
+      "stackedView": "Vue empilée",
+      "pairedSubtitle": "Pré + Post-location",
+      "fullscreenTitle": "Photo",
+      "closeFullscreen": "Fermer"
+    }
+  },
+  "bookings": {
+    "mileage": {
+      "sectionTitle": "Kilométrage",
+      "startMileageLabel": "Kilométrage au départ",
+      "returnMileageLabel": "Kilométrage au retour",
+      "startMileagePlaceholder": "Entrez le kilométrage",
+      "returnMileagePlaceholder": "Entrez le kilométrage",
+      "startMileageRequired": "Kilométrage au départ requis",
+      "startMileageReadonly": "Kilométrage au départ",
+      "kmDriven": "Km parcourus",
+      "includedKm": "Km inclus",
+      "overage": "Dépassement",
+      "extraCost": "Coût supplémentaire",
+      "extraKmRate": "Tarif par km supplémentaire",
+      "returnMileageStored": "Kilométrage au retour",
+      "unit": "km",
+      "zeroOverage": "0 km",
+      "helperIncluded": "{{included}} km inclus · {{rate}} CHF / km supplémentaire",
+      "errorReturnBelowStart": "Le kilométrage de retour doit être supérieur au départ",
+      "errorInvalid": "Valeur de kilométrage invalide",
+      "errorMissingStart": "Kilométrage de départ manquant",
+      "errorBookingNotFound": "Réservation introuvable"
+    },
+    "conflict": {
+      "bannerTitle": "Double-réservation détectée",
+      "bannerSubtitle": "Ce véhicule est également réservé sur :",
+      "filterChip": "Conflits",
+      "dashboardTitle": "Conflits de réservation",
+      "dashboardSubtitle": "Double-réservations actives sur la flotte",
+      "dashboardAction": "Voir les conflits",
+      "modalTitle": "Conflit de réservation",
+      "modalSubtitle": "Ce véhicule est déjà réservé sur les périodes suivantes :",
+      "createAnyway": "Créer quand même (conflit)",
+      "modifyDates": "Modifier les dates",
+      "abandon": "Annuler",
+      "listEmpty": "Aucun conflit",
+      "listEmptySubtitle": "Toutes les réservations sont compatibles"
+    },
+    "new": {
+      "searchVehicle": "Rechercher par nom, modèle ou plaque",
+      "delivery": {
+        "optionLabel": "Livraison à domicile",
+        "optionSubtitle": "Livraison du véhicule à l'adresse du client",
+        "addressLabel": "Adresse de livraison",
+        "addressPlaceholder": "Rue, numéro, code postal, ville",
+        "calculate": "Calculer le trajet",
+        "calculating": "Calcul en cours…",
+        "recalculate": "Recalculer",
+        "distance": "Distance",
+        "fee": "Tarif",
+        "rateInfo": "Tarif : {{rate}} {{currency}} / km",
+        "minFeeApplied": "Frais minimum appliqué",
+        "maxDistanceExceeded": "Distance ({{distance}} km) supérieure à la limite ({{max}} km)",
+        "addressRequired": "Adresse de livraison requise",
+        "calculateRequired": "Calculez le trajet avant de continuer",
+        "noBasePoint": "Aucune adresse d'agence configurée",
+        "errorZeroResults": "Adresse introuvable",
+        "errorQuota": "Quota Google Maps dépassé",
+        "errorRequestDenied": "Requête refusée (clé API)",
+        "errorNetwork": "Erreur réseau",
+        "errorUnknown": "Erreur inattendue",
+        "apiKeyMissing": "Clé API Google Maps manquante"
+      },
+      "step1": "Choisir le véhicule",
+      "step2": "Choisir le client",
+      "step3": "Choisir les dates",
+      "step4": "Tarification & Options",
+      "step5": "Vérifier & Confirmer",
+      "stepOf": "Étape {{current}} sur {{total}}",
+      "available": "disponibles",
+      "noVehicles": "Aucun véhicule trouvé",
+      "addClient": "Ajouter un client",
+      "searchClient": "Rechercher un client…",
+      "noClients": "Aucun client trouvé",
+      "summary": "Récapitulatif",
+      "vehicle": "Véhicule",
+      "client": "Client",
+      "dates": "Dates",
+      "options": "Options",
+      "total": "Total",
+      "days": "jours",
+      "confirm": "Confirmer la réservation",
+      "saveDraft": "Enregistrer comme brouillon",
+      "pricing": "Tarification",
+      "startDate": "Date de début",
+      "endDate": "Date de fin",
+      "times": "Horaires",
+      "pickup": "Prise en charge",
+      "return": "Retour",
+      "duration": "{{count}} jours",
+      "dailyRate": "Tarif journalier",
+      "unavailable": "Véhicule indisponible",
+      "unavailableDesc": "Ce véhicule est déjà réservé pour les dates sélectionnées.",
+      "confirmedTitle": "Réservation confirmée !",
+      "confirmedReference": "Référence",
+      "backToBookings": "Retour aux réservations",
+      "deposit": "Acompte",
+      "subtotal": "Sous-total",
+      "optionsTotal": "Options",
+      "perDay": "jour"
+    }
   },
   "more": {
     "title": "Plus",
@@ -353,7 +595,7 @@
     "logout": "Déconnexion"
   },
   "tabs": {
-    "dashboard": "Tableau de bord",
+    "dashboard": "Accueil",
     "fleet": "Flotte",
     "bookings": "Réservations",
     "clients": "Clients",
