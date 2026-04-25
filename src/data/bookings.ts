@@ -8,7 +8,7 @@ export const mockBookings: Booking[] = [
     deposit: 500, pickupLocation: 'Agence Paris Centre', returnLocation: 'Agence Paris Centre',
     pickupTime: '09:00', returnTime: '18:00', options: [
       { id: 'ins', label: 'Insurance Plus', price: 15, enabled: true },
-      { id: 'gps', label: 'GPS', price: 8, enabled: false },
+      { id: 'foreign-use', label: 'Foreign Use Pass', price: 25, enabled: false },
     ], notes: 'Client régulier', createdAt: '2026-03-28',
     startMileage: 12500, includedKm: 1400, extraKmRate: 0.3,
   },
@@ -47,7 +47,7 @@ export const mockBookings: Booking[] = [
     startDate: '2026-04-15', endDate: '2026-04-22', status: 'confirmed', dailyRate: 180, totalAmount: 1260,
     deposit: 600, pickupLocation: 'Agence Paris CDG', returnLocation: 'Agence Paris Centre',
     pickupTime: '10:00', returnTime: '18:00', options: [
-      { id: 'gps', label: 'GPS', price: 8, enabled: true },
+      { id: 'foreign-use', label: 'Foreign Use Pass', price: 25, enabled: true },
     ], notes: 'Aller simple', createdAt: '2026-04-05',
   },
   {

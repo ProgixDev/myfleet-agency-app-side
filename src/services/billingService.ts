@@ -35,7 +35,7 @@ const mockInvoices: Invoice[] = [
     invoiceNumber: 'INV-2026-0001',
     items: [
       { description: 'Dacia Duster - 5 days', quantity: 5, unitPrice: 350, total: 1750 },
-      { description: 'GPS Navigation add-on', quantity: 5, unitPrice: 30, total: 150 },
+      { description: 'Foreign Use Pass add-on', quantity: 5, unitPrice: 30, total: 150 },
     ],
     subtotal: 1900,
     tax: 380,

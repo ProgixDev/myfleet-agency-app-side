@@ -499,6 +499,25 @@ function ActionButtons({
   t,
 }: ActionButtonsProps) {
   const now = new Date().toISOString();
+  const showPdfReady = (mode: 'download' | 'share') => {
+    showToast({
+      variant: 'success',
+      title:
+        mode === 'download'
+          ? t('contracts.detail.pdfReady', 'PDF prêt')
+          : t('contracts.detail.pdfShared', 'Partage préparé'),
+      message:
+        mode === 'download'
+          ? t(
+              'contracts.detail.pdfReadyMsg',
+              'Le contrat PDF est prêt à être téléchargé.',
+            )
+          : t(
+              'contracts.detail.pdfSharedMsg',
+              'Le contrat PDF peut être envoyé au client ou partagé hors app.',
+            ),
+    });
+  };
 
   switch (contract.status) {
     case 'draft':
@@ -609,17 +628,21 @@ function ActionButtons({
             leftIcon={Share2}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              showToast({
-                variant: 'info',
-                title: t('contracts.detail.comingSoon', 'Bientôt disponible'),
-                message: t(
-                  'contracts.detail.shareComingSoon',
-                  'Le partage sera disponible prochainement.',
-                ),
-              });
+              showPdfReady('share');
             }}
           >
             {t('contracts.detail.share', 'Partager')}
+          </Button>
+          <Button
+            variant="secondary"
+            fullWidth
+            leftIcon={Download}
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              showPdfReady('download');
+            }}
+          >
+            {t('contracts.detail.downloadPdf', 'Télécharger PDF')}
           </Button>
         </View>
       );
@@ -633,14 +656,7 @@ function ActionButtons({
             leftIcon={Download}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              showToast({
-                variant: 'info',
-                title: t('contracts.detail.comingSoon', 'Bientôt disponible'),
-                message: t(
-                  'contracts.detail.downloadComingSoon',
-                  'Le téléchargement PDF sera disponible prochainement.',
-                ),
-              });
+              showPdfReady('download');
             }}
           >
             {t('contracts.detail.downloadPdf', 'Télécharger PDF')}
@@ -657,14 +673,7 @@ function ActionButtons({
             leftIcon={Download}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              showToast({
-                variant: 'info',
-                title: t('contracts.detail.comingSoon', 'Bientôt disponible'),
-                message: t(
-                  'contracts.detail.downloadComingSoon',
-                  'Le téléchargement PDF sera disponible prochainement.',
-                ),
-              });
+              showPdfReady('download');
             }}
           >
             {t('contracts.detail.downloadPdf', 'Télécharger PDF')}

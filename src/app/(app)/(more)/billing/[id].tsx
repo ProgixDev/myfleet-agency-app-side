@@ -166,21 +166,21 @@ export default function InvoiceDetailScreen() {
     });
   }, [showToast]);
 
-  const handleDownloadReceipt = useCallback(() => {
+  const handleGenerateInvoicePdf = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showToast({
       variant: 'success',
-      title: 'Re\u00E7u t\u00E9l\u00E9charg\u00E9',
-      message: 'Le re\u00E7u a \u00E9t\u00E9 t\u00E9l\u00E9charg\u00E9 avec succ\u00E8s.',
+      title: 'Facture PDF pr\u00EAte',
+      message: 'La facture PDF est pr\u00EAte avec les informations du client.',
     });
   }, [showToast]);
 
-  const handleSendReceipt = useCallback(() => {
+  const handleSendInvoicePdf = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showToast({
       variant: 'success',
-      title: 'Re\u00E7u envoy\u00E9',
-      message: 'Le re\u00E7u a \u00E9t\u00E9 envoy\u00E9 par email au client.',
+      title: 'Facture envoy\u00E9e',
+      message: 'La facture PDF a \u00E9t\u00E9 envoy\u00E9e par email au client.',
     });
   }, [showToast]);
 
@@ -741,17 +741,17 @@ export default function InvoiceDetailScreen() {
               variant="primary"
               fullWidth
               leftIcon={Download}
-              onPress={handleDownloadReceipt}
+              onPress={handleGenerateInvoicePdf}
             >
-              T{'\u00E9'}l{'\u00E9'}charger le re{'\u00E7'}u
+              G{'\u00E9'}n{'\u00E9'}rer facture PDF
             </Button>
             <Button
               variant="secondary"
               fullWidth
               leftIcon={Send}
-              onPress={handleSendReceipt}
+              onPress={handleSendInvoicePdf}
             >
-              Envoyer le re{'\u00E7'}u
+              Envoyer facture PDF
             </Button>
           </View>
         </Animated.View>

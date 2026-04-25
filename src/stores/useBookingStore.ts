@@ -126,7 +126,7 @@ function computeConflictAnnotations(bookings: Booking[]): Booking[] {
 const DEFAULT_OPTIONS: BookingOption[] = [
   { id: 'ins', label: 'Insurance Plus', price: 15, enabled: false },
   { id: 'drv', label: 'Additional Driver', price: 10, enabled: false },
-  { id: 'gps', label: 'GPS', price: 8, enabled: false },
+  { id: 'foreign-use', label: 'Foreign Use Pass', price: 25, enabled: false },
   { id: 'seat', label: 'Child Seat', price: 5, enabled: false },
 ];
 

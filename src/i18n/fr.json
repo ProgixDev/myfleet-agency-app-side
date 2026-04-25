@@ -518,6 +518,20 @@
       "listEmpty": "Aucun conflit",
       "listEmptySubtitle": "Toutes les réservations sont compatibles"
     },
+    "calendar": {
+      "agendaTitle": "Réservations",
+      "agendaSubtitle": "Départs, retours et actions à traiter",
+      "tabs": {
+        "today": "Aujourd'hui",
+        "upcoming": "À venir",
+        "calendar": "Calendrier"
+      },
+      "todayOps": "Opérations",
+      "toHandle": "À traiter",
+      "noTodayBookings": "Aucune opération prévue aujourd'hui",
+      "noUpcomingBookings": "Aucune réservation à venir",
+      "noBookings": "Aucune réservation pour ce jour"
+    },
     "new": {
       "searchVehicle": "Rechercher par nom, modèle ou plaque",
       "delivery": {
@@ -543,6 +557,38 @@
         "errorUnknown": "Erreur inattendue",
         "apiKeyMissing": "Clé API Google Maps manquante"
       },
+      "customPickup": {
+        "optionLabel": "Récupération personnalisée",
+        "optionSubtitle": "Récupération du véhicule à l'adresse du client",
+        "addressLabel": "Adresse de récupération",
+        "addressPlaceholder": "Adresse de retour du client",
+        "addressRequired": "Adresse de récupération requise"
+      },
+      "customOptions": {
+        "title": "Options personnalisables",
+        "subtitle": "L'agence peut adapter assurances, pass et extras selon son offre",
+        "message": "Cette liste reste configurable côté agence sans changer le parcours."
+      },
+      "counterClient": {
+        "title": "Nouveau client comptoir",
+        "subtitle": "Créez le client sans lui demander d'utiliser l'application.",
+        "firstName": "Prénom",
+        "lastName": "Nom",
+        "phone": "Téléphone",
+        "email": "Email",
+        "address": "Adresse complète",
+        "license": "N° permis",
+        "idFront": "Pièce identité recto",
+        "idBack": "Pièce identité verso",
+        "card": "Carte bancaire",
+        "toCapture": "À capturer",
+        "create": "Créer et sélectionner",
+        "missingTitle": "Informations manquantes",
+        "missingMessage": "Prénom, nom et téléphone sont requis pour créer un client au comptoir.",
+        "createdTitle": "Client ajouté",
+        "createdMessage": "Le client a été créé et sélectionné pour cette réservation."
+      },
+      "distanceFees": "Livraison / récupération",
       "step1": "Choisir le véhicule",
       "step2": "Choisir le client",
       "step3": "Choisir les dates",

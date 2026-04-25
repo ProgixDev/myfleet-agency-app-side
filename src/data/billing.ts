@@ -16,7 +16,7 @@ export const mockInvoices: Invoice[] = [
     lineItems: [
       { id: 'li-001-1', description: 'Location Audi Q5 - 7 jours', quantity: 7, unitPrice: 180, total: 1260 },
       { id: 'li-001-2', description: 'Assurance tous risques', quantity: 7, unitPrice: 15, total: 105 },
-      { id: 'li-001-3', description: 'GPS Navigation', quantity: 7, unitPrice: 8, total: 56 },
+      { id: 'li-001-3', description: 'Foreign Use Pass', quantity: 7, unitPrice: 8, total: 56 },
     ],
     subtotal: 1421,
     deposit: 500,
@@ -75,7 +75,7 @@ export const mockInvoices: Invoice[] = [
     lineItems: [
       { id: 'li-003-1', description: 'Location Range Rover - 7 jours', quantity: 7, unitPrice: 250, total: 1750 },
       { id: 'li-003-2', description: 'Assurance premium', quantity: 7, unitPrice: 20, total: 140 },
-      { id: 'li-003-3', description: 'GPS Navigation', quantity: 7, unitPrice: 8, total: 56 },
+      { id: 'li-003-3', description: 'Foreign Use Pass', quantity: 7, unitPrice: 8, total: 56 },
       { id: 'li-003-4', description: 'Siege enfant', quantity: 7, unitPrice: 5, total: 35 },
     ],
     subtotal: 1981,
@@ -161,7 +161,7 @@ export const mockInvoices: Invoice[] = [
     dueDate: '2026-03-05',
     lineItems: [
       { id: 'li-006-1', description: 'Location Skoda Karoq - 3 jours', quantity: 3, unitPrice: 100, total: 300 },
-      { id: 'li-006-2', description: 'GPS Navigation', quantity: 3, unitPrice: 8, total: 24 },
+      { id: 'li-006-2', description: 'Foreign Use Pass', quantity: 3, unitPrice: 8, total: 24 },
     ],
     subtotal: 324,
     deposit: 100,
@@ -248,7 +248,7 @@ export const mockInvoices: Invoice[] = [
     lineItems: [
       { id: 'li-009-1', description: 'Location Mercedes GLC - 14 jours', quantity: 14, unitPrice: 190, total: 2660 },
       { id: 'li-009-2', description: 'Assurance tous risques', quantity: 14, unitPrice: 15, total: 210 },
-      { id: 'li-009-3', description: 'GPS Navigation', quantity: 14, unitPrice: 8, total: 112 },
+      { id: 'li-009-3', description: 'Foreign Use Pass', quantity: 14, unitPrice: 8, total: 112 },
     ],
     subtotal: 2982,
     deposit: 1000,
@@ -300,7 +300,7 @@ export const mockInvoices: Invoice[] = [
     dueDate: '2026-04-17',
     lineItems: [
       { id: 'li-011-1', description: 'Location Skoda Kodiaq - 11 jours', quantity: 11, unitPrice: 130, total: 1430 },
-      { id: 'li-011-2', description: 'GPS Navigation', quantity: 11, unitPrice: 8, total: 88 },
+      { id: 'li-011-2', description: 'Foreign Use Pass', quantity: 11, unitPrice: 8, total: 88 },
       { id: 'li-011-3', description: 'Siege enfant', quantity: 11, unitPrice: 5, total: 55 },
     ],
     subtotal: 1573,
@@ -407,7 +407,7 @@ export const mockInvoices: Invoice[] = [
     dueDate: '2026-03-06',
     lineItems: [
       { id: 'li-015-1', description: 'Location VW Golf - 7 jours', quantity: 7, unitPrice: 80, total: 560 },
-      { id: 'li-015-2', description: 'GPS Navigation', quantity: 7, unitPrice: 8, total: 56 },
+      { id: 'li-015-2', description: 'Foreign Use Pass', quantity: 7, unitPrice: 8, total: 56 },
     ],
     subtotal: 616,
     deposit: 200,

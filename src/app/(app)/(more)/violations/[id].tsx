@@ -283,8 +283,8 @@ export default function ViolationDetailScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showToast({
         variant: 'success',
-        title: 'Paiement réussi',
-        message: `\u20AC${violation.totalCharge} débité via Stripe.`,
+        title: 'Client notifi\u00E9 puis d\u00E9bit\u00E9',
+        message: `\u20AC${violation.totalCharge} d\u00E9bit\u00E9 apr\u00E8s transmission de l'infraction.`,
       });
     }, 2000);
   };
@@ -593,6 +593,17 @@ function ActionButtons({
     case 'forwarded':
       return (
         <View className="gap-3">
+          <View className="flex-row items-start gap-3 rounded-2xl border border-warning-500/25 bg-warning-500/10 p-4">
+            <Send size={18} color="#F59E0B" strokeWidth={2} />
+            <View className="flex-1">
+              <Text className="font-semibold text-text-primary">
+                Client notifi{'\u00E9'}
+              </Text>
+              <Text className="mt-1 text-sm text-text-secondary">
+                L'infraction a déjà été transmise avant tout débit.
+              </Text>
+            </View>
+          </View>
           <Button
             variant="primary"
             fullWidth
@@ -600,7 +611,7 @@ function ActionButtons({
             loading={charging}
             onPress={onCharge}
           >
-            Charger le client
+            D{'\u00E9'}biter apr{'\u00E8'}s notification
           </Button>
           <Button
             variant="secondary"

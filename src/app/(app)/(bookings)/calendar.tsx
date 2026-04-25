@@ -1,54 +1,45 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Pressable, FlatList, ScrollView } from 'react-native';
+import { View, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import {
+  AlertTriangle,
+  CalendarDays,
+  Car,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  MapPin,
+} from 'lucide-react-native';
 
 import { ScreenWrapper } from '@/components/ui/ScreenWrapper';
 import { Text } from '@/components/ui/Text';
-import { Badge } from '@/components/ui/Badge';
+import { Badge, type BadgeProps } from '@/components/ui/Badge';
 import { IconButton } from '@/components/ui/IconButton';
 import { useTheme } from '@/hooks/useTheme';
-import { mockBookings } from '@/data/bookings';
+import { useBookingStore } from '@/stores/useBookingStore';
 import type { Booking, BookingStatus } from '@/types/booking';
 
-type StatusBadgeVariant = 'success' | 'info' | 'warning' | 'neutral' | 'danger';
+type ViewMode = 'today' | 'upcoming' | 'calendar';
+type OperationType = 'pickup' | 'return' | 'inProgress';
+type BadgeVariant = NonNullable<BadgeProps['variant']>;
 
-function getStatusBadge(status: BookingStatus): {
-  label: string;
-  variant: StatusBadgeVariant;
-} {
-  switch (status) {
-    case 'active':
-      return { label: 'Active', variant: 'success' };
-    case 'confirmed':
-      return { label: 'Confirmed', variant: 'info' };
-    case 'pending':
-      return { label: 'Pending', variant: 'warning' };
-    case 'completed':
-      return { label: 'Completed', variant: 'neutral' };
-    case 'cancelled':
-      return { label: 'Cancelled', variant: 'danger' };
-  }
+interface CalendarDay {
+  date: Date | null;
+  dayNumber: number;
+  isToday: boolean;
+  count: number;
+  urgent: boolean;
 }
 
-function getDotVariant(
-  status: BookingStatus,
-  theme: ReturnType<typeof useTheme>,
-): string {
-  switch (status) {
-    case 'active':
-      return theme.success;
-    case 'confirmed':
-    case 'pending':
-      return theme.info;
-    case 'completed':
-      return theme.textTertiary;
-    case 'cancelled':
-      return theme.danger;
-  }
+interface OperationItem {
+  id: string;
+  booking: Booking;
+  date: Date;
+  time: string;
+  type: OperationType;
 }
 
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -68,70 +59,268 @@ const MONTH_NAMES = [
   'D\u00E9cembre',
 ];
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+function toDayKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDate(date: string): Date {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
 function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return toDayKey(a) === toDayKey(b);
+}
+
+function isWithinBooking(date: Date, booking: Booking): boolean {
+  const key = toDayKey(date);
+  return key >= booking.startDate && key <= booking.endDate;
 }
 
 function formatLongDate(date: Date): string {
-  const day = date.getDate();
-  const month = MONTH_NAMES[date.getMonth()];
-  const year = date.getFullYear();
-  return `${day} ${month} ${year}`;
+  return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
 }
 
-interface CalendarDay {
-  date: Date | null; // null for empty padding cells
-  dayNumber: number;
-  isToday: boolean;
-  bookingColors: string[];
+function statusBadge(status: BookingStatus): { label: string; variant: BadgeVariant } {
+  switch (status) {
+    case 'active':
+      return { label: 'En cours', variant: 'success' };
+    case 'confirmed':
+      return { label: 'Confirm\u00E9e', variant: 'info' };
+    case 'pending':
+      return { label: 'En attente', variant: 'warning' };
+    case 'completed':
+      return { label: 'Termin\u00E9e', variant: 'neutral' };
+    case 'cancelled':
+      return { label: 'Annul\u00E9e', variant: 'danger' };
+  }
+}
+
+function operationMeta(type: OperationType): {
+  label: string;
+  variant: BadgeVariant;
+} {
+  switch (type) {
+    case 'pickup':
+      return { label: 'Départ', variant: 'info' };
+    case 'return':
+      return { label: 'Retour', variant: 'warning' };
+    case 'inProgress':
+      return { label: 'En location', variant: 'success' };
+  }
+}
+
+function hasUrgency(booking: Booking): boolean {
+  return Boolean(
+    booking.conflict ||
+      booking.status === 'pending' ||
+      booking.paymentStatus === 'expired' ||
+      booking.paymentStatus === 'failed' ||
+      booking.paymentStatus === 'pending' ||
+      booking.paymentStatus === 'link_sent' ||
+      (booking.status === 'confirmed' && !booking.workflow?.contractId),
+  );
+}
+
+function getUrgencyLabels(booking: Booking): string[] {
+  const labels: string[] = [];
+  if (booking.conflict) labels.push('Conflit');
+  if (booking.status === 'pending') labels.push('Validation');
+  if (
+    booking.paymentStatus === 'expired' ||
+    booking.paymentStatus === 'failed' ||
+    booking.paymentStatus === 'pending' ||
+    booking.paymentStatus === 'link_sent'
+  ) {
+    labels.push('Paiement');
+  }
+  if (booking.status === 'confirmed' && !booking.workflow?.contractId) {
+    labels.push('Contrat');
+  }
+  return labels;
+}
+
+function operationsForDate(date: Date, bookings: Booking[]): OperationItem[] {
+  const key = toDayKey(date);
+
+  return bookings
+    .filter((booking) => booking.status !== 'cancelled' && isWithinBooking(date, booking))
+    .flatMap((booking) => {
+      const operations: OperationItem[] = [];
+
+      if (booking.startDate === key) {
+        operations.push({
+          id: `${booking.id}-pickup`,
+          booking,
+          date,
+          time: booking.pickupTime,
+          type: 'pickup',
+        });
+      }
+
+      if (booking.endDate === key) {
+        operations.push({
+          id: `${booking.id}-return`,
+          booking,
+          date,
+          time: booking.returnTime,
+          type: 'return',
+        });
+      }
+
+      if (booking.startDate !== key && booking.endDate !== key) {
+        operations.push({
+          id: `${booking.id}-active`,
+          booking,
+          date,
+          time: '--:--',
+          type: 'inProgress',
+        });
+      }
+
+      return operations;
+    })
+    .sort((a, b) => {
+      if (a.time === '--:--') return 1;
+      if (b.time === '--:--') return -1;
+      return a.time.localeCompare(b.time);
+    });
+}
+
+function upcomingOperations(today: Date, bookings: Booking[]): OperationItem[] {
+  const todayKey = toDayKey(today);
+
+  return bookings
+    .filter((booking) => booking.status !== 'cancelled')
+    .flatMap((booking) => {
+      const operations: OperationItem[] = [];
+      if (booking.startDate >= todayKey) {
+        operations.push({
+          id: `${booking.id}-pickup`,
+          booking,
+          date: parseDate(booking.startDate),
+          time: booking.pickupTime,
+          type: 'pickup',
+        });
+      }
+      if (booking.endDate >= todayKey) {
+        operations.push({
+          id: `${booking.id}-return`,
+          booking,
+          date: parseDate(booking.endDate),
+          time: booking.returnTime,
+          type: 'return',
+        });
+      }
+      return operations;
+    })
+    .sort((a, b) => {
+      const dateDiff = a.date.getTime() - b.date.getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return a.time.localeCompare(b.time);
+    });
 }
 
 function generateCalendarDays(
   year: number,
   month: number,
-  bookingsByDay: Map<number, string[]>,
+  bookings: Booking[],
   today: Date,
 ): CalendarDay[] {
   const firstOfMonth = new Date(year, month, 1);
-  // Monday=0 ... Sunday=6
   const startDow = (firstOfMonth.getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-
   const days: CalendarDay[] = [];
 
-  // Padding before first day
   for (let i = 0; i < startDow; i++) {
-    days.push({ date: null, dayNumber: 0, isToday: false, bookingColors: [] });
+    days.push({ date: null, dayNumber: 0, isToday: false, count: 0, urgent: false });
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
-    const dateObj = new Date(year, month, d);
+    const date = new Date(year, month, d);
+    const dayBookings = bookings.filter(
+      (booking) => booking.status !== 'cancelled' && isWithinBooking(date, booking),
+    );
     days.push({
-      date: dateObj,
+      date,
       dayNumber: d,
-      isToday: isSameDay(dateObj, today),
-      bookingColors: bookingsByDay.get(d) ?? [],
+      isToday: isSameDay(date, today),
+      count: dayBookings.length,
+      urgent: dayBookings.some(hasUrgency),
     });
   }
 
   return days;
 }
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+function SegmentControl({
+  mode,
+  onChange,
+}: {
+  mode: ViewMode;
+  onChange: (mode: ViewMode) => void;
+}) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const items: { key: ViewMode; label: string }[] = [
+    { key: 'today', label: t('bookings.calendar.tabs.today', 'Aujourd\u2019hui') },
+    { key: 'upcoming', label: t('bookings.calendar.tabs.upcoming', '\u00C0 venir') },
+    { key: 'calendar', label: t('bookings.calendar.tabs.calendar', 'Calendrier') },
+  ];
 
-interface DayBookingCardProps {
-  booking: Booking;
-  index: number;
-  onPress: () => void;
+  return (
+    <View
+      className="flex-row p-1 rounded-full mb-4"
+      style={{ backgroundColor: theme.surfaceSecondary }}
+    >
+      {items.map((item) => {
+        const selected = mode === item.key;
+        return (
+          <Pressable
+            key={item.key}
+            onPress={() => onChange(item.key)}
+            className="flex-1 items-center justify-center rounded-full"
+            style={{
+              minHeight: 38,
+              backgroundColor: selected ? theme.accent : 'transparent',
+            }}
+          >
+            <Text
+              variant="labelSmall"
+              color={selected ? '#FFFFFF' : theme.textSecondary}
+              numberOfLines={1}
+            >
+              {item.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 }
 
-function DayBookingCard({ booking, index, onPress }: DayBookingCardProps) {
+function OperationCard({
+  operation,
+  index,
+  onPress,
+}: {
+  operation: OperationItem;
+  index: number;
+  onPress: () => void;
+}) {
   const theme = useTheme();
-  const statusBadge = getStatusBadge(booking.status);
+  const meta = operationMeta(operation.type);
+  const bookingStatus = statusBadge(operation.booking.status);
+  const urgencyLabels = getUrgencyLabels(operation.booking);
+  const isReturn = operation.type === 'return';
+  const location = isReturn
+    ? operation.booking.returnLocation
+    : operation.booking.pickupLocation;
 
   const handlePress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -140,28 +329,129 @@ function DayBookingCard({ booking, index, onPress }: DayBookingCardProps) {
 
   return (
     <AnimatedPressable
-      entering={FadeInDown.delay(index * 50).duration(350).springify()}
+      entering={FadeInDown.delay(index * 45).duration(300).springify()}
       onPress={handlePress}
-      className="rounded-xl p-3 mb-2 flex-row items-center justify-between"
+      className="rounded-2xl overflow-hidden mb-3"
       style={{ backgroundColor: theme.surface }}
     >
-      <View className="flex-1 mr-2">
-        <Text variant="titleMedium" numberOfLines={1}>
-          {booking.vehicleName}
-        </Text>
-        <Text
-          variant="bodySmall"
-          color={theme.textSecondary}
-          numberOfLines={1}
-          className="mt-0.5"
-        >
-          {booking.clientName}
+      <View className="flex-row">
+        <View
+          style={{
+            width: 4,
+            backgroundColor: hasUrgency(operation.booking)
+              ? theme.danger
+              : meta.variant === 'warning'
+                ? theme.warning
+                : theme.accent,
+          }}
+        />
+        <View className="flex-1 p-4">
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="flex-row items-center gap-3 flex-1">
+              <View
+                className="rounded-xl items-center justify-center"
+                style={{
+                  width: 46,
+                  height: 46,
+                  backgroundColor: theme.surfaceTertiary,
+                }}
+              >
+                <Car size={21} color={theme.textSecondary} />
+              </View>
+              <View className="flex-1">
+                <View className="flex-row items-center gap-2 mb-1">
+                  <Text variant="titleMedium">{operation.time}</Text>
+                  <Badge variant={meta.variant} size="sm">
+                    {meta.label}
+                  </Badge>
+                </View>
+                <Text variant="titleSmall" numberOfLines={1}>
+                  {operation.booking.vehicleName}
+                </Text>
+                <Text variant="bodySmall" color={theme.textSecondary} numberOfLines={1}>
+                  {operation.booking.clientName}
+                </Text>
+              </View>
+            </View>
+            {hasUrgency(operation.booking) && (
+              <AlertTriangle size={18} color={theme.danger} />
+            )}
+          </View>
+
+          <View className="flex-row items-center gap-2 mt-3">
+            <MapPin size={14} color={theme.textTertiary} />
+            <Text variant="bodySmall" color={theme.textTertiary} numberOfLines={1}>
+              {location}
+            </Text>
+          </View>
+
+          <View className="flex-row flex-wrap mt-3" style={{ gap: 6 }}>
+            <Badge variant={bookingStatus.variant} size="sm">
+              {bookingStatus.label}
+            </Badge>
+            {urgencyLabels.map((label) => (
+              <Badge key={label} variant="danger" size="sm">
+                {label}
+              </Badge>
+            ))}
+          </View>
+        </View>
+      </View>
+    </AnimatedPressable>
+  );
+}
+
+function GroupedOperations({
+  operations,
+  emptyLabel,
+  onBookingPress,
+  showDateHeaders = false,
+}: {
+  operations: OperationItem[];
+  emptyLabel: string;
+  onBookingPress: (id: string) => void;
+  showDateHeaders?: boolean;
+}) {
+  const theme = useTheme();
+  let lastKey = '';
+
+  if (operations.length === 0) {
+    return (
+      <View className="rounded-2xl p-5 items-center" style={{ backgroundColor: theme.surface }}>
+        <CalendarDays size={24} color={theme.textTertiary} />
+        <Text variant="bodySmall" color={theme.textTertiary} className="mt-2">
+          {emptyLabel}
         </Text>
       </View>
-      <Badge variant={statusBadge.variant} size="sm">
-        {statusBadge.label}
-      </Badge>
-    </AnimatedPressable>
+    );
+  }
+
+  return (
+    <View>
+      {operations.map((operation, index) => {
+        const key = toDayKey(operation.date);
+        const showHeader = showDateHeaders && key !== lastKey;
+        lastKey = key;
+
+        return (
+          <View key={operation.id}>
+            {showHeader && (
+              <View className="flex-row items-center mt-2 mb-3">
+                <Text variant="titleMedium">{formatLongDate(operation.date)}</Text>
+                <Badge variant="neutral" size="sm" className="ml-2">
+                  {operations.filter((item) => toDayKey(item.date) === key).length}
+                </Badge>
+              </View>
+            )}
+            <OperationCard
+              operation={operation}
+              index={index}
+              onPress={() => onBookingPress(operation.booking.id)}
+            />
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -169,113 +459,69 @@ export default function CalendarScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
+  const bookings = useBookingStore((s) => s.bookings);
 
   const today = useMemo(() => new Date(), []);
+  const [mode, setMode] = useState<ViewMode>('today');
   const [currentMonth, setCurrentMonth] = useState<Date>(
     () => new Date(today.getFullYear(), today.getMonth(), 1),
   );
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(today);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
 
-  // Compute bookings per day for current month (excluding cancelled)
-  const bookingsByDay = useMemo(() => {
-    const map = new Map<number, string[]>();
-
-    const monthStart = new Date(year, month, 1);
-    const monthEnd = new Date(year, month + 1, 0);
-
-    for (const b of mockBookings) {
-      if (b.status === 'cancelled') continue;
-
-      const bStart = new Date(b.startDate);
-      const bEnd = new Date(b.endDate);
-
-      // Check if booking overlaps this month
-      if (bEnd < monthStart || bStart > monthEnd) continue;
-
-      const rangeStart = Math.max(bStart.getDate(), bStart < monthStart ? 1 : bStart.getDate());
-      const rangeEnd = bEnd > monthEnd ? monthEnd.getDate() : bEnd.getDate();
-
-      // Only consider days that actually fall in this month
-      const effectiveStart =
-        bStart.getFullYear() === year && bStart.getMonth() === month
-          ? bStart.getDate()
-          : 1;
-      const effectiveEnd =
-        bEnd.getFullYear() === year && bEnd.getMonth() === month
-          ? bEnd.getDate()
-          : monthEnd.getDate();
-
-      for (let d = effectiveStart; d <= effectiveEnd; d++) {
-        const existing = map.get(d) ?? [];
-        const color = getDotVariant(b.status, theme);
-        if (!existing.includes(color)) {
-          existing.push(color);
-        }
-        map.set(d, existing);
-      }
-    }
-
-    return map;
-  }, [year, month, theme]);
-
-  const calendarDays = useMemo(
-    () => generateCalendarDays(year, month, bookingsByDay, today),
-    [year, month, bookingsByDay, today],
+  const todayOperations = useMemo(
+    () => operationsForDate(today, bookings),
+    [bookings, today],
   );
 
-  // Bookings for selected date
-  const selectedDayBookings = useMemo(() => {
-    if (selectedDate === null) return [];
+  const upcoming = useMemo(
+    () => upcomingOperations(today, bookings).slice(0, 60),
+    [bookings, today],
+  );
 
-    const selTime = selectedDate.getTime();
+  const calendarDays = useMemo(
+    () => generateCalendarDays(year, month, bookings, today),
+    [year, month, bookings, today],
+  );
 
-    return mockBookings.filter((b) => {
-      if (b.status === 'cancelled') return false;
-      const bStart = new Date(b.startDate);
-      const bEnd = new Date(b.endDate);
-      // Normalize to start of day
-      bStart.setHours(0, 0, 0, 0);
-      bEnd.setHours(23, 59, 59, 999);
-      const selNormalized = new Date(selTime);
-      selNormalized.setHours(12, 0, 0, 0);
-      return selNormalized >= bStart && selNormalized <= bEnd;
-    });
-  }, [selectedDate]);
+  const selectedDayOperations = useMemo(
+    () => operationsForDate(selectedDate, bookings),
+    [bookings, selectedDate],
+  );
+
+  const todayUrgentCount = useMemo(
+    () => todayOperations.filter((operation) => hasUrgency(operation.booking)).length,
+    [todayOperations],
+  );
 
   const goToPrevMonth = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    setSelectedDate(null);
   }, []);
 
   const goToNextMonth = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    setSelectedDate(null);
   }, []);
 
   const handleDayPress = useCallback((date: Date) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedDate((prev) => (prev !== null && isSameDay(prev, date) ? null : date));
+    setSelectedDate(date);
   }, []);
 
   const handleBookingPress = useCallback(
     (id: string) => {
-      router.push(`/(bookings)/${id}`);
+      router.push(`/(app)/(bookings)/${id}` as never);
     },
     [router],
   );
 
-  const isSelected = useCallback(
-    (date: Date | null): boolean => {
-      if (date === null || selectedDate === null) return false;
-      return isSameDay(date, selectedDate);
-    },
-    [selectedDate],
-  );
+  const handleModeChange = useCallback((nextMode: ViewMode) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMode(nextMode);
+  }, []);
 
   return (
     <ScreenWrapper scroll={false}>
@@ -283,7 +529,6 @@ export default function CalendarScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
       >
-        {/* Header */}
         <View className="flex-row items-center pt-4 pb-4">
           <Pressable
             onPress={() => {
@@ -294,142 +539,205 @@ export default function CalendarScreen() {
           >
             <ChevronLeft size={24} color={theme.textPrimary} />
           </Pressable>
-          <Text variant="headlineLarge">
-            {t('bookings.calendar.title', 'Calendrier')}
-          </Text>
+          <View className="flex-1">
+            <Text variant="headlineLarge">
+              {t('bookings.calendar.agendaTitle', 'R\u00E9servations')}
+            </Text>
+            <Text variant="bodySmall" color={theme.textSecondary}>
+              {t(
+                'bookings.calendar.agendaSubtitle',
+                'Pickups, retours et actions \u00E0 traiter',
+              )}
+            </Text>
+          </View>
         </View>
 
-        {/* Month navigation */}
-        <View className="flex-row items-center justify-between mb-4">
-          <IconButton
-            icon={ChevronLeft}
-            variant="ghost"
-            size="sm"
-            onPress={goToPrevMonth}
-          />
-          <Text variant="titleMedium">
-            {MONTH_NAMES[month]} {year}
-          </Text>
-          <IconButton
-            icon={ChevronRight}
-            variant="ghost"
-            size="sm"
-            onPress={goToNextMonth}
-          />
-        </View>
+        <SegmentControl mode={mode} onChange={handleModeChange} />
 
-        {/* Weekday headers */}
-        <View className="flex-row mb-2">
-          {WEEKDAY_LABELS.map((label) => (
-            <View key={label} className="flex-1 items-center">
-              <Text variant="labelSmall" color={theme.textTertiary}>
-                {label}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Calendar grid */}
-        <View className="flex-row flex-wrap">
-          {calendarDays.map((day, idx) => {
-            if (day.date === null) {
-              return <View key={`empty-${idx}`} style={{ width: '14.285%', height: 48 }} />;
-            }
-
-            const dayIsToday = day.isToday;
-            const dayIsSelected = isSelected(day.date);
-            const dayDate = day.date;
-
-            return (
-              <Pressable
-                key={`day-${day.dayNumber}`}
-                onPress={() => handleDayPress(dayDate)}
-                style={{ width: '14.285%', height: 48 }}
-                className="items-center justify-center"
-              >
-                <View
-                  className="items-center justify-center"
-                  style={[
-                    { width: 36, height: 36, borderRadius: 18 },
-                    dayIsToday && !dayIsSelected
-                      ? { backgroundColor: theme.accentSoft }
-                      : undefined,
-                    dayIsSelected
-                      ? { backgroundColor: theme.accent }
-                      : undefined,
-                  ]}
-                >
-                  <Text
-                    variant="bodySmall"
-                    color={
-                      dayIsSelected
-                        ? '#0A0A0F'
-                        : dayIsToday
-                          ? theme.accent
-                          : theme.textPrimary
-                    }
-                  >
-                    {day.dayNumber}
-                  </Text>
-                </View>
-
-                {/* Booking dots */}
-                {day.bookingColors.length > 0 && (
-                  <View
-                    className="flex-row absolute"
-                    style={{ bottom: 2, gap: 2 }}
-                  >
-                    {day.bookingColors.slice(0, 3).map((color, i) => (
-                      <View
-                        key={`dot-${day.dayNumber}-${i}`}
-                        style={{
-                          width: 5,
-                          height: 5,
-                          borderRadius: 2.5,
-                          backgroundColor: color,
-                        }}
-                      />
-                    ))}
-                  </View>
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Selected day's bookings */}
-        {selectedDate !== null && (
-          <View className="mt-6">
-            <View className="flex-row items-center mb-3">
-              <Text variant="titleMedium">{formatLongDate(selectedDate)}</Text>
-              <Badge variant="accent" size="sm" className="ml-2">
-                {selectedDayBookings.length}
-              </Badge>
-            </View>
-
-            {selectedDayBookings.length === 0 ? (
+        {mode === 'today' && (
+          <Animated.View entering={FadeInDown.duration(300)}>
+            <View className="flex-row mb-4" style={{ gap: 10 }}>
               <View
-                className="rounded-xl p-4 items-center"
+                className="flex-1 rounded-2xl p-4"
                 style={{ backgroundColor: theme.surface }}
               >
                 <Text variant="bodySmall" color={theme.textTertiary}>
-                  {t(
-                    'bookings.calendar.noBookings',
-                    'Aucune r\u00E9servation pour ce jour',
-                  )}
+                  {t('bookings.calendar.todayOps', 'Op\u00E9rations')}
+                </Text>
+                <Text variant="headlineMedium" className="mt-1">
+                  {todayOperations.length}
                 </Text>
               </View>
-            ) : (
-              selectedDayBookings.map((booking, index) => (
-                <DayBookingCard
-                  key={booking.id}
-                  booking={booking}
-                  index={index}
-                  onPress={() => handleBookingPress(booking.id)}
-                />
-              ))
-            )}
-          </View>
+              <View
+                className="flex-1 rounded-2xl p-4"
+                style={{ backgroundColor: todayUrgentCount > 0 ? theme.dangerSoft : theme.surface }}
+              >
+                <Text
+                  variant="bodySmall"
+                  color={todayUrgentCount > 0 ? theme.danger : theme.textTertiary}
+                >
+                  {t('bookings.calendar.toHandle', '\u00C0 traiter')}
+                </Text>
+                <Text
+                  variant="headlineMedium"
+                  color={todayUrgentCount > 0 ? theme.danger : theme.textPrimary}
+                  className="mt-1"
+                >
+                  {todayUrgentCount}
+                </Text>
+              </View>
+            </View>
+
+            <View className="flex-row items-center mb-3">
+              <Clock size={16} color={theme.textSecondary} />
+              <Text variant="titleMedium" className="ml-2">
+                {formatLongDate(today)}
+              </Text>
+            </View>
+
+            <GroupedOperations
+              operations={todayOperations}
+              emptyLabel={t(
+                'bookings.calendar.noTodayBookings',
+                'Aucune op\u00E9ration pr\u00E9vue aujourd\u2019hui',
+              )}
+              onBookingPress={handleBookingPress}
+            />
+          </Animated.View>
+        )}
+
+        {mode === 'upcoming' && (
+          <Animated.View entering={FadeInDown.duration(300)}>
+            <GroupedOperations
+              operations={upcoming}
+              emptyLabel={t(
+                'bookings.calendar.noUpcomingBookings',
+                'Aucune r\u00E9servation \u00E0 venir',
+              )}
+              onBookingPress={handleBookingPress}
+              showDateHeaders
+            />
+          </Animated.View>
+        )}
+
+        {mode === 'calendar' && (
+          <Animated.View entering={FadeInDown.duration(300)}>
+            <View className="flex-row items-center justify-between mb-4">
+              <IconButton
+                icon={ChevronLeft}
+                variant="ghost"
+                size="sm"
+                onPress={goToPrevMonth}
+              />
+              <Text variant="titleMedium">
+                {MONTH_NAMES[month]} {year}
+              </Text>
+              <IconButton
+                icon={ChevronRight}
+                variant="ghost"
+                size="sm"
+                onPress={goToNextMonth}
+              />
+            </View>
+
+            <View className="flex-row mb-2">
+              {WEEKDAY_LABELS.map((label) => (
+                <View key={label} className="flex-1 items-center">
+                  <Text variant="labelSmall" color={theme.textTertiary}>
+                    {label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <View className="flex-row flex-wrap">
+              {calendarDays.map((day, idx) => {
+                if (day.date === null) {
+                  return <View key={`empty-${idx}`} style={{ width: '14.285%', height: 58 }} />;
+                }
+
+                const selected = isSameDay(day.date, selectedDate);
+                return (
+                  <Pressable
+                    key={`day-${day.dayNumber}`}
+                    onPress={() => handleDayPress(day.date as Date)}
+                    style={{ width: '14.285%', height: 58 }}
+                    className="items-center justify-center"
+                  >
+                    <View
+                      className="items-center justify-center"
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 16,
+                        backgroundColor: selected
+                          ? theme.accent
+                          : day.isToday
+                            ? theme.accentSoft
+                            : 'transparent',
+                        borderWidth: day.urgent && !selected ? 1 : 0,
+                        borderColor: day.urgent ? theme.danger : 'transparent',
+                      }}
+                    >
+                      <Text
+                        variant="bodySmall"
+                        color={
+                          selected
+                            ? '#FFFFFF'
+                            : day.isToday
+                              ? theme.accent
+                              : theme.textPrimary
+                        }
+                      >
+                        {day.dayNumber}
+                      </Text>
+                      {day.count > 0 && (
+                        <View
+                          className="rounded-full items-center justify-center"
+                          style={{
+                            minWidth: 18,
+                            height: 18,
+                            paddingHorizontal: 4,
+                            marginTop: 2,
+                            backgroundColor: day.urgent
+                              ? theme.danger
+                              : selected
+                                ? 'rgba(255,255,255,0.22)'
+                                : theme.surfaceSecondary,
+                          }}
+                        >
+                          <Text
+                            variant="labelSmall"
+                            color={day.urgent || selected ? '#FFFFFF' : theme.textSecondary}
+                            style={{ fontSize: 10 }}
+                          >
+                            {day.count}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View className="mt-6">
+              <View className="flex-row items-center mb-3">
+                <Text variant="titleMedium">{formatLongDate(selectedDate)}</Text>
+                <Badge variant="accent" size="sm" className="ml-2">
+                  {selectedDayOperations.length}
+                </Badge>
+              </View>
+              <GroupedOperations
+                operations={selectedDayOperations}
+                emptyLabel={t(
+                  'bookings.calendar.noBookings',
+                  'Aucune r\u00E9servation pour ce jour',
+                )}
+                onBookingPress={handleBookingPress}
+              />
+            </View>
+          </Animated.View>
         )}
       </ScrollView>
     </ScreenWrapper>

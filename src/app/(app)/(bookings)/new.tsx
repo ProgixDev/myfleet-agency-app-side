@@ -29,13 +29,15 @@ import {
   UserPlus,
   Shield,
   Users,
-  Navigation,
+  Globe2,
   Baby,
   AlertTriangle,
   Truck,
   MapPin,
   Calculator,
   ArrowRight,
+  FileText,
+  CreditCard,
 } from 'lucide-react-native';
 
 import { getVehicleImage } from '@/data/vehicleImages';
@@ -77,6 +79,14 @@ const STEP_COUNT = 5;
 const STEP_ICONS = [Car, User, CalendarDays, DollarSign, ClipboardCheck] as const;
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const DISTANCE_OPTION_IDS = ['delivery', 'custom-pickup'] as const;
+const ADDRESS_SUGGESTIONS = [
+  '5 Chemin du Pavillon, 1218 Le Grand-Saconnex',
+  'Rue du Mont-Blanc 10, 1201 Genève',
+  'Quai du Mont-Blanc 17, 1201 Genève',
+  'Aéroport de Genève, Route de l’Aéroport 21, 1215 Genève',
+  'Place Cornavin 7, 1201 Genève',
+] as const;
 
 interface OptionToggle {
   id: string;
@@ -84,6 +94,28 @@ interface OptionToggle {
   price: number;
   enabled: boolean;
   deliveryDetails?: DeliveryDetails;
+}
+
+function isDistanceOption(optionId: string): boolean {
+  return DISTANCE_OPTION_IDS.includes(optionId as (typeof DISTANCE_OPTION_IDS)[number]);
+}
+
+function getMockRouteDetails(address: string, config: ReturnType<typeof useCurrentAgencySettings>['delivery']): DeliveryDetails {
+  const seed = address
+    .trim()
+    .toLowerCase()
+    .split('')
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const distanceKm = Math.round(((seed % 2800) / 100 + 2.4) * 100) / 100;
+  const fee = Math.round(Math.max(distanceKm * config.ratePerKm, config.minFee ?? 0) * 100) / 100;
+
+  return {
+    address,
+    lat: config.basePointLat,
+    lng: config.basePointLng,
+    distanceKm,
+    fee,
+  };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -220,6 +252,14 @@ export default function NewBookingScreen() {
   // Step 2: Client
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientSearch, setClientSearch] = useState('');
+  const [counterClients, setCounterClients] = useState<Client[]>([]);
+  const [showCounterClientModal, setShowCounterClientModal] = useState(false);
+  const [counterFirstName, setCounterFirstName] = useState('');
+  const [counterLastName, setCounterLastName] = useState('');
+  const [counterPhone, setCounterPhone] = useState('');
+  const [counterEmail, setCounterEmail] = useState('');
+  const [counterAddress, setCounterAddress] = useState('');
+  const [counterLicense, setCounterLicense] = useState('');
 
   // Step 3: Dates (native pickers)
   const tomorrow = new Date();
@@ -253,22 +293,23 @@ export default function NewBookingScreen() {
     const baseOptions: OptionToggle[] = [
       { id: 'ins', label: 'Insurance Plus', price: 15, enabled: false },
       { id: 'drv', label: 'Additional Driver', price: 10, enabled: false },
-      { id: 'gps', label: 'GPS', price: 8, enabled: false },
+      { id: 'foreign-use', label: 'Foreign Use Pass', price: 25, enabled: false },
       { id: 'seat', label: 'Child Seat', price: 5, enabled: false },
     ];
     if (agencyDelivery.enabled) {
       return [
         { id: 'delivery', label: 'Home delivery', price: 0, enabled: false },
+        { id: 'custom-pickup', label: 'Custom recovery', price: 0, enabled: false },
         ...baseOptions,
       ];
     }
     return baseOptions;
   });
 
-  // Delivery input state
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [deliveryComputing, setDeliveryComputing] = useState(false);
-  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  // Distance-based option input state
+  const [routeAddresses, setRouteAddresses] = useState<Record<string, string>>({});
+  const [routeComputing, setRouteComputing] = useState<Record<string, boolean>>({});
+  const [routeErrors, setRouteErrors] = useState<Record<string, string | null>>({});
 
   // Step 5: Confirm
   const [confirmedRef, setConfirmedRef] = useState<string | null>(null);
@@ -295,15 +336,17 @@ export default function NewBookingScreen() {
   }, [availableVehicles, vehicleSearch]);
 
   const filteredClients = useMemo(() => {
+    const allClients = [...counterClients, ...mockClients];
     const q = clientSearch.toLowerCase().trim();
-    if (!q) return mockClients;
-    return mockClients.filter(
+    if (!q) return allClients;
+    return allClients.filter(
       (c) =>
         c.firstName.toLowerCase().includes(q) ||
         c.lastName.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
         c.phone.includes(q),
     );
-  }, [clientSearch]);
+  }, [clientSearch, counterClients]);
 
   const datesValid = useMemo(() => endDateObj > startDateObj, [startDateObj, endDateObj]);
 
@@ -317,9 +360,10 @@ export default function NewBookingScreen() {
     return useBookingStore.getState().isVehicleAvailable(selectedVehicle.id, startDate, endDate);
   }, [selectedVehicle, startDate, endDate, datesValid]);
 
-  const deliveryOption = options.find((o) => o.id === 'delivery');
-  const deliveryEnabled = !!deliveryOption?.enabled;
-  const deliveryDetails = deliveryOption?.deliveryDetails ?? null;
+  const unresolvedDistanceOptions = useMemo(
+    () => options.filter((o) => isDistanceOption(o.id) && o.enabled && !o.deliveryDetails),
+    [options],
+  );
 
   const pricing = useMemo(() => {
     if (!selectedVehicle || days <= 0) {
@@ -348,7 +392,7 @@ export default function NewBookingScreen() {
       case 3:
         return datesValid && vehicleAvailableForDates;
       case 4:
-        if (deliveryEnabled && !deliveryDetails) return false;
+        if (unresolvedDistanceOptions.length > 0) return false;
         return true;
       case 5:
         return true;
@@ -361,8 +405,7 @@ export default function NewBookingScreen() {
     selectedClient,
     datesValid,
     vehicleAvailableForDates,
-    deliveryEnabled,
-    deliveryDetails,
+    unresolvedDistanceOptions.length,
   ]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
@@ -392,45 +435,58 @@ export default function NewBookingScreen() {
       prev.map((o) => {
         if (o.id !== optionId) return o;
         const next = !o.enabled;
-        // Turning off delivery clears computed details so the fee disappears
-        if (o.id === 'delivery' && !next) {
+        // Turning off distance-based options clears computed details so the fee disappears
+        if (isDistanceOption(o.id) && !next) {
           return { ...o, enabled: false, deliveryDetails: undefined };
         }
         return { ...o, enabled: next };
       }),
     );
-    if (optionId === 'delivery') {
-      setDeliveryError(null);
+    if (isDistanceOption(optionId)) {
+      setRouteErrors((prev) => ({ ...prev, [optionId]: null }));
     }
   }, []);
 
-  const clearComputedDelivery = useCallback(() => {
+  const clearComputedRoute = useCallback((optionId: string) => {
     setOptions((prev) =>
       prev.map((o) =>
-        o.id === 'delivery' ? { ...o, deliveryDetails: undefined } : o,
+        o.id === optionId ? { ...o, deliveryDetails: undefined } : o,
       ),
     );
   }, []);
 
-  const handleDeliveryAddressChange = useCallback(
-    (text: string) => {
-      setDeliveryAddress(text);
-      if (deliveryError) setDeliveryError(null);
-      if (deliveryDetails) clearComputedDelivery();
+  const handleRouteAddressChange = useCallback(
+    (optionId: string, text: string) => {
+      setRouteAddresses((prev) => ({ ...prev, [optionId]: text }));
+      setRouteErrors((prev) => ({ ...prev, [optionId]: null }));
+      if (options.find((o) => o.id === optionId)?.deliveryDetails) {
+        clearComputedRoute(optionId);
+      }
     },
-    [clearComputedDelivery, deliveryDetails, deliveryError],
+    [clearComputedRoute, options],
   );
 
-  const handleCalculateDelivery = useCallback(async () => {
-    const trimmed = deliveryAddress.trim();
+  const handleCalculateRoute = useCallback(async (optionId: string) => {
+    const trimmed = (routeAddresses[optionId] ?? '').trim();
+    const setRouteError = (message: string) => {
+      setRouteErrors((prev) => ({ ...prev, [optionId]: message }));
+    };
+
     if (!trimmed) {
-      setDeliveryError(
-        t('bookings.new.delivery.addressRequired', 'Delivery address required'),
+      setRouteError(
+        t(
+          optionId === 'custom-pickup'
+            ? 'bookings.new.customPickup.addressRequired'
+            : 'bookings.new.delivery.addressRequired',
+          optionId === 'custom-pickup'
+            ? 'Recovery address required'
+            : 'Delivery address required',
+        ),
       );
       return;
     }
     if (!hasBasePoint) {
-      setDeliveryError(
+      setRouteError(
         t(
           'bookings.new.delivery.noBasePoint',
           'No agency base address configured',
@@ -439,8 +495,8 @@ export default function NewBookingScreen() {
       return;
     }
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setDeliveryComputing(true);
-    setDeliveryError(null);
+    setRouteComputing((prev) => ({ ...prev, [optionId]: true }));
+    setRouteErrors((prev) => ({ ...prev, [optionId]: null }));
     try {
       const geocoded = await geocodeAddress(trimmed);
       const distance = await getDrivingDistance(
@@ -453,7 +509,7 @@ export default function NewBookingScreen() {
         agencyDelivery.maxDistanceKm != null &&
         distanceKm > agencyDelivery.maxDistanceKm
       ) {
-        setDeliveryError(
+        setRouteError(
           t('bookings.new.delivery.maxDistanceExceeded', {
             defaultValue: 'Distance {{distance}} km exceeds limit {{max}} km',
             distance: distanceKm,
@@ -477,14 +533,22 @@ export default function NewBookingScreen() {
 
       setOptions((prev) =>
         prev.map((o) =>
-          o.id === 'delivery' ? { ...o, deliveryDetails: details } : o,
+          o.id === optionId ? { ...o, deliveryDetails: details } : o,
         ),
       );
     } catch (err) {
-      let key = 'bookings.new.delivery.errorUnknown';
       if (err instanceof MapsApiKeyMissingError) {
-        key = 'bookings.new.delivery.apiKeyMissing';
-      } else if (err instanceof GeocodingError) {
+        const details = getMockRouteDetails(trimmed, agencyDelivery);
+        setOptions((prev) =>
+          prev.map((o) =>
+            o.id === optionId ? { ...o, deliveryDetails: details } : o,
+          ),
+        );
+        return;
+      }
+
+      let key = 'bookings.new.delivery.errorUnknown';
+      if (err instanceof GeocodingError) {
         key =
           err.code === 'ZERO_RESULTS'
             ? 'bookings.new.delivery.errorZeroResults'
@@ -505,12 +569,12 @@ export default function NewBookingScreen() {
                 ? 'bookings.new.delivery.errorNetwork'
                 : 'bookings.new.delivery.errorZeroResults';
       }
-      setDeliveryError(t(key, 'Error'));
+      setRouteError(t(key, 'Error'));
     } finally {
-      setDeliveryComputing(false);
+      setRouteComputing((prev) => ({ ...prev, [optionId]: false }));
     }
   }, [
-    deliveryAddress,
+    routeAddresses,
     hasBasePoint,
     agencyDelivery.basePointLat,
     agencyDelivery.basePointLng,
@@ -519,6 +583,19 @@ export default function NewBookingScreen() {
     agencyDelivery.maxDistanceKm,
     t,
   ]);
+
+  const getOptionLabel = useCallback(
+    (option: OptionToggle) => {
+      if (option.id === 'delivery') {
+        return t('bookings.new.delivery.optionLabel', 'Home delivery');
+      }
+      if (option.id === 'custom-pickup') {
+        return t('bookings.new.customPickup.optionLabel', 'Custom recovery');
+      }
+      return option.label;
+    },
+    [t],
+  );
 
   const proceedWithCreate = useCallback(() => {
     if (!selectedVehicle) return;
@@ -550,7 +627,7 @@ export default function NewBookingScreen() {
       returnTime: returnTime.toTimeString().slice(0, 5),
       options: options.map((o) => ({
         id: o.id,
-        label: o.label,
+        label: getOptionLabel(o),
         price: o.price,
         enabled: o.enabled,
         ...(o.deliveryDetails ? { deliveryDetails: o.deliveryDetails } : {}),
@@ -571,6 +648,7 @@ export default function NewBookingScreen() {
     startDate,
     endDate,
     options,
+    getOptionLabel,
     bookingStore,
     proceedWithCreate,
   ]);
@@ -602,12 +680,88 @@ export default function NewBookingScreen() {
 
   const handleAddNewClient = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowCounterClientModal(true);
+  }, []);
+
+  const handleCreateCounterClient = useCallback(() => {
+    if (!counterFirstName.trim() || !counterLastName.trim() || !counterPhone.trim()) {
+      showToast({
+        variant: 'warning',
+        title: t('bookings.new.counterClient.missingTitle', 'Informations manquantes'),
+        message: t(
+          'bookings.new.counterClient.missingMessage',
+          'Nom, prénom et téléphone sont nécessaires pour créer le client.',
+        ),
+      });
+      return;
+    }
+
+    const newClient: Client = {
+      id: `walkin-${Date.now()}`,
+      firstName: counterFirstName.trim(),
+      lastName: counterLastName.trim(),
+      email: counterEmail.trim() || `${Date.now()}@walkin.myfleet.local`,
+      phone: counterPhone.trim(),
+      address: counterAddress.trim(),
+      dateOfBirth: '',
+      idType: 'driving-license',
+      idNumber: '',
+      driverLicense: counterLicense.trim(),
+      driverLicenseExpiry: '',
+      tags: ['new'],
+      flagReason: null,
+      totalBookings: 0,
+      totalSpent: 0,
+      createdAt: new Date().toISOString().slice(0, 10),
+      notes: 'Créé au comptoir pendant une réservation.',
+      documents: {
+        idFront: 'pending',
+        idBack: 'pending',
+        licenseFront: counterLicense.trim() ? 'captured' : 'pending',
+      },
+      registrationMethod: 'walk-in',
+      registeredAt: new Date().toISOString(),
+    };
+
+    setCounterClients((prev) => [newClient, ...prev]);
+    setSelectedClient(newClient);
+    setShowCounterClientModal(false);
+    setCounterFirstName('');
+    setCounterLastName('');
+    setCounterPhone('');
+    setCounterEmail('');
+    setCounterAddress('');
+    setCounterLicense('');
+    showToast({
+      variant: 'success',
+      title: t('bookings.new.counterClient.createdTitle', 'Client ajouté'),
+      message: t(
+        'bookings.new.counterClient.createdMessage',
+        'Le client a été créé au comptoir et sélectionné pour cette réservation.',
+      ),
+    });
+  }, [
+    counterAddress,
+    counterEmail,
+    counterFirstName,
+    counterLastName,
+    counterLicense,
+    counterPhone,
+    showToast,
+    t,
+  ]);
+
+  const handleCustomOption = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showToast({
       variant: 'info',
-      title: 'Coming soon',
-      message: 'Adding new clients will be available soon.',
+      title: t('bookings.new.customOptions.title', 'Options personnalisables'),
+      message: t(
+        'bookings.new.customOptions.message',
+        "Chaque agence pourra gérer ses propres options depuis les paramètres.",
+      ),
     });
-  }, [showToast]);
+  }, [showToast, t]);
 
   const handleBackToBookings = useCallback(() => {
     router.replace('/(app)/(bookings)');
@@ -668,7 +822,8 @@ export default function NewBookingScreen() {
   const optionIcons: Record<string, typeof Shield> = {
     ins: Shield,
     drv: Users,
-    gps: Navigation,
+    'foreign-use': Globe2,
+    'custom-pickup': MapPin,
     seat: Baby,
   };
 
@@ -1158,12 +1313,39 @@ export default function NewBookingScreen() {
             {t('bookings.new.options', 'Options').toUpperCase()}
           </Text>
 
+          <Pressable
+            onPress={handleCustomOption}
+            className="rounded-2xl p-3 mb-2 flex-row items-center"
+            style={{ backgroundColor: theme.accentSoft }}
+          >
+            <View
+              className="rounded-xl items-center justify-center mr-3"
+              style={{ width: 36, height: 36, backgroundColor: theme.surface }}
+            >
+              <FileText size={17} color={theme.accent} />
+            </View>
+            <View className="flex-1">
+              <Text variant="bodyMedium" color={theme.accent}>
+                {t('bookings.new.customOptions.title', 'Options personnalisables')}
+              </Text>
+              <Text variant="bodySmall" color={theme.textSecondary}>
+                {t(
+                  'bookings.new.customOptions.subtitle',
+                  'Assurances, chauffeur, siège auto et options propres à chaque agence',
+                )}
+              </Text>
+            </View>
+          </Pressable>
+
           {options.map((option) => {
             const isDelivery = option.id === 'delivery';
+            const isCustomPickup = option.id === 'custom-pickup';
+            const isDistance = isDistanceOption(option.id);
+            const optionAddress = routeAddresses[option.id] ?? '';
+            const optionComputing = !!routeComputing[option.id];
+            const optionError = routeErrors[option.id] ?? null;
             const OptionIcon = isDelivery ? Truck : optionIcons[option.id] ?? Shield;
-            const label = isDelivery
-              ? t('bookings.new.delivery.optionLabel', 'Home delivery')
-              : option.label;
+            const label = getOptionLabel(option);
             return (
               <React.Fragment key={option.id}>
                 <Pressable
@@ -1189,7 +1371,7 @@ export default function NewBookingScreen() {
                     <View className="flex-1">
                       <Text variant="bodyMedium">{label}</Text>
                       <Text variant="bodySmall" color={theme.textTertiary}>
-                        {isDelivery
+                        {isDistance
                           ? t('bookings.new.delivery.rateInfo', {
                               defaultValue:
                                 'Rate: {{rate}} {{currency}} / km',
@@ -1226,8 +1408,8 @@ export default function NewBookingScreen() {
                   </View>
                 </Pressable>
 
-                {/* Delivery expanded panel */}
-                {isDelivery && option.enabled && (
+                {/* Distance-based option expanded panel */}
+                {isDistance && option.enabled && (
                   <View
                     style={{
                       backgroundColor: theme.surfaceSecondary,
@@ -1238,31 +1420,72 @@ export default function NewBookingScreen() {
                     }}
                   >
                     <Input
-                      label={t(
-                        'bookings.new.delivery.addressLabel',
-                        'Delivery address',
-                      )}
-                      placeholder={t(
-                        'bookings.new.delivery.addressPlaceholder',
-                        'Street, number, postcode, city',
-                      )}
-                      value={deliveryAddress}
-                      onChangeText={handleDeliveryAddressChange}
+                      label={
+                        isCustomPickup
+                          ? t(
+                              'bookings.new.customPickup.addressLabel',
+                              'Recovery address',
+                            )
+                          : t(
+                              'bookings.new.delivery.addressLabel',
+                              'Delivery address',
+                            )
+                      }
+                      placeholder={
+                        isCustomPickup
+                          ? t(
+                              'bookings.new.customPickup.addressPlaceholder',
+                              'Client return address',
+                            )
+                          : t(
+                              'bookings.new.delivery.addressPlaceholder',
+                              'Street, number, postcode, city',
+                            )
+                      }
+                      value={optionAddress}
+                      onChangeText={(text) => handleRouteAddressChange(option.id, text)}
                       leftIcon={MapPin}
-                      error={deliveryError ?? undefined}
+                      error={optionError ?? undefined}
                     />
+
+                    {optionAddress.trim().length > 0 && !option.deliveryDetails && (
+                      <View style={{ gap: 6 }}>
+                        {ADDRESS_SUGGESTIONS.filter((suggestion) =>
+                          suggestion.toLowerCase().includes(optionAddress.trim().toLowerCase().split(' ')[0] ?? ''),
+                        )
+                          .slice(0, 3)
+                          .map((suggestion) => (
+                            <Pressable
+                              key={`${option.id}-${suggestion}`}
+                              onPress={() => handleRouteAddressChange(option.id, suggestion)}
+                              className="flex-row items-center rounded-xl px-3 py-2"
+                              style={{ backgroundColor: theme.surface }}
+                            >
+                              <MapPin size={14} color={theme.accent} />
+                              <Text
+                                variant="bodySmall"
+                                color={theme.textSecondary}
+                                className="ml-2 flex-1"
+                                numberOfLines={1}
+                              >
+                                {suggestion}
+                              </Text>
+                            </Pressable>
+                          ))}
+                      </View>
+                    )}
 
                     <Button
                       variant="secondary"
                       size="md"
                       leftIcon={Calculator}
                       disabled={
-                        deliveryComputing ||
-                        deliveryAddress.trim().length === 0
+                        optionComputing ||
+                        optionAddress.trim().length === 0
                       }
-                      onPress={handleCalculateDelivery}
+                      onPress={() => handleCalculateRoute(option.id)}
                     >
-                      {deliveryComputing
+                      {optionComputing
                         ? t('bookings.new.delivery.calculating', 'Calculating…')
                         : option.deliveryDetails
                           ? t('bookings.new.delivery.recalculate', 'Recalculate')
@@ -1336,7 +1559,7 @@ export default function NewBookingScreen() {
           {pricing.deliveryFee > 0 && (
             <View className="flex-row items-center justify-between mb-2">
               <Text variant="bodyMedium" color={theme.textSecondary}>
-                {t('bookings.new.delivery.fee', 'Delivery fee')}
+                {t('bookings.new.distanceFees', 'Delivery / recovery fees')}
               </Text>
               <Text variant="bodyMedium">
                 {pricing.deliveryFee.toFixed(2)} {agencyDelivery.currency}
@@ -1561,7 +1784,7 @@ export default function NewBookingScreen() {
                         fontSize: 11,
                       }}
                     >
-                      {opt.label}
+                      {getOptionLabel(opt)}
                     </Text>
                   </View>
                 ))}
@@ -1591,7 +1814,7 @@ export default function NewBookingScreen() {
           )}
           {pricing.deliveryFee > 0 && (
             <PricingLine
-              label={t('bookings.new.delivery.optionLabel', 'Home delivery')}
+              label={t('bookings.new.distanceFees', 'Delivery / recovery fees')}
               value={`€${pricing.deliveryFee.toFixed(2)}`}
               theme={theme}
             />
@@ -1874,6 +2097,151 @@ export default function NewBookingScreen() {
                   </Text>
                 </Pressable>
               </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Counter client modal */}
+        <Modal
+          visible={showCounterClientModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowCounterClientModal(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: 'rgba(0,0,0,0.55)',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: theme.background,
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                padding: 20,
+                maxHeight: '88%',
+              }}
+            >
+              <View className="flex-row items-center justify-between mb-3">
+                <View className="flex-1">
+                  <Text variant="headlineSmall">
+                    {t('bookings.new.counterClient.title', 'Nouveau client comptoir')}
+                  </Text>
+                  <Text variant="bodySmall" color={theme.textSecondary}>
+                    {t(
+                      'bookings.new.counterClient.subtitle',
+                      "Créez le client sans quitter la réservation.",
+                    )}
+                  </Text>
+                </View>
+                <Pressable onPress={() => setShowCounterClientModal(false)} className="p-2">
+                  <X size={22} color={theme.textPrimary} />
+                </Pressable>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <View className="flex-row" style={{ gap: 10 }}>
+                  <Input
+                    className="flex-1"
+                    label={t('bookings.new.counterClient.firstName', 'Prénom')}
+                    value={counterFirstName}
+                    onChangeText={setCounterFirstName}
+                    placeholder="Ahmed"
+                  />
+                  <Input
+                    className="flex-1"
+                    label={t('bookings.new.counterClient.lastName', 'Nom')}
+                    value={counterLastName}
+                    onChangeText={setCounterLastName}
+                    placeholder="Benali"
+                  />
+                </View>
+
+                <Input
+                  className="mt-3"
+                  label={t('bookings.new.counterClient.phone', 'Téléphone')}
+                  value={counterPhone}
+                  onChangeText={setCounterPhone}
+                  keyboardType="phone-pad"
+                  placeholder="+41 79 000 00 00"
+                />
+                <Input
+                  className="mt-3"
+                  label={t('bookings.new.counterClient.email', 'Email')}
+                  value={counterEmail}
+                  onChangeText={setCounterEmail}
+                  keyboardType="email-address"
+                  placeholder="client@email.com"
+                />
+                <Input
+                  className="mt-3"
+                  label={t('bookings.new.counterClient.address', 'Adresse complète')}
+                  value={counterAddress}
+                  onChangeText={setCounterAddress}
+                  leftIcon={MapPin}
+                  placeholder="Rue, numéro, code postal, ville"
+                />
+                {counterAddress.trim().length > 0 && (
+                  <View className="mt-2" style={{ gap: 6 }}>
+                    {ADDRESS_SUGGESTIONS.slice(0, 3).map((suggestion) => (
+                      <Pressable
+                        key={`client-${suggestion}`}
+                        onPress={() => setCounterAddress(suggestion)}
+                        className="flex-row items-center rounded-xl px-3 py-2"
+                        style={{ backgroundColor: theme.surface }}
+                      >
+                        <MapPin size={14} color={theme.accent} />
+                        <Text variant="bodySmall" color={theme.textSecondary} className="ml-2 flex-1">
+                          {suggestion}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+                <Input
+                  className="mt-3"
+                  label={t('bookings.new.counterClient.license', 'N° permis')}
+                  value={counterLicense}
+                  onChangeText={setCounterLicense}
+                  placeholder="Permis de conduire"
+                />
+
+                <View className="mt-4" style={{ gap: 8 }}>
+                  {[
+                    { icon: FileText, label: t('bookings.new.counterClient.idFront', 'Pièce identité recto') },
+                    { icon: FileText, label: t('bookings.new.counterClient.idBack', 'Pièce identité verso') },
+                    { icon: CreditCard, label: t('bookings.new.counterClient.card', 'Carte bancaire') },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <View
+                        key={item.label}
+                        className="flex-row items-center rounded-2xl p-3"
+                        style={{ backgroundColor: theme.surface }}
+                      >
+                        <Icon size={18} color={theme.accent} />
+                        <Text variant="bodySmall" className="ml-2 flex-1">
+                          {item.label}
+                        </Text>
+                        <Badge variant="warning" size="sm">
+                          {t('bookings.new.counterClient.toCapture', 'À capturer')}
+                        </Badge>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                <View className="mt-5 mb-2" style={{ gap: 10 }}>
+                  <Button variant="primary" fullWidth leftIcon={UserPlus} onPress={handleCreateCounterClient}>
+                    {t('bookings.new.counterClient.create', 'Créer et sélectionner')}
+                  </Button>
+                  <Button variant="ghost" fullWidth onPress={() => setShowCounterClientModal(false)}>
+                    {t('common.cancel', 'Annuler')}
+                  </Button>
+                </View>
+              </ScrollView>
             </View>
           </View>
         </Modal>

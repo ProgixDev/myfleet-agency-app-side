@@ -518,6 +518,20 @@
       "listEmpty": "No conflicts",
       "listEmptySubtitle": "All bookings are compatible"
     },
+    "calendar": {
+      "agendaTitle": "Bookings",
+      "agendaSubtitle": "Pickups, returns, and actions to handle",
+      "tabs": {
+        "today": "Today",
+        "upcoming": "Upcoming",
+        "calendar": "Calendar"
+      },
+      "todayOps": "Operations",
+      "toHandle": "To handle",
+      "noTodayBookings": "No operations scheduled today",
+      "noUpcomingBookings": "No upcoming bookings",
+      "noBookings": "No bookings for this day"
+    },
     "new": {
       "searchVehicle": "Search by name, model or plate",
       "delivery": {
@@ -543,6 +557,38 @@
         "errorUnknown": "Unexpected error",
         "apiKeyMissing": "Google Maps API key missing"
       },
+      "customPickup": {
+        "optionLabel": "Custom recovery",
+        "optionSubtitle": "Recover the vehicle from the client's address",
+        "addressLabel": "Recovery address",
+        "addressPlaceholder": "Client return address",
+        "addressRequired": "Recovery address required"
+      },
+      "customOptions": {
+        "title": "Customizable options",
+        "subtitle": "The agency can adapt insurance, passes, and extras to its offer",
+        "message": "This list stays configurable on the agency side without changing the flow."
+      },
+      "counterClient": {
+        "title": "New counter client",
+        "subtitle": "Create the client without asking them to use the app.",
+        "firstName": "First name",
+        "lastName": "Last name",
+        "phone": "Phone",
+        "email": "Email",
+        "address": "Full address",
+        "license": "License no.",
+        "idFront": "ID front",
+        "idBack": "ID back",
+        "card": "Bank card",
+        "toCapture": "To capture",
+        "create": "Create and select",
+        "missingTitle": "Missing information",
+        "missingMessage": "First name, last name, and phone are required to create a counter client.",
+        "createdTitle": "Client added",
+        "createdMessage": "The client was created and selected for this booking."
+      },
+      "distanceFees": "Delivery / recovery fees",
       "step1": "Select Vehicle",
       "step2": "Select Client",
       "step3": "Select Dates",

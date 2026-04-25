@@ -17,10 +17,10 @@ export interface DeliveryDetails {
 export interface BookingOption {
   id: string;
   label: string;
-  /** Per-day rate. Set to 0 for one-time options like delivery (see deliveryDetails.fee). */
+  /** Per-day rate. Set to 0 for one-time distance options (see deliveryDetails.fee). */
   price: number;
   enabled: boolean;
-  /** Only set when id === 'delivery' and the agent resolved an address. */
+  /** Set when a distance-based option, such as delivery or custom recovery, has a resolved address. */
   deliveryDetails?: DeliveryDetails;
 }
 
