@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -98,11 +99,15 @@ export const useAgencyStore = create<AgencyStore>()(
  * the id isn't in the map — the UI keeps rendering instead of crashing.
  */
 export function useCurrentAgency(): AgencyProfile {
-  const currentId = useAgencyStore((s) => s.currentAgencyId);
-  const profile = useAgencyStore((s) => s.agencies[currentId]);
-  return profile ?? { id: currentId, name: '', qrUrl: '' };
+  return useAgencyStore(
+    useShallow((s) => {
+      const currentId = s.currentAgencyId;
+      const profile = s.agencies[currentId];
+      return profile ?? { id: currentId, name: '', qrUrl: '' };
+    }),
+  );
 }
 
 export function useAgencyList(): AgencyProfile[] {
-  return useAgencyStore((s) => Object.values(s.agencies));
+  return useAgencyStore(useShallow((s) => Object.values(s.agencies)));
 }

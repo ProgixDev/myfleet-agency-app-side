@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import type { Booking, BookingStatus, BookingDraft, BookingOption } from '@/types/booking';
 import { mockBookings } from '@/data/bookings';
 
@@ -29,12 +30,8 @@ export interface ConflictCandidate {
 
 interface BookingActions {
   // Queries
-  getBookingsForVehicle: (vehicleId: string) => Booking[];
-  getBookingsForDate: (date: string) => Booking[];
-  isVehicleAvailable: (vehicleId: string, start: string, end: string) => boolean;
   detectConflicts: (candidate: ConflictCandidate) => Booking[];
   findDraftConflicts: () => Booking[];
-  getConflictingBookings: () => Booking[];
 
   // Mutations
   createBooking: (dailyRate: number) => Booking | null;
@@ -140,24 +137,6 @@ export const useBookingStore = create<BookingStore>()((set, get) => ({
 
   // ── Queries ──────────────────────────────────────────────────────────────
 
-  getBookingsForVehicle: (vehicleId) =>
-    get().bookings.filter((b) => b.vehicleId === vehicleId && b.status !== 'cancelled'),
-
-  getBookingsForDate: (date) =>
-    get().bookings.filter(
-      (b) => b.startDate <= date && b.endDate >= date && b.status !== 'cancelled',
-    ),
-
-  isVehicleAvailable: (vehicleId, start, end) => {
-    const vehicleBookings = get().bookings.filter(
-      (b) =>
-        b.vehicleId === vehicleId &&
-        b.status !== 'cancelled' &&
-        b.status !== 'completed',
-    );
-    return !vehicleBookings.some((b) => datesOverlap(start, end, b.startDate, b.endDate));
-  },
-
   detectConflicts: (candidate) => {
     return get().bookings.filter(
       (b) =>
@@ -178,11 +157,6 @@ export const useBookingStore = create<BookingStore>()((set, get) => ({
       endDate: draft.endDate,
     });
   },
-
-  getConflictingBookings: () =>
-    get().bookings.filter(
-      (b) => b.conflict && b.conflict.withBookingIds.length > 0,
-    ),
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
@@ -231,12 +205,13 @@ export const useBookingStore = create<BookingStore>()((set, get) => ({
       createdAt: new Date().toISOString().slice(0, 10),
     };
 
+    const newBookings = computeConflictAnnotations([booking, ...bookings]);
     set({
-      bookings: computeConflictAnnotations([booking, ...bookings]),
+      bookings: newBookings,
       draft: null,
     });
     // Return the freshly-annotated version so the caller sees conflict flags
-    return get().bookings.find((b) => b.id === booking.id) ?? booking;
+    return newBookings.find((b) => b.id === booking.id) ?? booking;
   },
 
   updateBookingStatus: (id, status) =>
@@ -355,3 +330,63 @@ export const useBookingStore = create<BookingStore>()((set, get) => ({
 
   discardDraft: () => set({ draft: null }),
 }));
+
+// ── Selectors ────────────────────────────────────────────────────────────────
+
+export function useBookingsForVehicle(vehicleId: string): Booking[] {
+  return useBookingStore(
+    useShallow((s) =>
+      s.bookings.filter((b) => b.vehicleId === vehicleId && b.status !== 'cancelled'),
+    ),
+  );
+}
+
+export function useBookingsForDate(date: string): Booking[] {
+  return useBookingStore(
+    useShallow((s) =>
+      s.bookings.filter(
+        (b) => b.startDate <= date && b.endDate >= date && b.status !== 'cancelled',
+      ),
+    ),
+  );
+}
+
+export function useVehicleAvailable(vehicleId: string, start: string | null, end: string | null): boolean {
+  return useBookingStore(
+    useShallow((s) => {
+      if (!vehicleId || !start || !end) return true;
+      const vehicleBookings = s.bookings.filter(
+        (b) =>
+          b.vehicleId === vehicleId &&
+          b.status !== 'cancelled' &&
+          b.status !== 'completed',
+      );
+      return !vehicleBookings.some((b) => datesOverlap(start, end, b.startDate, b.endDate));
+    }),
+  );
+}
+
+export function useConflictingBookings(): Booking[] {
+  return useBookingStore(
+    useShallow((s) =>
+      s.bookings.filter((b) => b.conflict && b.conflict.withBookingIds.length > 0),
+    ),
+  );
+}
+
+export function useDraftConflicts(): Booking[] {
+  return useBookingStore(
+    useShallow((s) => {
+      const draft = s.draft;
+      if (!draft || !draft.vehicleId || !draft.startDate || !draft.endDate) return [];
+      
+      return s.bookings.filter(
+        (b) =>
+          b.id !== null &&
+          b.vehicleId === draft.vehicleId &&
+          b.status !== 'cancelled' &&
+          datesOverlap(draft.startDate!, draft.endDate!, b.startDate, b.endDate),
+      );
+    }),
+  );
+}

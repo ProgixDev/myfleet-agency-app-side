@@ -32,6 +32,8 @@ export interface InputProps {
   className?: string;
   multiline?: boolean;
   keyboardType?: KeyboardTypeOptions;
+  maxLength?: number;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,6 +57,8 @@ export function Input({
   className = '',
   multiline = false,
   keyboardType,
+  maxLength,
+  autoCapitalize,
 }: InputProps) {
   const theme = useTheme();
   const isPassword = variant === 'password' || secureTextEntryProp;
@@ -142,6 +146,8 @@ export function Input({
           editable={!disabled}
           multiline={multiline}
           keyboardType={keyboardType}
+          maxLength={maxLength}
+          autoCapitalize={autoCapitalize}
           onFocus={handleFocus}
           onBlur={handleBlur}
           style={{

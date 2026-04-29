@@ -26,7 +26,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { FabMenu } from "@/components/ui/FabMenu";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useBookingStore } from "@/stores/useBookingStore";
+import { useBookingStore, useConflictingBookings } from "@/stores/useBookingStore";
 import { fontFamilies } from "@/theme/typography";
 import { getVehicleImage } from "@/data/vehicleImages";
 import {
@@ -73,12 +73,7 @@ export default function HomeScreen() {
   const user = useAuthStore((s) => s.user);
   const [refreshing, setRefreshing] = useState(false);
 
-  const conflictCount = useBookingStore(
-    (s) =>
-      s.bookings.filter(
-        (b) => b.conflict && b.conflict.withBookingIds.length > 0,
-      ).length,
-  );
+  const conflictCount = useConflictingBookings().length;
 
   const dateStr = useMemo(getFormattedDate, []);
   const overdueCount = useMemo(() => countOverdue(upcomingReturns), []);

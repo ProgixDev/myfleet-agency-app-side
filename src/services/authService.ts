@@ -115,10 +115,37 @@ export function loginWithEmail(
   });
 }
 
+export function forgotPassword(email: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>("/forgot-password", {
+    baseUrl: AUTH_BASE_URL,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPasswordWithOtp(
+  email: string,
+  token: string,
+  password: string,
+): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>("/reset-password", {
+    baseUrl: AUTH_BASE_URL,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, token, password }),
+  });
+}
+
 export function signUpAgency(
   payload: AgencySignUpPayload,
 ): Promise<AgencySignUpResult> {
   return apiRequest<AgencySignUpResult>("/signup/agency", {
+    baseUrl: AUTH_BASE_URL,
     method: "POST",
     headers: {
       "Content-Type": "application/json",

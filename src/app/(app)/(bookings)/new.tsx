@@ -60,7 +60,7 @@ import { mockClients } from '@/data/clients';
 import { matchesVehicleQuery } from '@/utils/vehicleSearch';
 import type { Vehicle } from '@/types/vehicle';
 import type { Client } from '@/types/client';
-import { useBookingStore } from '@/stores/useBookingStore';
+import { useBookingStore, useVehicleAvailable } from '@/stores/useBookingStore';
 import { useCurrentAgencySettings } from '@/stores/useAgencySettingsStore';
 import { useToastStore } from '@/components/ui/Toast';
 import {
@@ -242,12 +242,12 @@ export default function NewBookingScreen() {
   const showToast = useToastStore((s) => s.show);
   const bookingStore = useBookingStore();
 
-  // ── Flow State ──────────────────────────────────────────────────────────
-  const [step, setStep] = useState<number>(1);
-
-  // Step 1: Vehicle
+  // ── Step 1: Vehicle ──────────────────────────────────────────────────
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [vehicleSearch, setVehicleSearch] = useState('');
+
+  // ── Flow State ──────────────────────────────────────────────────────────
+  const [step, setStep] = useState<number>(1);
 
   // Step 2: Client
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -281,6 +281,8 @@ export default function NewBookingScreen() {
   // String versions for store/validation
   const startDate = startDateObj.toISOString().slice(0, 10);
   const endDate = endDateObj.toISOString().slice(0, 10);
+
+  const vehicleAvailableForDates = useVehicleAvailable(selectedVehicle?.id ?? '', startDate, endDate);
 
   // Agency delivery config (used throughout Step 4)
   const agencyDelivery = useCurrentAgencySettings().delivery;
@@ -354,11 +356,6 @@ export default function NewBookingScreen() {
     if (!datesValid) return 0;
     return Math.max(1, Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / 86400000));
   }, [startDateObj, endDateObj, datesValid]);
-
-  const vehicleAvailableForDates = useMemo(() => {
-    if (!selectedVehicle || !datesValid) return true;
-    return useBookingStore.getState().isVehicleAvailable(selectedVehicle.id, startDate, endDate);
-  }, [selectedVehicle, startDate, endDate, datesValid]);
 
   const unresolvedDistanceOptions = useMemo(
     () => options.filter((o) => isDistanceOption(o.id) && o.enabled && !o.deliveryDetails),
