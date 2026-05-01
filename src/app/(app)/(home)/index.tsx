@@ -152,7 +152,7 @@ export default function HomeScreen() {
                   router.push("/(app)/(more)/settings/profile");
                 }}
               >
-                <Avatar name={user?.name ?? "U"} size="md" />
+                <Avatar name={user?.name ?? "U"} source={user?.avatar} size="md" />
               </Pressable>
               <View style={{ flex: 1 }}>
                 <Text

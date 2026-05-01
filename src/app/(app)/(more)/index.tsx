@@ -168,7 +168,7 @@ export default function MoreScreen() {
             transform: [{ scale: pressed ? 0.99 : 1 }],
           })}
         >
-          <Avatar name={userName} size="md" />
+          <Avatar name={userName} source={user?.avatar} size="md" />
           <View style={{ flex: 1 }}>
             <Text
               variant="titleMedium"

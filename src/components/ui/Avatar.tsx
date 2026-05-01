@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -57,6 +57,8 @@ export function Avatar({
   const dimension = sizeMap[size];
   const fontSize = fontSizeMap[size];
   const dotSize = onlineDotSizeMap[size];
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const initials = useMemo(
     () => (name ? getInitials(name) : ''),
@@ -65,6 +67,8 @@ export function Avatar({
 
   const ringWidth = 2;
   const outerDimension = showRing ? dimension + ringWidth * 2 : dimension;
+
+  const showImage = source && !hasError;
 
   return (
     <View
@@ -76,7 +80,7 @@ export function Avatar({
     >
       {/* Ring container */}
       <View
-        className="rounded-full items-center justify-center"
+        className="rounded-full items-center justify-center overflow-hidden"
         style={{
           width: outerDimension,
           height: outerDimension,
@@ -84,8 +88,22 @@ export function Avatar({
           borderColor: showRing ? theme.accent : 'transparent',
         }}
       >
+        {/* Loading placeholder (shown behind image while loading) */}
+        {isLoading && showImage && (
+          <View
+            className="absolute items-center justify-center rounded-full"
+            style={{
+              width: dimension,
+              height: dimension,
+              backgroundColor: theme.surfaceSecondary,
+            }}
+          >
+            <ActivityIndicator size="small" color={theme.accent} />
+          </View>
+        )}
+
         {/* Image or initials */}
-        {source ? (
+        {showImage ? (
           <Image
             source={{ uri: source }}
             style={{
@@ -95,6 +113,12 @@ export function Avatar({
             }}
             contentFit="cover"
             transition={200}
+            onLoadStart={() => setIsLoading(true)}
+            onLoadEnd={() => setIsLoading(false)}
+            onError={() => {
+              setHasError(true);
+              setIsLoading(false);
+            }}
           />
         ) : (
           <View

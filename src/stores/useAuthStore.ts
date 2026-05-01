@@ -48,6 +48,7 @@ interface AuthActions {
   logout: () => Promise<void>;
   setLoading: (loading: boolean) => void;
   initialize: () => Promise<void>;
+  updateUser: (updates: Partial<AuthUser>) => void;
 }
 
 type AuthStore = AuthState & AuthActions;
@@ -201,6 +202,11 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       setLoading: (loading) => set({ isLoading: loading }),
+
+      updateUser: (updates) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, ...updates } : null,
+        })),
     }),
     {
       name: 'my-fleet-auth',

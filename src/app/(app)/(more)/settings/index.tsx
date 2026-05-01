@@ -194,7 +194,7 @@ export default function SettingsScreen() {
           style={{ backgroundColor: theme.surface }}
           className="rounded-2xl p-4 items-center"
         >
-          <Avatar name={user?.name} size="lg" />
+          <Avatar name={user?.name} source={user?.avatar} size="lg" />
           <Text variant="headlineMedium" className="mt-3">
             {user?.name ?? 'Utilisateur'}
           </Text>
