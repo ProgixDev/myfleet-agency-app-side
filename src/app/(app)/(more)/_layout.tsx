@@ -27,10 +27,10 @@ export default function MoreLayout() {
       <Stack.Screen name="billing/index" />
       <Stack.Screen name="billing/[id]" />
       <Stack.Screen name="analytics/index" />
+      <Stack.Screen name="agency" />
       <Stack.Screen name="agency-qr" />
       <Stack.Screen name="settings/index" />
       <Stack.Screen name="settings/profile" />
-      <Stack.Screen name="settings/agency" />
       <Stack.Screen name="settings/theme" />
       <Stack.Screen name="settings/language" />
       <Stack.Screen name="notifications/index" />

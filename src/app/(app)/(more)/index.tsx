@@ -13,6 +13,7 @@ import {
   Bell,
   LogOut,
   ChevronRight,
+  Building,
 } from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -44,6 +45,7 @@ export default function MoreScreen() {
   const theme = useTheme();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const role = user?.role;
   const logout = useAuthStore((s) => s.logout);
 
   const go = (path: string) => {
@@ -84,6 +86,17 @@ export default function MoreScreen() {
           bg: theme.successSoft,
           onPress: () => go("/(app)/(more)/billing"),
         },
+        ...(role === "admin"
+          ? [
+              {
+                icon: Building,
+                label: t("more.agency", { defaultValue: "Agence" }),
+                color: theme.accent,
+                bg: theme.accentSoft,
+                onPress: () => go("/(app)/(more)/agency"),
+              },
+            ]
+          : []),
       ],
     },
     {

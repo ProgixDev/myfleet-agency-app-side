@@ -11,7 +11,6 @@ import {
   Mail,
   Calendar,
   Clock,
-  Building,
   CreditCard,
   KeyRound,
   Fingerprint,
@@ -275,28 +274,21 @@ export default function SettingsScreen() {
         </View>
       </Animated.View>
 
-      {/* Agence (admin only) */}
-      {role === 'admin' && (
-        <Animated.View entering={FadeInDown.duration(400).delay(200)}>
-          <SectionHeader title="Agence" />
-          <View
-            style={{ backgroundColor: theme.surface }}
-            className="rounded-2xl overflow-hidden"
-          >
-            <SettingsRow
-              icon={Building}
-              label="Profil agence"
-              onPress={() => router.push('/(app)/(more)/settings/agency' as never)}
-            />
-            <SettingsRow
-              icon={CreditCard}
-              label="Abonnement"
-              onPress={comingSoon}
-              isLast
-            />
-          </View>
-        </Animated.View>
-      )}
+      {/* Abonnement */}
+      <Animated.View entering={FadeInDown.duration(400).delay(200)}>
+        <SectionHeader title="Abonnement" />
+        <View
+          style={{ backgroundColor: theme.surface }}
+          className="rounded-2xl overflow-hidden"
+        >
+          <SettingsRow
+            icon={CreditCard}
+            label="Mon abonnement"
+            onPress={comingSoon}
+            isLast
+          />
+        </View>
+      </Animated.View>
 
       {/* Sécurité */}
       <Animated.View entering={FadeInDown.duration(400).delay(250)}>
