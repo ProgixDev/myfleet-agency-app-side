@@ -56,12 +56,27 @@ export async function createInspection(
   return ok(data);
 }
 
+export async function deleteInspection(id: string): Promise<void> {
+  await authedRequest<void>(`/inspections/${id}`, { method: "DELETE" });
+}
+
 export async function runInspectionAi(
   id: string,
 ): Promise<ApiResponse<Inspection>> {
   const data = await authedRequest<Inspection>(`/inspections/${id}/run-ai`, {
     method: "POST",
   });
+  return ok(data);
+}
+
+export async function runInspectionAngleAi(
+  id: string,
+  angle: PhotoAngle,
+): Promise<ApiResponse<Inspection>> {
+  const data = await authedRequest<Inspection>(
+    `/inspections/${id}/photos/${angle}/run-ai`,
+    { method: "POST" },
+  );
   return ok(data);
 }
 

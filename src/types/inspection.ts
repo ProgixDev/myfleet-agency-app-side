@@ -78,6 +78,9 @@ export interface CapturedPhoto {
   timestamp: string;
   aiResult: AIDetectionResult | null;
   annotations: DamageAnnotation[];
+  aiStatus?: AIInspectionStatus;
+  aiError?: string | null;
+  aiRunAt?: string | null;
 }
 
 export interface Inspection {

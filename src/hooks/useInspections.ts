@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createInspection,
+  deleteInspection,
   getInspectionById,
   listInspections,
   patchInspection,
   runInspectionAi,
+  runInspectionAngleAi,
   type CreateInspectionPayload,
 } from "@/services/inspectionService";
-import type { InspectionType } from "@/types/inspection";
+import type { InspectionType, PhotoAngle } from "@/types/inspection";
 
 export interface InspectionListFilters {
   vehicleId?: string;
@@ -38,9 +40,14 @@ export function useInspection(id: string | undefined) {
     staleTime: 30_000,
     // Poll every 3s while the backend AI run is in flight so the UI
     // reflects completion without the user having to pull-to-refresh.
+    // Looks at both the inspection-level status (legacy batch run) and
+    // any per-angle status (current per-angle run).
     refetchInterval: (query) => {
-      const status = query.state.data?.aiStatus;
-      return status === "queued" || status === "running" ? 3000 : false;
+      const insp = query.state.data;
+      const inflight = (s?: string) => s === "queued" || s === "running";
+      if (inflight(insp?.aiStatus)) return 3000;
+      if (insp?.photos?.some((p) => inflight(p.aiStatus))) return 3000;
+      return false;
     },
   });
 }
@@ -60,6 +67,21 @@ export function useRunInspectionAi() {
   });
 }
 
+export function useRunInspectionAngleAi() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, angle }: { id: string; angle: PhotoAngle }) => {
+      const res = await runInspectionAngleAi(id, angle);
+      if (!res.data) throw new Error("Failed to run AI analysis");
+      return res.data;
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(inspectionKeys.detail(data.id), data);
+      void qc.invalidateQueries({ queryKey: inspectionKeys.all });
+    },
+  });
+}
+
 export function useCreateInspection() {
   const qc = useQueryClient();
   return useMutation({
@@ -69,6 +91,17 @@ export function useCreateInspection() {
       return res.data;
     },
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: inspectionKeys.all });
+    },
+  });
+}
+
+export function useDeleteInspection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteInspection(id),
+    onSuccess: (_, id) => {
+      qc.removeQueries({ queryKey: inspectionKeys.detail(id) });
       void qc.invalidateQueries({ queryKey: inspectionKeys.all });
     },
   });

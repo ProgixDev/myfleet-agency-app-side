@@ -3,11 +3,12 @@ import { View, Modal, Dimensions, Pressable } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { Car, X } from "lucide-react-native";
+import { Car, Fuel, Gauge, X } from "lucide-react-native";
 
 import { Text } from "@/components/ui/Text";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { Image } from "@/components/ui/Image";
 import { useToastStore } from "@/components/ui/Toast";
 import { useTheme } from "@/hooks/useTheme";
@@ -39,7 +40,30 @@ export interface BookingInspectionStepProps {
   continueLabel: string;
   onInspectionReady: (inspectionId: string) => void;
   onContinue: () => void;
+  /**
+   * Optional controlled mileage input. When provided, the step renders a
+   * mileage Card and gates Continue on a valid value. The numeric reading is
+   * patched onto the inspection row when the user advances.
+   */
+  mileageValue?: string;
+  onMileageChange?: (value: string) => void;
+  mileageLabel?: string;
+  /**
+   * Optional controlled fuel-level input as a 0..100 percent value. When
+   * provided the step renders a 5-step fuel selector and gates Continue on
+   * a non-null choice; the value is patched onto the inspection on advance.
+   */
+  fuelLevelValue?: number | null;
+  onFuelLevelChange?: (value: number) => void;
 }
+
+const FUEL_LEVELS: { label: string; pct: number }[] = [
+  { label: "E", pct: 0 },
+  { label: "1/4", pct: 25 },
+  { label: "1/2", pct: 50 },
+  { label: "3/4", pct: 75 },
+  { label: "F", pct: 100 },
+];
 
 export function BookingInspectionStep({
   bookingId,
@@ -51,7 +75,21 @@ export function BookingInspectionStep({
   continueLabel,
   onInspectionReady,
   onContinue,
+  mileageValue,
+  onMileageChange,
+  mileageLabel,
+  fuelLevelValue,
+  onFuelLevelChange,
 }: BookingInspectionStepProps) {
+  const mileageEnabled = onMileageChange !== undefined;
+  const parsedMileage = mileageEnabled
+    ? Number.parseInt((mileageValue ?? "").replace(/[^0-9]/g, ""), 10)
+    : NaN;
+  const mileageValid =
+    !mileageEnabled || (Number.isFinite(parsedMileage) && parsedMileage > 0);
+  const fuelEnabled = onFuelLevelChange !== undefined;
+  const fuelValid =
+    !fuelEnabled || (fuelLevelValue !== null && fuelLevelValue !== undefined);
   const theme = useTheme();
   const { t } = useTranslation();
   const showToast = useToastStore((s) => s.show);
@@ -249,9 +287,30 @@ export function BookingInspectionStep({
         return;
       }
 
+      if (mileageEnabled && !mileageValid) {
+        showToast({
+          variant: "error",
+          title: t("bookings.mileage.startMileageRequired", "Mileage required"),
+        });
+        return;
+      }
+      if (fuelEnabled && !fuelValid) {
+        showToast({
+          variant: "error",
+          title: t("bookings.fuel.required", "Fuel level required"),
+        });
+        return;
+      }
+
       await patchInspection.mutateAsync({
         id: inspectionId,
-        patch: { status: "completed" },
+        patch: {
+          status: "completed",
+          ...(mileageEnabled ? { mileage: parsedMileage } : {}),
+          ...(fuelEnabled && fuelLevelValue != null
+            ? { fuelLevel: fuelLevelValue }
+            : {}),
+        },
       });
 
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -273,6 +332,12 @@ export function BookingInspectionStep({
     onContinue,
     showToast,
     t,
+    mileageEnabled,
+    mileageValid,
+    parsedMileage,
+    fuelEnabled,
+    fuelValid,
+    fuelLevelValue,
   ]);
 
   const bannerDefault =
@@ -300,6 +365,100 @@ export function BookingInspectionStep({
           </View>
         </View>
       </Card>
+
+      {/* Mileage — only when the parent opts in (e.g. pickup pre-rental).
+          The reading is patched onto the inspection on Continue and used
+          downstream to populate booking.start_mileage / vehicle odometer. */}
+      {mileageEnabled && (
+        <Card>
+          <Text variant="titleLarge" style={{ marginBottom: 4 }}>
+            {mileageLabel ??
+              t("bookings.mileage.startMileageLabel", "Departure mileage")}
+          </Text>
+          <Text
+            variant="bodySmall"
+            color={theme.textSecondary}
+            style={{ marginBottom: 12 }}
+          >
+            {t("bookings.mileage.startMileageRequired", "Mileage required")}
+          </Text>
+          <Input
+            placeholder={t(
+              "bookings.mileage.startMileagePlaceholder",
+              "Enter mileage",
+            )}
+            value={mileageValue ?? ""}
+            onChangeText={(text) =>
+              onMileageChange?.(text.replace(/[^0-9]/g, ""))
+            }
+            keyboardType="number-pad"
+            leftIcon={Gauge}
+            helperText={t("bookings.mileage.unit", "km")}
+          />
+        </Card>
+      )}
+
+      {/* Fuel level — five-step selector. Patched onto the inspection on
+          Continue (column inspection.fuel_level, 0..100). */}
+      {fuelEnabled && (
+        <Card>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 4,
+            }}
+          >
+            <Fuel size={18} color={theme.accent} strokeWidth={1.8} />
+            <Text variant="titleLarge">
+              {t("bookings.fuel.label", "Fuel level")}
+            </Text>
+          </View>
+          <Text
+            variant="bodySmall"
+            color={theme.textSecondary}
+            style={{ marginBottom: 12 }}
+          >
+            {t(
+              "bookings.fuel.subtitle",
+              "Pick the closest fuel reading at handover.",
+            )}
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {FUEL_LEVELS.map((level) => {
+              const selected = fuelLevelValue === level.pct;
+              return (
+                <Pressable
+                  key={level.pct}
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    onFuelLevelChange?.(level.pct);
+                  }}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    borderWidth: selected ? 2 : 1,
+                    borderColor: selected ? theme.accent : theme.border,
+                    backgroundColor: selected
+                      ? theme.accentSoft
+                      : theme.surfaceSecondary,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    variant="titleMedium"
+                    color={selected ? theme.accent : theme.textPrimary}
+                  >
+                    {level.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Card>
+      )}
 
       {/* Photo capture & upload — backed by /inspections/:id/photos/:angle */}
       <Card>
@@ -342,7 +501,7 @@ export function BookingInspectionStep({
       <Button
         fullWidth
         onPress={handleContinue}
-        disabled={continuing || !inspectionId}
+        disabled={continuing || !inspectionId || !mileageValid || !fuelValid}
       >
         {continuing
           ? t("inspections.new.completing", { defaultValue: "Completing..." })

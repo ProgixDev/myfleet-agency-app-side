@@ -6,6 +6,7 @@ import {
   ScrollView,
   Dimensions,
   ActivityIndicator,
+  Alert,
   type DimensionValue,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -25,6 +26,8 @@ import {
   CheckCircle,
   AlertTriangle,
   Share2,
+  MoreVertical,
+  Trash2,
   Play,
   Gauge,
   Fuel,
@@ -33,7 +36,6 @@ import {
   FileText,
   GitCompareArrows,
   Sparkles,
-  RefreshCw,
   X as XIcon,
   type LucideIcon,
 } from "lucide-react-native";
@@ -48,14 +50,19 @@ import { formatDate, formatMileage } from "@/utils/format";
 import {
   useInspection,
   useInspections,
-  useRunInspectionAi,
+  useRunInspectionAngleAi,
+  useDeleteInspection,
 } from "@/hooks/useInspections";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { PrePostAngleList } from "@/components/inspections/PrePostAngleList";
+import { ManualAngleReviewModal } from "@/components/inspections/ManualAngleReviewModal";
 import { getVehicleImage } from "@/data/vehicleImages";
 import { fontFamilies } from "@/theme/typography";
 import type {
   Inspection,
   CapturedPhoto,
   DamageSeverity,
+  PhotoAngle,
 } from "@/types/inspection";
 import { PHOTO_ANGLES } from "@/types/inspection";
 
@@ -230,31 +237,41 @@ export default function InspectionDetailScreen() {
   const showToast = useToastStore((s) => s.show);
 
   const { data: inspection, isLoading, isError, refetch } = useInspection(id);
-  const runAi = useRunInspectionAi();
+  const runAngleAi = useRunInspectionAngleAi();
+  const deleteInspectionMut = useDeleteInspection();
+  const isAdmin = useAuthStore((s) => s.user?.role) === "admin";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [pendingAiAngles, setPendingAiAngles] = useState<Set<PhotoAngle>>(
+    new Set(),
+  );
+  const [manualReview, setManualReview] = useState<{
+    angle: PhotoAngle;
+    angleLabel: string;
+  } | null>(null);
 
-  const triggerAiRun = (targetId?: string) => {
-    const id = targetId ?? inspection?.id;
-    if (!id) return;
+  const triggerAngleAi = (angle: PhotoAngle) => {
+    if (!inspection) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    runAi.mutate(id, {
-      onSuccess: () => {
-        showToast({
-          variant: "info",
-          title: t("inspections.detail.ai.startedTitle", "AI analysis started"),
-          message: t(
-            "inspections.detail.ai.startedMessage",
-            "Results will appear in a few seconds.",
-          ),
-        });
+    setPendingAiAngles((s) => new Set(s).add(angle));
+    runAngleAi.mutate(
+      { id: inspection.id, angle },
+      {
+        onError: (err) => {
+          showToast({
+            variant: "error",
+            title: t("inspections.detail.ai.errorTitle", "AI analysis failed"),
+            message: err instanceof Error ? err.message : String(err),
+          });
+        },
+        onSettled: () => {
+          setPendingAiAngles((s) => {
+            const next = new Set(s);
+            next.delete(angle);
+            return next;
+          });
+        },
       },
-      onError: (err) => {
-        showToast({
-          variant: "error",
-          title: t("inspections.detail.ai.errorTitle", "AI analysis failed"),
-          message: err instanceof Error ? err.message : String(err),
-        });
-      },
-    });
+    );
   };
 
   const { data: relatedInspections = [] } = useInspections(
@@ -688,6 +705,154 @@ export default function InspectionDetailScreen() {
 
   // ── Fullscreen modal ────────────────────────────────────────────────────
 
+  const manualModal = manualReview ? (
+    <ManualAngleReviewModal
+      inspectionId={inspection.id}
+      angle={manualReview.angle}
+      angleLabel={manualReview.angleLabel}
+      postPhoto={inspection.photos.find((p) => p.angle === manualReview.angle)}
+      prePhoto={pair?.pre.photos.find((p) => p.angle === manualReview.angle)}
+      onClose={() => setManualReview(null)}
+    />
+  ) : null;
+
+  const handleShare = () => {
+    setMenuOpen(false);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    showToast({
+      variant: "info",
+      title: t("inspections.detail.comingSoon", "Coming soon"),
+      message: t(
+        "inspections.detail.shareMessage",
+        "Report sharing will be available soon.",
+      ),
+    });
+  };
+
+  const handleDelete = () => {
+    setMenuOpen(false);
+    Alert.alert(
+      t("inspections.detail.deleteTitle", "Delete inspection?"),
+      t(
+        "inspections.detail.deleteMessage",
+        "This will permanently delete this inspection and its photos. This action cannot be undone.",
+      ),
+      [
+        { text: t("common.cancel", "Cancel"), style: "cancel" },
+        {
+          text: t("common.delete", "Delete"),
+          style: "destructive",
+          onPress: () => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            deleteInspectionMut.mutate(inspection.id, {
+              onSuccess: () => {
+                showToast({
+                  variant: "success",
+                  title: t("inspections.detail.deleted", "Inspection deleted"),
+                });
+                router.back();
+              },
+              onError: (err) => {
+                showToast({
+                  variant: "error",
+                  title: t(
+                    "inspections.detail.deleteError",
+                    "Failed to delete inspection",
+                  ),
+                  message: err instanceof Error ? err.message : String(err),
+                });
+              },
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  const menuModal = (
+    <Modal
+      visible={menuOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setMenuOpen(false)}
+    >
+      <Pressable
+        onPress={() => setMenuOpen(false)}
+        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.25)" }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            top: insets.top + 54,
+            right: 16,
+            minWidth: 200,
+            backgroundColor: theme.surface,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+            paddingVertical: 6,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.18,
+            shadowRadius: 16,
+            elevation: 8,
+          }}
+        >
+          <Pressable
+            onPress={handleShare}
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              backgroundColor: pressed ? theme.surfaceTertiary : "transparent",
+            })}
+          >
+            <Share2 size={16} color={theme.textPrimary} strokeWidth={2} />
+            <Text
+              variant="bodyMedium"
+              style={{ fontFamily: fontFamilies.medium, fontSize: 14 }}
+            >
+              {t("inspections.detail.shareReport", "Share Report")}
+            </Text>
+          </Pressable>
+          {isAdmin && (
+            <>
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: theme.borderLight,
+                  marginVertical: 2,
+                }}
+              />
+              <Pressable
+                onPress={handleDelete}
+                style={({ pressed }) => ({
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  backgroundColor: pressed ? theme.dangerSoft : "transparent",
+                })}
+              >
+                <Trash2 size={16} color={theme.danger} strokeWidth={2} />
+                <Text
+                  variant="bodyMedium"
+                  color={theme.danger}
+                  style={{ fontFamily: fontFamilies.semiBold, fontSize: 14 }}
+                >
+                  {t("inspections.detail.delete", "Delete inspection")}
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      </Pressable>
+    </Modal>
+  );
+
   const fullscreenModal = (
     <Modal
       visible={fullscreen !== null}
@@ -875,14 +1040,7 @@ export default function InspectionDetailScreen() {
         <Pressable
           onPress={() => {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            showToast({
-              variant: "info",
-              title: t("inspections.detail.comingSoon", "Coming soon"),
-              message: t(
-                "inspections.detail.shareMessage",
-                "Report sharing will be available soon.",
-              ),
-            });
+            setMenuOpen(true);
           }}
           hitSlop={10}
           style={{
@@ -897,7 +1055,7 @@ export default function InspectionDetailScreen() {
             justifyContent: "center",
           }}
         >
-          <Share2 size={18} color="#111" strokeWidth={2} />
+          <MoreVertical size={20} color="#111" strokeWidth={2.2} />
         </Pressable>
 
         <View
@@ -1117,46 +1275,63 @@ export default function InspectionDetailScreen() {
             </>
           )}
 
-          {/* AI analysis — anchored to the post-rental side, where the diff matters */}
+          {/* Per-angle AI + manual review — post-rental only */}
           <Animated.View
             entering={FadeInDown.duration(400).delay(340)}
             style={{ marginTop: 22, marginHorizontal: 16 }}
           >
             <SectionLabel theme={theme}>
-              {t("inspections.detail.ai.title", "AI Analysis")}
+              {t("inspections.detail.angleReview.title", "Per-angle review")}
             </SectionLabel>
-            <AiBanner
-              inspection={pair.post}
-              theme={theme}
-              t={t}
-              isPending={runAi.isPending}
-              onRun={() => triggerAiRun(pair.post.id)}
-            />
-          </Animated.View>
-
-          {/* Share */}
-          <Animated.View
-            entering={FadeInDown.duration(400).delay(380)}
-            style={{ marginTop: 28, marginHorizontal: 16 }}
-          >
-            <ShareReportButton
-              theme={theme}
-              t={t}
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                showToast({
-                  variant: "info",
-                  title: t("inspections.detail.comingSoon", "Coming soon"),
-                  message: t(
-                    "inspections.detail.shareMessage",
-                    "Report sharing will be available soon.",
-                  ),
-                });
-              }}
+            {pair.post.aiSummary && pair.post.aiSummary.trim().length > 0 && (
+              <View
+                style={{
+                  backgroundColor: theme.surface,
+                  borderRadius: 14,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: theme.borderLight,
+                  marginBottom: 12,
+                }}
+              >
+                <View
+                  className="flex-row items-center"
+                  style={{ gap: 6, marginBottom: 4 }}
+                >
+                  <Sparkles size={14} color={theme.accent} />
+                  <Text
+                    variant="titleSmall"
+                    style={{
+                      fontFamily: fontFamilies.semiBold,
+                      fontSize: 12,
+                    }}
+                  >
+                    {t("inspections.detail.ai.summaryTitle", "AI summary")}
+                  </Text>
+                </View>
+                <Text
+                  variant="bodySmall"
+                  color={theme.textSecondary}
+                  style={{ fontSize: 12, lineHeight: 17 }}
+                >
+                  {pair.post.aiSummary}
+                </Text>
+              </View>
+            )}
+            <PrePostAngleList
+              pre={pair.pre}
+              post={pair.post}
+              pendingAngles={pendingAiAngles}
+              onRunAi={triggerAngleAi}
+              onManualReview={(angle, angleLabel) =>
+                setManualReview({ angle, angleLabel })
+              }
             />
           </Animated.View>
         </ScrollView>
         {fullscreenModal}
+        {manualModal}
+        {menuModal}
       </View>
     );
   }
@@ -1453,62 +1628,61 @@ export default function InspectionDetailScreen() {
           </View>
         </Animated.View>
 
-        {/* AI analysis — post-rental only */}
+        {/* AI + manual review require a paired pre-rental on the same booking. */}
         {inspection.type === "post-rental" && (
           <Animated.View
             entering={FadeInDown.duration(400).delay(350)}
             style={{ marginTop: 22, marginHorizontal: 16 }}
           >
             <SectionLabel theme={theme}>
-              {t("inspections.detail.ai.title", "AI Analysis")}
+              {t("inspections.detail.angleReview.title", "Per-angle review")}
             </SectionLabel>
-            <AiBanner
-              inspection={inspection}
-              theme={theme}
-              t={t}
-              isPending={runAi.isPending}
-              onRun={() => triggerAiRun()}
-            />
+            <View
+              style={{
+                backgroundColor: theme.warningSoft,
+                borderRadius: 16,
+                padding: 14,
+                gap: 8,
+                borderWidth: 1,
+                borderColor: theme.borderLight,
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <AlertTriangle size={18} color={theme.warning} />
+              <Text
+                variant="bodySmall"
+                color={theme.warning}
+                style={{ flex: 1, fontSize: 12, lineHeight: 17 }}
+              >
+                {t(
+                  "inspections.detail.ai.needsPreRental",
+                  "AI and manual review require a pre-rental inspection on the same booking.",
+                )}
+              </Text>
+            </View>
           </Animated.View>
         )}
 
-        {/* Actions */}
-        <Animated.View
-          entering={FadeInDown.duration(400).delay(380)}
-          style={{ marginTop: 26, marginHorizontal: 16 }}
-        >
-          <ShareReportButton
-            theme={theme}
-            t={t}
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              showToast({
-                variant: "info",
-                title: t("inspections.detail.comingSoon", "Coming soon"),
-                message: t(
-                  "inspections.detail.shareMessage",
-                  "Report sharing will be available soon.",
-                ),
-              });
-            }}
-          />
-
-          {inspection.status === "draft" && (
-            <View style={{ marginTop: 10 }}>
-              <Button
-                variant="secondary"
-                fullWidth
-                size="lg"
-                leftIcon={Play}
-                onPress={() => router.push("/(inspections)/new")}
-              >
-                {t("inspections.detail.resume", "Resume Inspection")}
-              </Button>
-            </View>
-          )}
-        </Animated.View>
+        {inspection.status === "draft" && (
+          <Animated.View
+            entering={FadeInDown.duration(400).delay(380)}
+            style={{ marginTop: 26, marginHorizontal: 16 }}
+          >
+            <Button
+              variant="secondary"
+              fullWidth
+              size="lg"
+              leftIcon={Play}
+              onPress={() => router.push("/(inspections)/new")}
+            >
+              {t("inspections.detail.resume", "Resume Inspection")}
+            </Button>
+          </Animated.View>
+        )}
       </ScrollView>
       {fullscreenModal}
+      {menuModal}
     </View>
   );
 }
@@ -1835,279 +2009,5 @@ function StatDuoCard({
         {subtitle}
       </Text>
     </View>
-  );
-}
-
-function AiBanner({
-  inspection,
-  theme,
-  t,
-  isPending,
-  onRun,
-}: {
-  inspection: Inspection;
-  theme: ReturnType<typeof useTheme>;
-  t: ReturnType<typeof useTranslation>["t"];
-  isPending: boolean;
-  onRun: () => void;
-}) {
-  const status = inspection.aiStatus;
-  const photosComplete = inspection.photos.length === 8;
-  const isCompleted = inspection.status === "completed";
-  const canRun = isCompleted && photosComplete && !isPending;
-
-  // ── Running / queued state ─────────────────────────────────────────────
-  if (status === "running" || status === "queued" || isPending) {
-    return (
-      <View
-        style={{
-          backgroundColor: theme.infoSoft,
-          borderRadius: 16,
-          padding: 14,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
-          borderWidth: 1,
-          borderColor: theme.borderLight,
-        }}
-      >
-        <ActivityIndicator size="small" color={theme.info} />
-        <View style={{ flex: 1 }}>
-          <Text
-            variant="titleSmall"
-            color={theme.info}
-            style={{ fontFamily: fontFamilies.semiBold, fontSize: 13 }}
-          >
-            {t("inspections.detail.ai.runningTitle", "Analyzing photos…")}
-          </Text>
-          <Text
-            variant="bodySmall"
-            color={theme.textSecondary}
-            style={{ fontSize: 12, marginTop: 2 }}
-          >
-            {t(
-              "inspections.detail.ai.runningSubtitle",
-              "AI is reviewing damage. This usually takes 5–30 seconds.",
-            )}
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  // ── Failed state ───────────────────────────────────────────────────────
-  if (status === "failed") {
-    return (
-      <View
-        style={{
-          backgroundColor: theme.dangerSoft,
-          borderRadius: 16,
-          padding: 14,
-          gap: 12,
-          borderWidth: 1,
-          borderColor: theme.borderLight,
-        }}
-      >
-        <View className="flex-row items-center" style={{ gap: 8 }}>
-          <AlertTriangle size={16} color={theme.danger} />
-          <Text
-            variant="titleSmall"
-            color={theme.danger}
-            style={{ fontFamily: fontFamilies.semiBold, fontSize: 13 }}
-          >
-            {t("inspections.detail.ai.failedTitle", "AI analysis failed")}
-          </Text>
-        </View>
-        {inspection.aiError && (
-          <Text
-            variant="bodySmall"
-            color={theme.textSecondary}
-            style={{ fontSize: 12, lineHeight: 17 }}
-          >
-            {inspection.aiError}
-          </Text>
-        )}
-        <Button
-          variant="secondary"
-          fullWidth
-          size="md"
-          leftIcon={RefreshCw}
-          onPress={onRun}
-          disabled={!isCompleted || !photosComplete}
-        >
-          {t("inspections.detail.ai.retry", "Retry AI Analysis")}
-        </Button>
-      </View>
-    );
-  }
-
-  // ── Completed state ────────────────────────────────────────────────────
-  if (status === "completed") {
-    return (
-      <View
-        style={{
-          backgroundColor: theme.surface,
-          borderRadius: 16,
-          padding: 14,
-          gap: 10,
-          borderWidth: 1,
-          borderColor: theme.borderLight,
-        }}
-      >
-        <View className="flex-row items-center" style={{ gap: 8 }}>
-          <Sparkles size={16} color={theme.accent} />
-          <Text
-            variant="titleSmall"
-            style={{ fontFamily: fontFamilies.semiBold, fontSize: 13 }}
-          >
-            {t("inspections.detail.ai.completedTitle", "AI analysis complete")}
-          </Text>
-          {inspection.aiRunAt && (
-            <Text
-              variant="caption"
-              color={theme.textTertiary}
-              style={{ fontSize: 11, marginLeft: "auto" }}
-            >
-              {formatDate(inspection.aiRunAt, "long")}
-            </Text>
-          )}
-        </View>
-        {inspection.aiSummary && inspection.aiSummary.trim().length > 0 ? (
-          <Text
-            variant="bodySmall"
-            color={theme.textSecondary}
-            style={{ fontSize: 12, lineHeight: 18 }}
-          >
-            {inspection.aiSummary}
-          </Text>
-        ) : (
-          <Text
-            variant="bodySmall"
-            color={theme.textTertiary}
-            style={{ fontSize: 12, fontStyle: "italic" }}
-          >
-            {t(
-              "inspections.detail.ai.noSummary",
-              "No new damage detected during this rental.",
-            )}
-          </Text>
-        )}
-        <Button
-          variant="secondary"
-          fullWidth
-          size="md"
-          leftIcon={RefreshCw}
-          onPress={onRun}
-          disabled={!canRun}
-        >
-          {t("inspections.detail.ai.rerun", "Re-run AI Analysis")}
-        </Button>
-      </View>
-    );
-  }
-
-  // ── Idle state (no run yet) ────────────────────────────────────────────
-  return (
-    <View
-      style={{
-        backgroundColor: theme.surface,
-        borderRadius: 16,
-        padding: 14,
-        gap: 10,
-        borderWidth: 1,
-        borderColor: theme.borderLight,
-      }}
-    >
-      <View className="flex-row items-center" style={{ gap: 8 }}>
-        <Sparkles size={16} color={theme.accent} />
-        <Text
-          variant="titleSmall"
-          style={{ fontFamily: fontFamilies.semiBold, fontSize: 13 }}
-        >
-          {t("inspections.detail.ai.idleTitle", "Run AI damage detection")}
-        </Text>
-      </View>
-      <Text
-        variant="bodySmall"
-        color={theme.textSecondary}
-        style={{ fontSize: 12, lineHeight: 18 }}
-      >
-        {inspection.type === "post-rental"
-          ? t(
-              "inspections.detail.ai.idlePostDesc",
-              "Compare against the pre-rental photos to flag any new damage during this rental.",
-            )
-          : t(
-              "inspections.detail.ai.idleDesc",
-              "Detect scratches, dents and other damage on each angle automatically.",
-            )}
-      </Text>
-      {!isCompleted && (
-        <Text variant="caption" color={theme.warning} style={{ fontSize: 11 }}>
-          {t(
-            "inspections.detail.ai.needsCompletion",
-            "Mark the inspection as completed first.",
-          )}
-        </Text>
-      )}
-      {isCompleted && !photosComplete && (
-        <Text variant="caption" color={theme.warning} style={{ fontSize: 11 }}>
-          {t(
-            "inspections.detail.ai.needsAllPhotos",
-            "All 8 angle photos are required.",
-          )}
-        </Text>
-      )}
-      <Button
-        variant="primary"
-        fullWidth
-        size="md"
-        leftIcon={Sparkles}
-        onPress={onRun}
-        disabled={!canRun}
-      >
-        {t("inspections.detail.ai.runButton", "Run AI Analysis")}
-      </Button>
-    </View>
-  );
-}
-
-function ShareReportButton({
-  theme,
-  t,
-  onPress,
-}: {
-  theme: ReturnType<typeof useTheme>;
-  t: ReturnType<typeof useTranslation>["t"];
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => ({
-        borderRadius: 9999,
-        backgroundColor: theme.accent,
-        height: 52,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-        elevation: 6,
-        transform: [{ scale: pressed ? 0.98 : 1 }],
-      })}
-    >
-      <Share2 size={18} color="#FFFFFF" />
-      <Text
-        variant="bodyLarge"
-        color="#FFFFFF"
-        style={{ fontFamily: fontFamilies.semiBold, fontSize: 15 }}
-      >
-        {t("inspections.detail.shareReport", "Share Report")}
-      </Text>
-    </Pressable>
   );
 }
