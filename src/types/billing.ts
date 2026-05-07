@@ -1,6 +1,7 @@
-export type InvoiceStatus = 'pending' | 'paid' | 'overdue' | 'partially-paid';
+export type InvoiceStatus = "pending" | "paid" | "overdue" | "partially-paid";
 
-export type PaymentMethod = 'card' | 'cash' | 'transfer';
+// Re-exported for legacy callers. New code should import from "@/types/payment".
+export type { PaymentMethod } from "./payment";
 
 export interface InvoiceLineItem {
   id: string;
@@ -10,14 +11,6 @@ export interface InvoiceLineItem {
   unitPrice: number;
   /** In cents. */
   total: number;
-}
-
-export interface Payment {
-  id: string;
-  date: string;
-  /** In cents (smallest currency unit). */
-  amount: number;
-  method: PaymentMethod;
 }
 
 export interface Invoice {
@@ -44,8 +37,7 @@ export interface Invoice {
   violationCharges: number;
   /** In cents. */
   totalDue: number;
-  payments: Payment[];
-  /** In cents. */
+  /** In cents. Aggregated from the payment ledger; readers shouldn't recompute. */
   amountPaid: number;
   /** In cents. */
   remainingBalance: number;
