@@ -32,6 +32,8 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useVehicles } from "@/hooks/useFleet";
+import { useAgency } from "@/hooks/useAgency";
+import { useFleetStore } from "@/stores/useFleetStore";
 import { matchesVehicleQuery } from "@/utils/vehicleSearch";
 import { fontFamilies } from "@/theme/typography";
 import type { Vehicle, VehicleStatus, VehicleBrand } from "@/types/vehicle";
@@ -43,6 +45,21 @@ function getAllBrands(vehicles: Vehicle[]): VehicleBrand[] {
     new Set(vehicles.map((v) => v.brand)),
   ).sort() as VehicleBrand[];
 }
+
+// Filter chip labels for every VehicleStatus value. The `satisfies` clause
+// forces this map to stay exhaustive — adding a new status to the
+// VehicleStatus union becomes a compile error here, so the filter list,
+// translation fallbacks, and ordering can never silently drift apart.
+const STATUS_FALLBACK_LABELS = {
+  available: "Available",
+  rented: "Rented",
+  reserved: "Reserved",
+  maintenance: "Maintenance",
+  retired: "Retired",
+} satisfies Record<VehicleStatus, string>;
+
+// Insertion order from STATUS_FALLBACK_LABELS drives the chip order in the UI.
+const VEHICLE_STATUSES = Object.keys(STATUS_FALLBACK_LABELS) as VehicleStatus[];
 
 function countByStatus(
   vehicles: Vehicle[],
@@ -62,6 +79,8 @@ function countByBrand(vehicles: Vehicle[], brand: VehicleBrand | null): number {
 export default function FleetScreen() {
   const { t } = useTranslation();
   const theme = useTheme();
+  const { data: agency } = useAgency();
+  const currency = agency?.currency ?? "EUR";
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "admin";
@@ -70,22 +89,23 @@ export default function FleetScreen() {
   const { data: vehicles = [], isLoading, refetch } = useVehicles();
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<VehicleStatus | null>(null);
-  const [brandFilter, setBrandFilter] = useState<VehicleBrand | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  // Filters and layout are persisted via zustand so they survive app restarts.
+  const statusFilter = useFleetStore((s) => s.statusFilter);
+  const brandFilter = useFleetStore((s) => s.brandFilter);
+  const viewMode = useFleetStore((s) => s.viewMode);
+  const setStatusFilter = useFleetStore((s) => s.setStatusFilter);
+  const setBrandFilter = useFleetStore((s) => s.setBrandFilter);
+  const toggleViewMode = useFleetStore((s) => s.toggleViewMode);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    const valid: VehicleStatus[] = [
-      "available",
-      "rented",
-      "maintenance",
-      "reserved",
-    ];
-    if (params.status && (valid as string[]).includes(params.status)) {
+    if (
+      params.status &&
+      (VEHICLE_STATUSES as readonly string[]).includes(params.status)
+    ) {
       setStatusFilter(params.status as VehicleStatus);
     }
-  }, [params.status]);
+  }, [params.status, setStatusFilter]);
 
   const filtered = useMemo(() => {
     return vehicles.filter((v) => {
@@ -95,6 +115,8 @@ export default function FleetScreen() {
     });
   }, [vehicles, statusFilter, brandFilter, search]);
 
+  const brands = useMemo(() => getAllBrands(vehicles), [vehicles]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
@@ -103,8 +125,8 @@ export default function FleetScreen() {
 
   const handleToggleView = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setViewMode((prev) => (prev === "grid" ? "list" : "grid"));
-  }, []);
+    toggleViewMode();
+  }, [toggleViewMode]);
 
   const handleAddVehicle = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -123,12 +145,10 @@ export default function FleetScreen() {
     useMemo(
       () => [
         { label: t("fleet.filter.all", "All"), value: null },
-        { label: t("fleet.filter.available", "Available"), value: "available" },
-        { label: t("fleet.filter.rented", "Rented"), value: "rented" },
-        {
-          label: t("fleet.filter.maintenance", "Maintenance"),
-          value: "maintenance",
-        },
+        ...VEHICLE_STATUSES.map((value) => ({
+          value,
+          label: t(`fleet.filter.${value}`, STATUS_FALLBACK_LABELS[value]),
+        })),
       ],
       [t],
     );
@@ -215,8 +235,7 @@ export default function FleetScreen() {
                 marginTop: 8,
               }}
             >
-              {"\u20AC"}
-              {item.dailyRate}
+              {currency} {item.dailyRate}
               <Text
                 variant="caption"
                 color={theme.textTertiary}
@@ -230,7 +249,7 @@ export default function FleetScreen() {
         </Pressable>
       </Animated.View>
     ),
-    [navigateToVehicle, theme, t],
+    [navigateToVehicle, theme, t, currency],
   );
 
   // ── List Row ───────────────────────────────────────────────────────────────
@@ -314,8 +333,7 @@ export default function FleetScreen() {
               color={theme.accent}
               style={{ fontFamily: fontFamilies.bold, fontSize: 13 }}
             >
-              {"\u20AC"}
-              {item.dailyRate}
+              {currency} {item.dailyRate}
             </Text>
             <View style={{ marginTop: 4 }}>
               <StatusBadge status={item.status} size="sm" />
@@ -329,7 +347,7 @@ export default function FleetScreen() {
         </Pressable>
       </Animated.View>
     ),
-    [navigateToVehicle, theme],
+    [navigateToVehicle, theme, currency],
   );
 
   // ── Header ─────────────────────────────────────────────────────────────────
@@ -412,6 +430,53 @@ export default function FleetScreen() {
           </View>
         </Animated.View>
 
+        {/* Stats card — total / available / rented breakdown */}
+        <Animated.View
+          entering={FadeInDown.delay(40).duration(400)}
+          style={{
+            backgroundColor: theme.surface,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+            flexDirection: "row",
+            paddingVertical: 16,
+            marginBottom: 14,
+          }}
+        >
+          <StatCell
+            value={vehicles.length}
+            label={t("fleet.stats.total", "vehicles")}
+            color={theme.textPrimary}
+            theme={theme}
+          />
+          <View
+            style={{
+              width: 1,
+              backgroundColor: theme.border,
+              marginVertical: 6,
+            }}
+          />
+          <StatCell
+            value={countByStatus(vehicles, "available")}
+            label={t("fleet.stats.available", "available")}
+            color={theme.success}
+            theme={theme}
+          />
+          <View
+            style={{
+              width: 1,
+              backgroundColor: theme.border,
+              marginVertical: 6,
+            }}
+          />
+          <StatCell
+            value={countByStatus(vehicles, "rented")}
+            label={t("fleet.stats.rented", "rented")}
+            color={theme.warning}
+            theme={theme}
+          />
+        </Animated.View>
+
         {/* Search pill */}
         <Animated.View
           entering={FadeInDown.delay(60).duration(350)}
@@ -480,7 +545,7 @@ export default function FleetScreen() {
         </Animated.View>
 
         {/* Brand rail */}
-        {getAllBrands(vehicles).length > 0 && (
+        {brands.length > 0 && (
           <Animated.View
             entering={FadeInDown.delay(140).duration(350)}
             style={{ marginTop: 10 }}
@@ -499,7 +564,7 @@ export default function FleetScreen() {
                 }}
                 theme={theme}
               />
-              {getAllBrands(vehicles).map((brand) => (
+              {brands.map((brand) => (
                 <FilterPill
                   key={brand}
                   label={`${brand} (${countByBrand(vehicles, brand)})`}
@@ -529,6 +594,10 @@ export default function FleetScreen() {
       handleToggleView,
       handleAddVehicle,
       theme,
+      vehicles,
+      brands,
+      setStatusFilter,
+      setBrandFilter,
     ],
   );
 
@@ -571,40 +640,51 @@ export default function FleetScreen() {
     [viewMode, theme],
   );
 
+  const contentContainerStyle = {
+    paddingHorizontal: 16,
+    paddingBottom: 110,
+    flexGrow: 1,
+  };
+  const columnWrapperStyle =
+    viewMode === "grid" ? { gap: 12, marginBottom: 12 } : undefined;
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={handleRefresh}
+      tintColor={theme.accent}
+    />
+  );
+
   return (
     <ScreenWrapper padded={false}>
-      <FlatList<Vehicle | { id: string }>
-        data={showSkeletons ? skeletonData : filtered}
-        renderItem={
-          showSkeletons
-            ? renderSkeleton
-            : (info) =>
-                viewMode === "grid"
-                  ? renderGridCard(info as ListRenderItemInfo<Vehicle>)
-                  : renderListRow(info as ListRenderItemInfo<Vehicle>)
-        }
-        keyExtractor={(item) => (item as { id: string }).id}
-        numColumns={viewMode === "grid" ? 2 : 1}
-        key={viewMode}
-        ListHeaderComponent={ListHeader}
-        ListEmptyComponent={showSkeletons ? null : ListEmpty}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingBottom: 110,
-          flexGrow: 1,
-        }}
-        columnWrapperStyle={
-          viewMode === "grid" ? { gap: 12, marginBottom: 12 } : undefined
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={theme.accent}
-          />
-        }
-      />
+      {showSkeletons ? (
+        <FlatList<{ id: string }>
+          data={skeletonData}
+          renderItem={renderSkeleton}
+          keyExtractor={(item) => item.id}
+          numColumns={viewMode === "grid" ? 2 : 1}
+          key={`skel-${viewMode}`}
+          ListHeaderComponent={ListHeader}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={contentContainerStyle}
+          columnWrapperStyle={columnWrapperStyle}
+          refreshControl={refreshControl}
+        />
+      ) : (
+        <FlatList<Vehicle>
+          data={filtered}
+          renderItem={viewMode === "grid" ? renderGridCard : renderListRow}
+          keyExtractor={(item) => item.id}
+          numColumns={viewMode === "grid" ? 2 : 1}
+          key={viewMode}
+          ListHeaderComponent={ListHeader}
+          ListEmptyComponent={ListEmpty}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={contentContainerStyle}
+          columnWrapperStyle={columnWrapperStyle}
+          refreshControl={refreshControl}
+        />
+      )}
     </ScreenWrapper>
   );
 }
@@ -703,5 +783,38 @@ function FilterPill({ label, selected, onPress, theme }: FilterPillProps) {
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+// ── StatCell ───────────────────────────────────────────────────────────────
+
+function StatCell({
+  value,
+  label,
+  color,
+  theme,
+}: {
+  value: number;
+  label: string;
+  color: string;
+  theme: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <View style={{ flex: 1, alignItems: "center" }}>
+      <Text
+        variant="headlineMedium"
+        color={color}
+        style={{ fontFamily: fontFamilies.bold, fontSize: 22 }}
+      >
+        {value}
+      </Text>
+      <Text
+        variant="caption"
+        color={theme.textTertiary}
+        style={{ fontSize: 11, marginTop: 2 }}
+      >
+        {label}
+      </Text>
+    </View>
   );
 }

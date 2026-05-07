@@ -58,6 +58,12 @@ interface PhotoAngleTaggerProps {
    * Hidden from the chip list to prevent duplicate angles in one set.
    */
   takenAngles?: string[];
+  /**
+   * When true, render the tagger in a loading state regardless of how many
+   * assets have arrived. Used to give immediate feedback while the OS image
+   * picker is still processing the user's selection.
+   */
+  loading?: boolean;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -69,6 +75,7 @@ export function PhotoAngleTagger({
   onComplete,
   onPhotoTagged,
   takenAngles = [],
+  loading = false,
 }: PhotoAngleTaggerProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -200,23 +207,25 @@ export function PhotoAngleTagger({
           }}
         >
           {assets.length === 0 ? (
-            <View
-              style={{
-                alignItems: "center",
-                justifyContent: "center",
-                paddingVertical: 60,
-                gap: 12,
-              }}
-            >
-              <ImageIcon size={40} color={theme.textTertiary} />
-              <Text
-                variant="bodyMedium"
-                color={theme.textTertiary}
-                align="center"
+            loading ? null : (
+              <View
+                style={{
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingVertical: 60,
+                  gap: 12,
+                }}
               >
-                No images selected
-              </Text>
-            </View>
+                <ImageIcon size={40} color={theme.textTertiary} />
+                <Text
+                  variant="bodyMedium"
+                  color={theme.textTertiary}
+                  align="center"
+                >
+                  No images selected
+                </Text>
+              </View>
+            )
           ) : (
             assets.map((asset, index) => (
               <View
@@ -351,7 +360,7 @@ export function PhotoAngleTagger({
             variant="primary"
             size="lg"
             fullWidth
-            disabled={!allTagged || isPreparing}
+            disabled={!allTagged || isPreparing || loading}
             onPress={handleComplete}
           >
             {allTagged
@@ -361,7 +370,7 @@ export function PhotoAngleTagger({
         </View>
 
         {/* Loading overlay while prefetching newly-picked images */}
-        {isPreparing && (
+        {(isPreparing || loading) && (
           <View
             pointerEvents="auto"
             style={{
@@ -392,7 +401,7 @@ export function PhotoAngleTagger({
                 color={theme.textSecondary}
                 style={{ fontSize: 12, fontFamily: fontFamilies.medium }}
               >
-                Preparing photos…
+                {loading ? "Loading photos…" : "Preparing photos…"}
               </Text>
             </View>
           </View>

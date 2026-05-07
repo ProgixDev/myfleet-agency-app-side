@@ -8,7 +8,14 @@ export interface ManagedPhoto {
   angle: AngleKey;
   status: UploadStatus;
   progress: number;
+  /** Set when this slot is a fresh upload (not yet linked to a vehicle). */
   tempKey?: string;
+  /**
+   * Set when this slot references a photo that's already stored on the
+   * server — i.e. seeded from existing vehicle data on the edit screen.
+   * Either tempKey OR imageKey will be set on a successful slot.
+   */
+  imageKey?: string;
   error?: string;
   /** Internal: tracks the latest in-flight attempt for this slot. */
   uploadId: number;
@@ -20,6 +27,14 @@ export interface UseVehiclePhotoUploads {
   cancelUpload: (angle: string) => void;
   retryUpload: (angle: string, uri: string) => void;
   removePhoto: (angle: string) => void;
+  /**
+   * Seed the slots with photos that already exist on the server. Each
+   * lands as `status: "uploaded"` with an `imageKey` instead of a tempKey.
+   * Replaces existing state entirely — call once on mount.
+   */
+  seedExisting: (
+    existing: { uri: string; angle: AngleKey; imageKey: string }[],
+  ) => void;
   awaitAll: () => Promise<void>;
   /** Stable ref to current photos array (use after awaitAll). */
   snapshot: () => ManagedPhoto[];
@@ -149,6 +164,21 @@ export function useVehiclePhotoUploads(): UseVehiclePhotoUploads {
     [cancelUpload, setPhotos],
   );
 
+  const seedExisting = useCallback(
+    (existing: { uri: string; angle: AngleKey; imageKey: string }[]) => {
+      const seeded: ManagedPhoto[] = existing.map((e) => ({
+        uri: e.uri,
+        angle: e.angle,
+        status: "uploaded",
+        progress: 1,
+        imageKey: e.imageKey,
+        uploadId: ++uploadIdCounterRef.current,
+      }));
+      setPhotos(() => seeded);
+    },
+    [setPhotos],
+  );
+
   const awaitAll = useCallback(async () => {
     const pending = Array.from(uploadPromisesRef.current.values());
     if (pending.length > 0) {
@@ -164,6 +194,7 @@ export function useVehiclePhotoUploads(): UseVehiclePhotoUploads {
     cancelUpload,
     retryUpload,
     removePhoto,
+    seedExisting,
     awaitAll,
     snapshot,
   };

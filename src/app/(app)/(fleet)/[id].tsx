@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -19,7 +19,7 @@ import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import {
   ChevronLeft,
-  Heart,
+  ChevronRight,
   Car,
   Users,
   Cog,
@@ -29,6 +29,8 @@ import {
   ClipboardList,
   ImageIcon,
   Film,
+  ClipboardCheck,
+  Pencil,
 } from "lucide-react-native";
 
 import { Text } from "@/components/ui/Text";
@@ -40,6 +42,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { VideoPlayer } from "@/components/vehicle/VideoPlayer";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { useTheme } from "@/hooks/useTheme";
 import { useVehicle } from "@/hooks/useFleet";
 import { useAgency } from "@/hooks/useAgency";
@@ -69,6 +72,24 @@ function fuelLabel(fuel: FuelType): string {
     "plug-in-hybrid": "Plug-in Hybrid",
   };
   return map[fuel];
+}
+
+function rentalStatusVariant(
+  status: string,
+): "info" | "warning" | "danger" | "success" {
+  switch (status) {
+    case "active":
+      return "success";
+    case "pending":
+    case "confirmed":
+      return "info";
+    case "completed":
+      return "success";
+    case "cancelled":
+      return "danger";
+    default:
+      return "info";
+  }
 }
 
 function severityVariant(
@@ -187,8 +208,23 @@ export default function VehicleDetailScreen() {
   const { data: vehicle, isLoading } = useVehicle(id);
   const { data: agency } = useAgency();
   const currency = agency?.currency ?? "EUR";
+  const isAdmin = useAuthStore((s) => s.user?.role) === "admin";
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [mediaTab, setMediaTab] = useState<MediaTab>("photos");
+
+  // Pick the rental that's actually live today, not the most recent by start
+  // date — `rentalHistory` is sorted desc, so [0] could be a future booking
+  // sitting alongside an active one. Hooks must run before any early return.
+  const currentRental = useMemo(() => {
+    if (vehicle?.status !== "rented") return null;
+    const today = new Date().toISOString().slice(0, 10);
+    return (
+      (vehicle.rentalHistory ?? []).find(
+        (r) =>
+          r.status === "active" || (r.startDate <= today && today <= r.endDate),
+      ) ?? null
+    );
+  }, [vehicle?.status, vehicle?.rentalHistory]);
 
   if (isLoading) {
     return (
@@ -219,13 +255,8 @@ export default function VehicleDetailScreen() {
     );
   }
 
-  const rentalHistory = vehicle.rentalHistory ?? [];
   const media = vehicle.media;
   const hasVideo = !!media?.hasVideo;
-  const currentRental =
-    vehicle.status === "rented" && rentalHistory.length > 0
-      ? rentalHistory[0]
-      : null;
 
   const photoCount = vehicle.images?.length || media?.photos.length || 0;
   const videoCount = media?.videos.length ?? 0;
@@ -307,46 +338,69 @@ export default function VehicleDetailScreen() {
               <ChevronLeft size={22} color="#111" strokeWidth={2.2} />
             </Pressable>
 
-            {/* Heart */}
-            <Pressable
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
-              hitSlop={10}
+            {/* Top-right cluster: media count pill + admin edit pencil */}
+            <View
               style={{
                 position: "absolute",
                 top: insets.top + 8,
                 right: 16,
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: "rgba(255,255,255,0.92)",
+                flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
+                gap: 8,
               }}
             >
-              <Heart size={18} color="#111" strokeWidth={2} />
-            </Pressable>
-
-            {/* Media badge centered near bottom */}
-            <View
-              style={{
-                position: "absolute",
-                bottom: 14,
-                alignSelf: "center",
-                paddingHorizontal: 12,
-                paddingVertical: 5,
-                borderRadius: 9999,
-                backgroundColor: "rgba(124, 58, 237, 0.92)",
-              }}
-            >
-              <Text
-                variant="labelSmall"
-                color="#FFFFFF"
-                style={{ fontFamily: fontFamilies.semiBold, fontSize: 11 }}
+              {isAdmin && (
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push(`/(app)/(fleet)/edit/${vehicle.id}` as never);
+                  }}
+                  hitSlop={10}
+                  style={({ pressed }) => ({
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "rgba(0,0,0,0.55)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.18)",
+                    opacity: pressed ? 0.75 : 1,
+                  })}
+                >
+                  <Pencil size={14} color="#FFFFFF" strokeWidth={2.2} />
+                </Pressable>
+              )}
+              <View
+                style={{
+                  height: 32,
+                  paddingHorizontal: 12,
+                  borderRadius: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  backgroundColor: "rgba(0,0,0,0.55)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.18)",
+                }}
               >
-                {mediaBadgeText}
-              </Text>
+                {hasVideo ? (
+                  <Film size={13} color="#FFFFFF" strokeWidth={2.2} />
+                ) : (
+                  <ImageIcon size={13} color="#FFFFFF" strokeWidth={2.2} />
+                )}
+                <Text
+                  variant="labelSmall"
+                  color="#FFFFFF"
+                  style={{
+                    fontFamily: fontFamilies.semiBold,
+                    fontSize: 12,
+                    lineHeight: 14,
+                  }}
+                >
+                  {mediaBadgeText}
+                </Text>
+              </View>
             </View>
           </View>
         </Animated.View>
@@ -545,7 +599,17 @@ export default function VehicleDetailScreen() {
         >
           {vehicle.status === "available" && (
             <View className="flex-row" style={{ gap: 10 }}>
-              <Button variant="primary" className="flex-1">
+              <Button
+                variant="primary"
+                className="flex-1"
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({
+                    pathname: "/(app)/(bookings)/new",
+                    params: { vehicleId: vehicle.id },
+                  });
+                }}
+              >
                 {t("fleet.detail.bookNow", "Book Now")}
               </Button>
               <Button
@@ -631,6 +695,12 @@ export default function VehicleDetailScreen() {
           {vehicle.status === "reserved" && (
             <Button variant="secondary" disabled fullWidth>
               {t("fleet.detail.reserved", "Reserved")}
+            </Button>
+          )}
+
+          {vehicle.status === "retired" && (
+            <Button variant="secondary" disabled fullWidth>
+              {t("fleet.detail.retired", "Retired")}
             </Button>
           )}
         </Animated.View>
@@ -912,6 +982,7 @@ function OverviewTab({ vehicle, theme, t }: TabProps) {
    DAMAGES TAB
    ==================================================================== */
 function DamagesTab({ vehicle, theme, t }: TabProps) {
+  const router = useRouter();
   const damageRecords = vehicle.damageRecords ?? [];
   if (damageRecords.length === 0) {
     return (
@@ -931,15 +1002,25 @@ function DamagesTab({ vehicle, theme, t }: TabProps) {
   return (
     <View style={{ gap: 10 }}>
       {damageRecords.map((damage) => (
-        <View
+        <Pressable
           key={damage.id}
-          style={{
+          disabled={!damage.inspectionId}
+          onPress={() => {
+            if (!damage.inspectionId) return;
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push({
+              pathname: "/(app)/(inspections)/[id]",
+              params: { id: damage.inspectionId },
+            });
+          }}
+          style={({ pressed }) => ({
             backgroundColor: theme.surface,
             borderRadius: 16,
             padding: 14,
             borderWidth: 1,
             borderColor: theme.borderLight,
-          }}
+            opacity: pressed ? 0.85 : 1,
+          })}
         >
           <View className="flex-row items-center justify-between">
             <Text
@@ -953,23 +1034,68 @@ function DamagesTab({ vehicle, theme, t }: TabProps) {
               {capitalize(damage.severity)}
             </Badge>
           </View>
-          <Text
-            variant="titleMedium"
-            style={{
-              fontFamily: fontFamilies.semiBold,
-              fontSize: 14,
-              marginTop: 6,
-            }}
+          <View
+            className="flex-row items-center justify-between"
+            style={{ marginTop: 6 }}
           >
-            {capitalize(damage.type)}
-          </Text>
-          <Text
-            variant="bodySmall"
-            color={theme.textSecondary}
-            style={{ fontSize: 12, marginTop: 3, lineHeight: 17 }}
+            <Text
+              variant="titleMedium"
+              style={{
+                fontFamily: fontFamilies.semiBold,
+                fontSize: 14,
+                flex: 1,
+              }}
+            >
+              {capitalize(damage.type)}
+            </Text>
+            <ChevronRight size={16} color={theme.textTertiary} />
+          </View>
+          {damage.description ? (
+            <Text
+              variant="bodySmall"
+              color={theme.textSecondary}
+              style={{ fontSize: 12, marginTop: 3, lineHeight: 17 }}
+            >
+              {damage.description}
+            </Text>
+          ) : null}
+          <View
+            className="flex-row items-center"
+            style={{ marginTop: 10, gap: 8, flexWrap: "wrap" }}
           >
-            {damage.description}
-          </Text>
+            {damage.inspectionId ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 9999,
+                  backgroundColor: theme.surfaceTertiary,
+                }}
+              >
+                <ClipboardCheck size={11} color={theme.textSecondary} />
+                <Text
+                  variant="caption"
+                  color={theme.textSecondary}
+                  style={{ fontSize: 11, fontFamily: fontFamilies.medium }}
+                >
+                  {t("fleet.detail.inspection", "Inspection")} #
+                  {damage.inspectionId.slice(0, 8)}
+                </Text>
+              </View>
+            ) : null}
+            {damage.inspectorName ? (
+              <Text
+                variant="caption"
+                color={theme.textTertiary}
+                style={{ fontSize: 11 }}
+              >
+                {t("fleet.detail.by", "by")} {damage.inspectorName}
+              </Text>
+            ) : null}
+          </View>
           <View className="flex-row items-center" style={{ marginTop: 8 }}>
             {damage.resolved ? (
               <>
@@ -1002,7 +1128,7 @@ function DamagesTab({ vehicle, theme, t }: TabProps) {
               </>
             )}
           </View>
-        </View>
+        </Pressable>
       ))}
     </View>
   );
@@ -1012,6 +1138,7 @@ function DamagesTab({ vehicle, theme, t }: TabProps) {
    RENTALS TAB
    ==================================================================== */
 function RentalsTab({ vehicle, theme, t, currency }: TabProps) {
+  const router = useRouter();
   const rentalHistory = vehicle.rentalHistory ?? [];
   const totalRevenue = rentalHistory.reduce((sum, r) => sum + r.revenue, 0);
 
@@ -1085,24 +1212,42 @@ function RentalsTab({ vehicle, theme, t, currency }: TabProps) {
       </View>
 
       {rentalHistory.map((rental) => (
-        <View
+        <Pressable
           key={rental.id}
-          style={{
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push({
+              pathname: "/(app)/(bookings)/[id]",
+              params: { id: rental.id },
+            });
+          }}
+          style={({ pressed }) => ({
             backgroundColor: theme.surface,
             borderRadius: 16,
             padding: 14,
             borderWidth: 1,
             borderColor: theme.borderLight,
-          }}
+            opacity: pressed ? 0.85 : 1,
+          })}
         >
-          <View className="flex-row items-center justify-between">
-            <Text
-              variant="titleMedium"
-              style={{ fontFamily: fontFamilies.semiBold, fontSize: 14 }}
-              numberOfLines={1}
-            >
-              {rental.clientName}
-            </Text>
+          <View className="flex-row items-center">
+            <Avatar name={rental.clientName} size="sm" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text
+                variant="titleMedium"
+                style={{ fontFamily: fontFamilies.semiBold, fontSize: 14 }}
+                numberOfLines={1}
+              >
+                {rental.clientName}
+              </Text>
+              <Text
+                variant="caption"
+                color={theme.textTertiary}
+                style={{ fontSize: 11, marginTop: 1 }}
+              >
+                {t("fleet.detail.booking", "Booking")} #{rental.id.slice(0, 8)}
+              </Text>
+            </View>
             <Text
               variant="titleMedium"
               color={theme.accent}
@@ -1110,10 +1255,15 @@ function RentalsTab({ vehicle, theme, t, currency }: TabProps) {
             >
               {currency} {rental.revenue}
             </Text>
+            <ChevronRight
+              size={16}
+              color={theme.textTertiary}
+              style={{ marginLeft: 6 }}
+            />
           </View>
           <View
             className="flex-row items-center justify-between"
-            style={{ marginTop: 4 }}
+            style={{ marginTop: 10 }}
           >
             <Text
               variant="bodySmall"
@@ -1130,7 +1280,14 @@ function RentalsTab({ vehicle, theme, t, currency }: TabProps) {
               {rental.duration} {t("bookings.detail.days", "days")}
             </Text>
           </View>
-        </View>
+          {rental.status ? (
+            <View style={{ marginTop: 8, alignSelf: "flex-start" }}>
+              <Badge variant={rentalStatusVariant(rental.status)} size="sm">
+                {capitalize(rental.status)}
+              </Badge>
+            </View>
+          ) : null}
+        </Pressable>
       ))}
     </View>
   );

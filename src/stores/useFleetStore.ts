@@ -1,42 +1,53 @@
-import { create } from 'zustand';
-import type { Vehicle, VehicleStatus, VehicleCategory } from '@/types/vehicle';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+import type { VehicleStatus, VehicleBrand } from "@/types/vehicle";
 
-interface FleetFilters {
-  status: VehicleStatus | null;
-  category: VehicleCategory | null;
-  search: string;
+// Persisted UI preferences for the fleet list. Filters and layout survive
+// app restarts so the user lands back in the view they last configured.
+// Search input is intentionally excluded — it's ephemeral per session.
+
+export type FleetViewMode = "grid" | "list";
+
+interface FleetUiState {
+  statusFilter: VehicleStatus | null;
+  brandFilter: VehicleBrand | null;
+  viewMode: FleetViewMode;
 }
 
-interface FleetState {
-  selectedVehicle: Vehicle | null;
-  filters: FleetFilters;
+interface FleetUiActions {
+  setStatusFilter: (status: VehicleStatus | null) => void;
+  setBrandFilter: (brand: VehicleBrand | null) => void;
+  setViewMode: (mode: FleetViewMode) => void;
+  toggleViewMode: () => void;
+  resetFilters: () => void;
 }
 
-interface FleetActions {
-  setFilter: <K extends keyof FleetFilters>(key: K, value: FleetFilters[K]) => void;
-  selectVehicle: (vehicle: Vehicle | null) => void;
-}
+type FleetUiStore = FleetUiState & FleetUiActions;
 
-type FleetStore = FleetState & FleetActions;
+const INITIAL_STATE: FleetUiState = {
+  statusFilter: null,
+  brandFilter: null,
+  viewMode: "grid",
+};
 
-// ── Store ────────────────────────────────────────────────────────────────────
+export const useFleetStore = create<FleetUiStore>()(
+  persist(
+    (set) => ({
+      ...INITIAL_STATE,
 
-export const useFleetStore = create<FleetStore>()((set) => ({
-  // State
-  selectedVehicle: null,
-  filters: {
-    status: null,
-    category: null,
-    search: '',
-  },
-
-  // Actions
-  setFilter: (key, value) =>
-    set((state) => ({
-      filters: { ...state.filters, [key]: value },
-    })),
-
-  selectVehicle: (vehicle) => set({ selectedVehicle: vehicle }),
-}));
+      setStatusFilter: (statusFilter) => set({ statusFilter }),
+      setBrandFilter: (brandFilter) => set({ brandFilter }),
+      setViewMode: (viewMode) => set({ viewMode }),
+      toggleViewMode: () =>
+        set((s) => ({ viewMode: s.viewMode === "grid" ? "list" : "grid" })),
+      resetFilters: () => set({ statusFilter: null, brandFilter: null }),
+    }),
+    {
+      name: "my-fleet-ui",
+      storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+    },
+  ),
+);

@@ -298,27 +298,29 @@ export function PhotoSection({
         </Animated.View>
       )}
 
-      <Animated.View className="mb-3">
-        <Pressable
-          onPress={onOpenSheet}
-          className="items-center justify-center rounded-xl py-8"
-          style={{
-            borderWidth: 1.5,
-            borderStyle: "dashed",
-            borderColor: theme.border,
-            backgroundColor: theme.surfaceTertiary,
-          }}
-        >
-          <Camera size={32} color={theme.textTertiary} />
-          <Text
-            variant="bodyMedium"
-            color={theme.textTertiary}
-            className="mt-2"
+      {photos.length < 8 && (
+        <Animated.View className="mb-3">
+          <Pressable
+            onPress={onOpenSheet}
+            className="items-center justify-center rounded-xl py-8"
+            style={{
+              borderWidth: 1.5,
+              borderStyle: "dashed",
+              borderColor: theme.border,
+              backgroundColor: theme.surfaceTertiary,
+            }}
           >
-            {photos.length > 0 ? "Add More Photos" : addLabel}
-          </Text>
-        </Pressable>
-      </Animated.View>
+            <Camera size={32} color={theme.textTertiary} />
+            <Text
+              variant="bodyMedium"
+              color={theme.textTertiary}
+              className="mt-2"
+            >
+              {photos.length > 0 ? "Add More Photos" : addLabel}
+            </Text>
+          </Pressable>
+        </Animated.View>
+      )}
 
       <BottomSheet
         visible={showSheet}

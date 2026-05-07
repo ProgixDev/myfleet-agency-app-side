@@ -21,7 +21,12 @@ export type VehicleBrand =
   | "Mini"
   | "Land Rover";
 
-export type VehicleStatus = "available" | "rented" | "maintenance" | "reserved";
+export type VehicleStatus =
+  | "available"
+  | "rented"
+  | "maintenance"
+  | "reserved"
+  | "retired";
 
 export type FuelType =
   | "gasoline"
@@ -34,6 +39,8 @@ export type Transmission = "manual" | "automatic";
 
 export interface DamageRecord {
   id: string;
+  /** Inspection that flagged this damage. Used to link to the inspection page. */
+  inspectionId?: string;
   date: string;
   inspectorName: string;
   type: "scratch" | "dent" | "crack" | "stain" | "other";
@@ -43,6 +50,7 @@ export interface DamageRecord {
 }
 
 export interface RentalHistoryEntry {
+  /** Booking id — used to link to the booking page. */
   id: string;
   clientName: string;
   startDate: string;
@@ -50,6 +58,7 @@ export interface RentalHistoryEntry {
   duration: number; // days
   /** In cents (smallest currency unit). */
   revenue: number;
+  status?: string;
 }
 
 // legacy: bundled mock media — superseded by Vehicle.images (server-driven).
@@ -77,6 +86,8 @@ export type AngleKey =
 export interface VehicleImage {
   angle: AngleKey;
   url: string;
+  /** Storage object key — used by the edit screen to mark a photo as "kept". */
+  imageKey: string;
 }
 
 export interface Vehicle {

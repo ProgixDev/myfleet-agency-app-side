@@ -17,10 +17,14 @@ const ANGLE_KEYS: readonly AngleKey[] = [
 
 const ANGLE_KEY_SET = new Set<string>(ANGLE_KEYS);
 
-export interface VehicleImageInput {
+export interface UploadedVehicleImage {
   tempKey: string;
   angle: AngleKey;
 }
+
+export type VehicleImageInput =
+  | UploadedVehicleImage
+  | { imageKey: string; angle: AngleKey };
 
 export interface VehicleImageUpload {
   uri: string;
@@ -31,7 +35,7 @@ export interface VehicleImageUpload {
 
 export async function uploadVehicleImages(
   uploads: VehicleImageUpload[],
-): Promise<VehicleImageInput[]> {
+): Promise<UploadedVehicleImage[]> {
   if (uploads.length === 0) return [];
 
   const form = new FormData();
@@ -46,7 +50,7 @@ export async function uploadVehicleImages(
     } as unknown as Blob);
   }
 
-  const { images } = await apiRequest<{ images: VehicleImageInput[] }>(
+  const { images } = await apiRequest<{ images: UploadedVehicleImage[] }>(
     "/fleet/photos/upload",
     {
       method: "POST",
@@ -75,7 +79,7 @@ export async function uploadVehicleImage(
     onProgress?: (p: UploadProgress) => void;
     signal?: AbortSignal;
   } = {},
-): Promise<VehicleImageInput> {
+): Promise<UploadedVehicleImage> {
   const headers = await getAuthHeader();
   return uploadVehicleImageOnce(upload, headers, opts).catch(async (err) => {
     // Single retry on network error (status 0 / no response).
@@ -96,7 +100,7 @@ function uploadVehicleImageOnce(
     onProgress?: (p: UploadProgress) => void;
     signal?: AbortSignal;
   },
-): Promise<VehicleImageInput> {
+): Promise<UploadedVehicleImage> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append(upload.angle, {
@@ -238,8 +242,12 @@ export async function createVehicle(
 }
 
 export interface UpdateVehicleInput {
+  slug?: string;
   name?: string;
+  brand?: string;
+  category?: string;
   status?: string;
+  year?: number;
   mileage?: number;
   licensePlate?: string;
   dailyRate?: number;
@@ -248,6 +256,7 @@ export interface UpdateVehicleInput {
   seats?: number;
   color?: string;
   features?: string[];
+  images?: VehicleImageInput[];
   quantity?: number;
   includedKm?: number;
   extraKmRate?: number;

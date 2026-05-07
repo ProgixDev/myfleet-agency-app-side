@@ -1,7 +1,7 @@
-import React from "react";
-import { View } from "react-native";
+import React, { useState } from "react";
+import { View, Pressable, TextInput } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { Car } from "lucide-react-native";
+import { Car, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 
 import { Text } from "@/components/ui/Text";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Chip, ChipGroup } from "@/components/ui/Chip";
 import { Divider } from "@/components/ui/Divider";
 import { useTheme } from "@/hooks/useTheme";
+import { useAgency } from "@/hooks/useAgency";
 import type {
   VehicleBrand,
   VehicleCategory,
@@ -69,6 +70,7 @@ export interface VehicleFormState {
   transmission: Transmission | null;
   seats: string;
   dailyRate: string;
+  features: string[];
 }
 
 export interface VehicleFormFieldsProps {
@@ -85,11 +87,21 @@ export interface VehicleFormFieldsProps {
     setTransmission: (v: Transmission) => void;
     setSeats: (v: string) => void;
     setDailyRate: (v: string) => void;
+    setFeatures: (v: string[]) => void;
   };
   fieldErrors: Record<string, string>;
   clearFieldError: (key: string) => void;
   startIndex: number;
 }
+
+/**
+ * Number of `entering={stagger(i++)}` blocks inside <VehicleFormFields/>.
+ * Parent screens advance their own `sectionIndex` by this amount after the
+ * component to keep the staggered animation continuous across following
+ * sections. Update this whenever you add/remove an Animated.View entering
+ * step inside the form.
+ */
+export const VEHICLE_FORM_FIELDS_STAGGER_COUNT = 19;
 
 export function VehicleFormFields({
   state,
@@ -100,6 +112,8 @@ export function VehicleFormFields({
 }: VehicleFormFieldsProps) {
   const { t } = useTranslation();
   const theme = useTheme();
+  const { data: agency } = useAgency();
+  const currency = agency?.currency ?? "EUR";
   let i = startIndex;
 
   return (
@@ -327,7 +341,7 @@ export function VehicleFormFields({
         <View className="flex-1">
           <Input
             label={t("fleet.dailyRate", {
-              defaultValue: "Daily Rate (€)",
+              defaultValue: `Daily Rate (${currency})`,
             })}
             placeholder="120"
             value={state.dailyRate}
@@ -340,6 +354,103 @@ export function VehicleFormFields({
           />
         </View>
       </Animated.View>
+
+      <Animated.View entering={stagger(i++)} className="mb-2">
+        <Text variant="labelLarge" color={theme.textSecondary} className="mb-3">
+          {t("fleet.features", { defaultValue: "Features" })}
+        </Text>
+      </Animated.View>
+
+      <Animated.View entering={stagger(i++)} className="mb-3">
+        <FeaturesEditor
+          features={state.features}
+          onChange={setState.setFeatures}
+        />
+      </Animated.View>
     </>
+  );
+}
+
+interface FeaturesEditorProps {
+  features: string[];
+  onChange: (next: string[]) => void;
+}
+
+function FeaturesEditor({ features, onChange }: FeaturesEditorProps) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const [draft, setDraft] = useState("");
+
+  const submit = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    if (features.includes(trimmed)) {
+      setDraft("");
+      return;
+    }
+    onChange([...features, trimmed]);
+    setDraft("");
+  };
+
+  const remove = (value: string) => {
+    onChange(features.filter((f) => f !== value));
+  };
+
+  return (
+    <View>
+      {features.length > 0 ? (
+        <View className="flex-row flex-wrap mb-2" style={{ gap: 6 }}>
+          {features.map((f) => (
+            <Pressable
+              key={f}
+              onPress={() => remove(f)}
+              className="flex-row items-center rounded-full px-3 py-1.5"
+              style={{
+                backgroundColor: theme.accentSoft,
+                gap: 6,
+              }}
+            >
+              <Text
+                variant="labelSmall"
+                color={theme.accent}
+                style={{ fontSize: 12 }}
+              >
+                {f}
+              </Text>
+              <X size={12} color={theme.accent} strokeWidth={2.4} />
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      <View
+        className="flex-row items-center rounded-2xl px-3.5"
+        style={{
+          backgroundColor: theme.surfaceSecondary,
+          borderWidth: 1,
+          borderColor: theme.borderLight,
+          height: 48,
+        }}
+      >
+        <TextInput
+          className="flex-1"
+          placeholder={t("fleet.featuresPlaceholder", {
+            defaultValue: "Add a feature and press return",
+          })}
+          placeholderTextColor={theme.textTertiary}
+          value={draft}
+          onChangeText={setDraft}
+          onSubmitEditing={submit}
+          onBlur={submit}
+          returnKeyType="done"
+          submitBehavior="submit"
+          style={{
+            color: theme.textPrimary,
+            fontFamily: "Poppins_400Regular",
+            fontSize: 14,
+            padding: 0,
+          }}
+        />
+      </View>
+    </View>
   );
 }

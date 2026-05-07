@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { View, Pressable, Modal, Dimensions } from "react-native";
 import { useTranslation } from "react-i18next";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { ChevronLeft, X } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -11,11 +11,12 @@ import { ScreenWrapper } from "@/components/ui/ScreenWrapper";
 import { Text } from "@/components/ui/Text";
 import { Button } from "@/components/ui/Button";
 import { Divider } from "@/components/ui/Divider";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToastStore } from "@/components/ui/Toast";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useCreateVehicle } from "@/hooks/useFleet";
-import { type AngleKey } from "@/services/fleetService";
+import { useVehicle, useUpdateVehicle } from "@/hooks/useFleet";
+import { type AngleKey, type VehicleImageInput } from "@/services/fleetService";
 import {
   VehiclePhotoCapture,
   type CapturedVehiclePhoto,
@@ -34,23 +35,28 @@ import type {
   VehicleCategory,
   FuelType,
   Transmission,
+  VehicleStatus,
 } from "@/types/vehicle";
-import { mockVehicles } from "@/data/vehicles";
+import { Wrench, Archive, CheckCircle } from "lucide-react-native";
+import { fontFamilies } from "@/theme/typography";
+import { Chip, ChipGroup } from "@/components/ui/Chip";
 
 const stagger = (index: number) =>
   FadeInDown.delay(index * 60)
     .duration(400)
     .springify();
 
-// ── Component ───────────────────────────────────────────────────────────────
-
-export default function AddVehicleScreen() {
+export default function EditVehicleScreen() {
   const { t } = useTranslation();
   const theme = useTheme();
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
   const showToast = useToastStore((s) => s.show);
   const isAdmin = user?.role === "admin";
+
+  const { data: vehicle, isLoading } = useVehicle(id);
+  const updateVehicle = useUpdateVehicle();
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const clearFieldError = useCallback((key: string) => {
@@ -74,7 +80,7 @@ export default function AddVehicleScreen() {
   const [seats, setSeats] = useState("");
   const [dailyRate, setDailyRate] = useState("");
   const [features, setFeatures] = useState<string[]>([]);
-  const createVehicle = useCreateVehicle();
+  const [status, setStatus] = useState<VehicleStatus>("available");
 
   const {
     photos,
@@ -82,9 +88,39 @@ export default function AddVehicleScreen() {
     cancelUpload,
     retryUpload,
     removePhoto,
+    seedExisting,
     awaitAll,
     snapshot,
   } = useVehiclePhotoUploads();
+
+  // Seed form + photos from the loaded vehicle once.
+  const [seeded, setSeeded] = useState(false);
+  useEffect(() => {
+    if (seeded || !vehicle) return;
+    setName(vehicle.name);
+    setBrand(vehicle.brand);
+    setCategory(vehicle.category);
+    setYear(String(vehicle.year));
+    setColor(vehicle.color);
+    setLicensePlate(vehicle.licensePlate);
+    setMileage(String(vehicle.mileage));
+    setFuelType(vehicle.fuelType);
+    setTransmission(vehicle.transmission);
+    setSeats(String(vehicle.seats));
+    setDailyRate(String(vehicle.dailyRate));
+    setFeatures(vehicle.features ?? []);
+    setStatus(vehicle.status);
+    if (vehicle.images?.length) {
+      seedExisting(
+        vehicle.images.map((img) => ({
+          uri: img.url,
+          angle: img.angle,
+          imageKey: img.imageKey,
+        })),
+      );
+    }
+    setSeeded(true);
+  }, [vehicle, seeded, seedExisting]);
 
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -96,8 +132,6 @@ export default function AddVehicleScreen() {
     string | undefined
   >();
 
-  // Stable identities for child props — prevents PhotoAngleTagger /
-  // VehiclePhotoCapture from reseeding state on parent re-renders.
   const existingPhotosForCamera = useMemo(
     () => photos.map((p) => ({ uri: p.uri, angle: p.angle })),
     [photos],
@@ -121,8 +155,6 @@ export default function AddVehicleScreen() {
 
   const handleUploadFromLibrary = useCallback(async () => {
     setShowPhotoSheet(false);
-    // Open the tagger up-front in a loading state so the user gets immediate
-    // feedback while the OS picker (and its post-pick processing) runs.
     setLibraryAssets([]);
     setTaggerLoading(true);
     setShowTagger(true);
@@ -191,31 +223,6 @@ export default function AddVehicleScreen() {
     [cancelUpload, removePhoto],
   );
 
-  const handleDevFillRandom = useCallback(() => {
-    const sample =
-      mockVehicles[Math.floor(Math.random() * mockVehicles.length)];
-    if (!sample) return;
-    setName(sample.name);
-    setBrand(sample.brand);
-    setCategory(sample.category);
-    setYear(String(sample.year));
-    setColor(sample.color);
-    // Append a random suffix so repeated fills don't collide on the unique plate.
-    const suffix = Math.random().toString(36).slice(2, 5).toUpperCase();
-    setLicensePlate(`${sample.licensePlate}-${suffix}`);
-    setMileage(String(sample.mileage));
-    setFuelType(sample.fuelType);
-    setTransmission(sample.transmission);
-    setSeats(String(sample.seats));
-    setDailyRate(String(sample.dailyRate));
-    setFieldErrors({});
-    showToast({
-      variant: "success",
-      title: "Form filled",
-      message: `Seeded with ${sample.brand} ${sample.name}`,
-    });
-  }, [showToast]);
-
   const handleSubmit = useCallback(async () => {
     const parsed = vehicleFormSchema.safeParse({
       name,
@@ -254,7 +261,6 @@ export default function AddVehicleScreen() {
     setFieldErrors({});
 
     try {
-      // Wait for any in-flight uploads, then snapshot the latest state.
       await awaitAll();
       const current = snapshot();
 
@@ -278,29 +284,39 @@ export default function AddVehicleScreen() {
         return;
       }
 
-      const uploadedImages = current
-        .filter((p) => p.status === "uploaded" && p.tempKey)
-        .map((p) => ({ tempKey: p.tempKey!, angle: p.angle }));
+      // Build the images payload only if it's been touched, otherwise omit
+      // so the backend keeps existing photos untouched.
+      const images: VehicleImageInput[] = current.map((p) =>
+        p.tempKey
+          ? { tempKey: p.tempKey, angle: p.angle }
+          : { imageKey: p.imageKey!, angle: p.angle },
+      );
 
-      // Verify every photo made it through.
-      if (uploadedImages.length !== current.length) {
-        showToast({
-          variant: "error",
-          title: "Upload mismatch",
-          message: "Some photos failed to upload. Please try again.",
-        });
-        return;
-      }
+      const originalKeys = (vehicle?.images ?? [])
+        .map((i) => i.imageKey)
+        .sort();
+      const currentKeys = current
+        .map((p) => p.imageKey)
+        .filter((k): k is string => !!k)
+        .sort();
+      const photosUnchanged =
+        current.every((p) => !p.tempKey) &&
+        originalKeys.length === currentKeys.length &&
+        originalKeys.every((k, i) => k === currentKeys[i]);
 
-      await createVehicle.mutateAsync({
-        ...parsed.data,
-        images: uploadedImages,
+      await updateVehicle.mutateAsync({
+        id: id!,
+        data: {
+          ...parsed.data,
+          ...(photosUnchanged ? {} : { images }),
+          ...(status !== vehicle?.status ? { status } : {}),
+        },
       });
 
       showToast({
         variant: "success",
-        title: "Vehicle added",
-        message: "The vehicle has been added to the fleet.",
+        title: "Vehicle updated",
+        message: "Changes saved.",
       });
       router.back();
     } catch (err: any) {
@@ -320,7 +336,7 @@ export default function AddVehicleScreen() {
       showToast({
         variant: "error",
         title: "Error",
-        message: err?.message || "Failed to add vehicle",
+        message: err?.message || "Failed to update vehicle",
       });
     }
   }, [
@@ -336,15 +352,17 @@ export default function AddVehicleScreen() {
     seats,
     dailyRate,
     features,
+    status,
     awaitAll,
     snapshot,
-    createVehicle,
+    updateVehicle,
     router,
     showToast,
+    id,
+    vehicle,
   ]);
 
-  // ── Unauthorized state ──────────────────────────────────────────────────
-
+  // ── Unauthorized ────────────────────────────────────────────────────────
   if (!isAdmin) {
     return (
       <ScreenWrapper>
@@ -366,16 +384,31 @@ export default function AddVehicleScreen() {
     );
   }
 
-  // ── Main form ───────────────────────────────────────────────────────────
+  // ── Loading / Not found ─────────────────────────────────────────────────
+  if (isLoading || !vehicle) {
+    return (
+      <ScreenWrapper scroll>
+        <View className="pt-4 mb-6">
+          <Skeleton height={28} width={"50%"} />
+        </View>
+        <View style={{ gap: 12 }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} height={48} width={"100%"} />
+          ))}
+        </View>
+      </ScreenWrapper>
+    );
+  }
 
+  // ── Main form ───────────────────────────────────────────────────────────
   let sectionIndex = 0;
 
   return (
     <>
       <ScreenWrapper scroll>
         <View
-          pointerEvents={createVehicle.isPending ? "none" : "auto"}
-          style={{ opacity: createVehicle.isPending ? 0.5 : 1 }}
+          pointerEvents={updateVehicle.isPending ? "none" : "auto"}
+          style={{ opacity: updateVehicle.isPending ? 0.5 : 1 }}
         >
           <Animated.View
             entering={stagger(sectionIndex++)}
@@ -391,32 +424,8 @@ export default function AddVehicleScreen() {
               </Text>
             </Pressable>
             <Text variant="headlineLarge">
-              {t("fleet.addVehicle", { defaultValue: "Add Vehicle" })}
+              {t("fleet.editVehicle", { defaultValue: "Edit Vehicle" })}
             </Text>
-            {__DEV__ && (
-              <Pressable
-                onPress={handleDevFillRandom}
-                style={({ pressed }) => ({
-                  alignSelf: "flex-start",
-                  marginTop: 12,
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 9999,
-                  borderWidth: 1,
-                  borderStyle: "dashed",
-                  borderColor: theme.accent,
-                  backgroundColor: pressed ? theme.accentSoft : "transparent",
-                })}
-              >
-                <Text
-                  variant="labelSmall"
-                  color={theme.accent}
-                  style={{ fontSize: 11 }}
-                >
-                  DEV · Fill with random vehicle
-                </Text>
-              </Pressable>
-            )}
           </Animated.View>
 
           <VehicleFormFields
@@ -461,7 +470,31 @@ export default function AddVehicleScreen() {
             <Divider className="my-4" />
           </Animated.View>
 
-          {/* ── Photos ────────────────────────────────────────────────────── */}
+          {/* ── Status ─────────────────────────────────────────────────── */}
+          <Animated.View entering={stagger(sectionIndex++)} className="mb-2">
+            <Text
+              variant="labelLarge"
+              color={theme.textSecondary}
+              className="mb-3"
+            >
+              {t("fleet.status.label", { defaultValue: "Status" })}
+            </Text>
+          </Animated.View>
+
+          <Animated.View entering={stagger(sectionIndex++)} className="mb-6">
+            <StatusChips
+              value={status}
+              currentVehicleStatus={vehicle.status}
+              onChange={setStatus}
+              theme={theme}
+              t={t}
+            />
+          </Animated.View>
+
+          <Animated.View entering={stagger(sectionIndex++)}>
+            <Divider className="my-4" />
+          </Animated.View>
+
           <Animated.View entering={stagger(sectionIndex++)}>
             <PhotoSection
               photos={photos}
@@ -483,9 +516,9 @@ export default function AddVehicleScreen() {
         <Animated.View entering={stagger(sectionIndex++)} className="mb-8">
           <SubmitButton
             photos={photos}
-            isSaving={createVehicle.isPending}
-            defaultLabel={t("fleet.addVehicle", {
-              defaultValue: "Add Vehicle",
+            isSaving={updateVehicle.isPending}
+            defaultLabel={t("fleet.saveChanges", {
+              defaultValue: "Save Changes",
             })}
             onPress={handleSubmit}
           />
@@ -569,5 +602,103 @@ export default function AddVehicleScreen() {
         </View>
       </Modal>
     </>
+  );
+}
+
+// ── StatusChips ────────────────────────────────────────────────────────────
+//
+// Three-way picker for available / maintenance / retired. The booking-driven
+// statuses (rented, reserved) aren't selectable — when the vehicle is in one
+// of those, the picker shows a read-only note explaining that the booking
+// lifecycle controls status until the rental ends.
+
+const SELECTABLE_STATUSES: {
+  key: "available" | "maintenance" | "retired";
+  label: string;
+  fallback: string;
+  icon: typeof CheckCircle;
+}[] = [
+  {
+    key: "available",
+    label: "fleet.status.available",
+    fallback: "Available",
+    icon: CheckCircle,
+  },
+  {
+    key: "maintenance",
+    label: "fleet.status.maintenance",
+    fallback: "Maintenance",
+    icon: Wrench,
+  },
+  {
+    key: "retired",
+    label: "fleet.status.retired",
+    fallback: "Retired",
+    icon: Archive,
+  },
+];
+
+function StatusChips({
+  value,
+  currentVehicleStatus,
+  onChange,
+  theme,
+  t,
+}: {
+  value: VehicleStatus;
+  currentVehicleStatus: VehicleStatus;
+  onChange: (next: VehicleStatus) => void;
+  theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
+  const lockedByBooking =
+    currentVehicleStatus === "rented" || currentVehicleStatus === "reserved";
+
+  if (lockedByBooking) {
+    return (
+      <View
+        style={{
+          padding: 14,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: theme.borderLight,
+          backgroundColor: theme.surfaceTertiary,
+        }}
+      >
+        <Text
+          variant="bodySmall"
+          color={theme.textSecondary}
+          style={{ fontFamily: fontFamilies.medium, fontSize: 13 }}
+        >
+          {t("fleet.status.lockedTitle", {
+            defaultValue: `Currently ${currentVehicleStatus}`,
+          })}
+        </Text>
+        <Text
+          variant="caption"
+          color={theme.textTertiary}
+          style={{ fontSize: 12, marginTop: 4 }}
+        >
+          {t("fleet.status.lockedBody", {
+            defaultValue:
+              "Status is managed by the active booking and can't be changed manually until the rental ends.",
+          })}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <ChipGroup>
+      {SELECTABLE_STATUSES.map((opt) => (
+        <Chip
+          key={opt.key}
+          label={t(opt.label, { defaultValue: opt.fallback })}
+          selected={value === opt.key}
+          leftIcon={opt.icon}
+          onPress={() => onChange(opt.key)}
+        />
+      ))}
+    </ChipGroup>
   );
 }
