@@ -48,6 +48,8 @@ import {
 } from "@/components/contracts/SignaturePad";
 import { useVehicle } from "@/hooks/useFleet";
 import { useClient } from "@/hooks/useClients";
+import { useAgency } from "@/hooks/useAgency";
+import { formatCurrency } from "@/utils/format";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Image } from "@/components/ui/Image";
 import { resolveVehicleImageSource } from "@/data/vehicleImages";
@@ -56,7 +58,8 @@ import { shadows } from "@/theme/shadows";
 import { ActivityIndicator } from "react-native";
 
 const DEFAULT_INCLUDED_KM = 200;
-const DEFAULT_EXTRA_KM_RATE = 0.3;
+// Stored in cents per km (matches the rest of the cents convention).
+const DEFAULT_EXTRA_KM_RATE = 30;
 
 const MOCK_RETURN_DETECTIONS = [
   {
@@ -290,6 +293,8 @@ export default function ReturnScreen() {
   } = useBooking(id);
   const { data: vehicle } = useVehicle(storeBooking?.vehicleId ?? "");
   const { data: client } = useClient(storeBooking?.clientId ?? "");
+  const { data: agency } = useAgency();
+  const currency = agency?.currency ?? "EUR";
   const { data: relatedInspections = [] } = useInspections(
     storeBooking?.id ? { bookingId: storeBooking.id } : undefined,
   );
@@ -311,6 +316,18 @@ export default function ReturnScreen() {
   const [fuelLevel, setFuelLevel] = useState<number | null>(null);
   const [keysReturned, setKeysReturned] = useState(false);
   const [mileageValue, setMileageValue] = useState("");
+
+  // Seed the return-mileage field from the persisted value once the booking
+  // hydrates, so an agent revisiting this screen sees what's already on
+  // record (set via recordReturnMileage on a previous attempt).
+  React.useEffect(() => {
+    if (mileageValue !== "") return;
+    const saved = storeBooking?.returnMileage;
+    if (saved != null && saved > 0) {
+      setMileageValue(String(saved));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeBooking?.returnMileage]);
 
   // Step 3 state — signatures are submitted to /contracts/:id/sign on
   // completion; the booleans only gate the local "ready to submit" UI.
@@ -387,7 +404,8 @@ export default function ReturnScreen() {
       ? parsedReturn - startMileage
       : 0;
   const kmOverage = Math.max(0, kmDriven - includedKm);
-  const overageCost = Math.round(kmOverage * extraKmRate * 100) / 100;
+  // extraKmRate is stored in cents per km, so the product is already cents.
+  const overageCostCents = Math.round(kmOverage * extraKmRate);
 
   // Mileage and fuel are now collected as part of Step 2 (the inspection).
   // Step 1 only gates on the Keys Returned checkbox.
@@ -794,9 +812,9 @@ export default function ReturnScreen() {
           style={{ marginBottom: 12 }}
         >
           {t("bookings.mileage.helperIncluded", {
-            defaultValue: "{{included}} km included · CHF {{rate}} / extra km",
+            defaultValue: "{{included}} km included · {{rate}} / extra km",
             included: includedKm,
-            rate: extraKmRate.toFixed(2),
+            rate: formatCurrency(extraKmRate, currency),
           })}
         </Text>
 
@@ -898,7 +916,7 @@ export default function ReturnScreen() {
                 color={kmOverage > 0 ? theme.warning : theme.textSecondary}
                 style={{ fontWeight: "700" }}
               >
-                CHF {overageCost.toFixed(2)}
+                {formatCurrency(overageCostCents, currency)}
               </Text>
             </View>
           </View>
@@ -1194,7 +1212,7 @@ export default function ReturnScreen() {
               color={kmOverage > 0 ? theme.warning : theme.textSecondary}
               style={{ fontWeight: "700" }}
             >
-              CHF {overageCost.toFixed(2)}
+              {formatCurrency(overageCostCents, currency)}
             </Text>
           </View>
           <Divider />

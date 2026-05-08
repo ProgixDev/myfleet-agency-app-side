@@ -35,7 +35,7 @@ import { Divider } from "@/components/ui/Divider";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { useToastStore } from "@/components/ui/Toast";
-import { formatDate } from "@/utils/format";
+import { formatCurrency, formatDate } from "@/utils/format";
 import { useViolation, useUpdateViolationStatus } from "@/hooks/useViolations";
 import type { ViolationType, ViolationStatus } from "@/types/violation";
 
@@ -307,7 +307,7 @@ export default function ViolationDetailScreen() {
       showToast({
         variant: "success",
         title: "Client notifi\u00E9 puis d\u00E9bit\u00E9",
-        message: `\u20AC${violation.totalCharge} d\u00E9bit\u00E9 apr\u00E8s transmission de l'infraction.`,
+        message: `${formatCurrency(violation.totalCharge)} d\u00E9bit\u00E9 apr\u00E8s transmission de l'infraction.`,
       });
     }, 2000);
   };
@@ -517,8 +517,7 @@ export default function ViolationDetailScreen() {
               Amende
             </Text>
             <Text variant="bodyMedium">
-              {"\u20AC"}
-              {violation.fineAmount.toFixed(2)}
+              {formatCurrency(violation.fineAmount)}
             </Text>
           </View>
           <View className="flex-row justify-between py-1.5">
@@ -526,8 +525,7 @@ export default function ViolationDetailScreen() {
               Frais administratifs
             </Text>
             <Text variant="bodyMedium">
-              {"\u20AC"}
-              {violation.adminFee.toFixed(2)}
+              {formatCurrency(violation.adminFee)}
             </Text>
           </View>
 
@@ -536,8 +534,7 @@ export default function ViolationDetailScreen() {
           <View className="flex-row justify-between py-1">
             <Text variant="titleMedium">Total</Text>
             <Text variant="headlineMedium" color={theme.accent}>
-              {"\u20AC"}
-              {violation.totalCharge.toFixed(2)}
+              {formatCurrency(violation.totalCharge)}
             </Text>
           </View>
         </Card>

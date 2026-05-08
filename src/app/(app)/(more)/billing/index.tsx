@@ -20,6 +20,7 @@ import {
 } from "@/hooks/useInvoices";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Invoice, InvoiceStatus } from "@/types/billing";
+import { centsToUnits } from "@/utils/money";
 
 // ── Status helpers ──────────────────────────────────────────────────────────
 
@@ -51,12 +52,12 @@ function getStatusConfig(status: InvoiceStatus): StatusConfig {
 
 // ── Format helpers ──────────────────────────────────────────────────────────
 
-function formatEuro(amount: number): string {
+function formatEuro(cents: number): string {
   return (
     new Intl.NumberFormat("fr-FR", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount) + " \u20AC"
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(centsToUnits(cents)) + " \u20AC"
   );
 }
 
@@ -179,9 +180,9 @@ export default function BillingScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Summary values (server returns cents; UI's formatEuro takes whole units)
-  const monthlyRevenue = (summary?.monthlyRevenueCents ?? 0) / 100;
-  const pendingAmount = (summary?.pendingCents ?? 0) / 100;
-  const overdueAmount = (summary?.overdueCents ?? 0) / 100;
+  const monthlyRevenue = summary?.monthlyRevenueCents ?? 0;
+  const pendingAmount = summary?.pendingCents ?? 0;
+  const overdueAmount = summary?.overdueCents ?? 0;
 
   // Sort newest first
   const sortedInvoices = useMemo(

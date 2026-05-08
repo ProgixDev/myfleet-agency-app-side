@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { IconButton } from "@/components/ui/IconButton";
 import { useTheme } from "@/hooks/useTheme";
-import { formatDate } from "@/utils/format";
+import { formatCurrency, formatDate } from "@/utils/format";
 import {
   useViolations,
   useViolationsSummary,
@@ -163,8 +163,7 @@ function ViolationCard({ violation, index, onPress }: ViolationCardProps) {
           </Badge>
         )}
         <Text variant="titleSmall" color={theme.accent}>
-          {"\u20AC"}
-          {violation.totalCharge}
+          {formatCurrency(violation.totalCharge)}
         </Text>
       </View>
     </AnimatedPressable>
@@ -333,8 +332,7 @@ export default function ViolationsScreen() {
           {/* Total fines */}
           <View className="flex-1 items-center">
             <Text variant="titleSmall" color={theme.accent}>
-              {"\u20AC"}
-              {totalFines.toLocaleString("fr-FR")}
+              {formatCurrency(totalFines)}
             </Text>
             <Text
               variant="bodySmall"

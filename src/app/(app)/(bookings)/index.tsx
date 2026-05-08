@@ -20,7 +20,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { IconButton } from "@/components/ui/IconButton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTheme } from "@/hooks/useTheme";
-import { formatDate } from "@/utils/format";
+import { formatCurrency, formatDate } from "@/utils/format";
 import { useBookings } from "@/hooks/useBookings";
 import { useVehicles } from "@/hooks/useFleet";
 import { Image } from "@/components/ui/Image";
@@ -162,8 +162,7 @@ function BookingCard({ booking, vehicle, index, onPress }: BookingCardProps) {
               {days}j
             </Badge>
             <Text variant="titleMedium" color={theme.accent}>
-              {"\u20AC"}
-              {booking.totalAmount}
+              {formatCurrency(booking.totalAmount)}
             </Text>
             <Badge variant={statusBadge.variant} size="sm">
               {statusBadge.label}

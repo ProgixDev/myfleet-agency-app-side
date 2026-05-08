@@ -87,6 +87,7 @@ import {
   MapsApiKeyMissingError,
 } from "@/services/mapsService";
 import type { Booking, DeliveryDetails } from "@/types/booking";
+import { centsToUnits, unitsToCents } from "@/utils/money";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -366,7 +367,7 @@ export default function NewBookingScreen() {
         .map((o) => ({
           id: o.id,
           label: o.label,
-          price: o.price / 100,
+          price: centsToUnits(o.price),
           enabled: false,
         }));
       if (deliveryEnabled) {
@@ -511,7 +512,9 @@ export default function NewBookingScreen() {
         total: 0,
       };
     }
-    const subtotal = selectedVehicle.dailyRate * days;
+    // Server values are in cents; the wizard works in display euros.
+    const dailyRateEuros = centsToUnits(selectedVehicle.dailyRate);
+    const subtotal = dailyRateEuros * days;
     const optionsTotal = options
       .filter((o) => o.enabled)
       .reduce((sum, o) => sum + o.price * days, 0);
@@ -521,7 +524,7 @@ export default function NewBookingScreen() {
     // Deposit is the vehicle's per-car held amount, not a charge. Server is
     // the source of truth — the wizard only displays it, and total excludes
     // it (the deposit is authorized separately at confirmation).
-    const deposit = selectedVehicle.deposit ?? 0;
+    const deposit = centsToUnits(selectedVehicle.deposit ?? 0);
     const total = subtotal + optionsTotal + deliveryFee;
     return { subtotal, optionsTotal, deliveryFee, deposit, total };
   }, [selectedVehicle, days, options]);
@@ -764,10 +767,16 @@ export default function NewBookingScreen() {
           options: options.map((o) => ({
             id: o.id,
             label: getOptionLabel(o),
-            price: o.price,
+            // Wizard works in euros for display; server expects cents.
+            price: unitsToCents(o.price),
             enabled: o.enabled,
             ...(o.deliveryDetails
-              ? { deliveryDetails: o.deliveryDetails }
+              ? {
+                  deliveryDetails: {
+                    ...o.deliveryDetails,
+                    fee: unitsToCents(o.deliveryDetails.fee),
+                  },
+                }
               : {}),
           })),
           paymentMethod,
@@ -1172,7 +1181,7 @@ export default function NewBookingScreen() {
               }}
             >
               {t("bookings.new.dailyRate", "Daily rate")} · €
-              {selectedVehicle?.dailyRate ?? 0}
+              {centsToUnits(selectedVehicle?.dailyRate ?? 0)}
             </Text>
             <Text
               variant="headlineLarge"
@@ -1520,7 +1529,7 @@ export default function NewBookingScreen() {
           <View className="flex-row items-center justify-between mb-2">
             <Text variant="bodyMedium" color={theme.textSecondary}>
               {"\u20AC"}
-              {selectedVehicle?.dailyRate ?? 0} {"\u00D7"} {days}{" "}
+              {centsToUnits(selectedVehicle?.dailyRate ?? 0)} {"\u00D7"} {days}{" "}
               {t("bookings.new.days", "days")}
             </Text>
             <Text variant="bodyMedium">
@@ -1948,7 +1957,8 @@ export default function NewBookingScreen() {
                   color="#FFFFFF"
                   style={{ fontFamily: fontFamilies.bold, fontSize: 12 }}
                 >
-                  €{selectedVehicle.dailyRate}/{t("bookings.new.perDay", "day")}
+                  €{centsToUnits(selectedVehicle.dailyRate)}/
+                  {t("bookings.new.perDay", "day")}
                 </Text>
               </View>
             </View>
@@ -2080,7 +2090,7 @@ export default function NewBookingScreen() {
             }}
           />
           <PricingLine
-            label={`€${selectedVehicle?.dailyRate ?? 0} × ${days} ${t("bookings.new.days", "days")}`}
+            label={`€${centsToUnits(selectedVehicle?.dailyRate ?? 0)} × ${days} ${t("bookings.new.days", "days")}`}
             value={`€${pricing.subtotal}`}
             theme={theme}
           />
@@ -2768,7 +2778,7 @@ function SelectedVehicleStrip({
         color={theme.accent}
         style={{ fontFamily: fontFamilies.bold, fontSize: 12 }}
       >
-        €{vehicle.dailyRate}/{t("bookings.new.perDay", "day")}
+        €{centsToUnits(vehicle.dailyRate)}/{t("bookings.new.perDay", "day")}
       </Text>
     </View>
   );
@@ -2859,7 +2869,7 @@ function VehicleHeroCard({
             color="#FFFFFF"
             style={{ fontFamily: fontFamilies.bold, fontSize: 12 }}
           >
-            €{vehicle.dailyRate}/{t("bookings.new.perDay", "day")}
+            €{centsToUnits(vehicle.dailyRate)}/{t("bookings.new.perDay", "day")}
           </Text>
         </View>
 

@@ -2,23 +2,25 @@
  * Formatting helpers — French-locale defaults for the My Fleet car rental app.
  */
 
-const DEFAULT_CURRENCY = 'EUR';
-const DEFAULT_LOCALE = 'fr-FR';
+import { centsToUnits } from "./money";
+
+const DEFAULT_CURRENCY = "EUR";
+const DEFAULT_LOCALE = "fr-FR";
 
 /**
- * Format a monetary amount.
- * Defaults to EUR with French locale (e.g. "1 234,56 EUR").
+ * Format a monetary amount. Input is in **cents** (the canonical unit on the
+ * wire and in the DB). Output uses French locale (e.g. 123456 -> "1 234,56 EUR").
  */
 export function formatCurrency(
-  amount: number,
+  cents: number,
   currency: string = DEFAULT_CURRENCY,
 ): string {
   return new Intl.NumberFormat(DEFAULT_LOCALE, {
-    style: 'currency',
+    style: "currency",
     currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(centsToUnits(cents));
 }
 
 /**
@@ -30,18 +32,18 @@ export function formatCurrency(
  */
 export function formatDate(
   date: Date | string,
-  format: 'short' | 'long' | 'relative' = 'short',
+  format: "short" | "long" | "relative" = "short",
 ): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
+  const d = typeof date === "string" ? new Date(date) : date;
 
-  if (format === 'relative') {
+  if (format === "relative") {
     return formatRelativeDate(d);
   }
 
   const options: Intl.DateTimeFormatOptions =
-    format === 'long'
-      ? { day: 'numeric', month: 'long', year: 'numeric' }
-      : { day: '2-digit', month: '2-digit', year: 'numeric' };
+    format === "long"
+      ? { day: "numeric", month: "long", year: "numeric" }
+      : { day: "2-digit", month: "2-digit", year: "numeric" };
 
   return new Intl.DateTimeFormat(DEFAULT_LOCALE, options).format(d);
 }
@@ -58,18 +60,18 @@ function formatRelativeDate(date: Date): string {
   const isPast = diffMs < 0;
 
   const units: { label: string; labelPlural: string; seconds: number }[] = [
-    { label: 'an', labelPlural: 'ans', seconds: 31_536_000 },
-    { label: 'mois', labelPlural: 'mois', seconds: 2_592_000 },
-    { label: 'semaine', labelPlural: 'semaines', seconds: 604_800 },
-    { label: 'jour', labelPlural: 'jours', seconds: 86_400 },
-    { label: 'heure', labelPlural: 'heures', seconds: 3_600 },
-    { label: 'minute', labelPlural: 'minutes', seconds: 60 },
-    { label: 'seconde', labelPlural: 'secondes', seconds: 1 },
+    { label: "an", labelPlural: "ans", seconds: 31_536_000 },
+    { label: "mois", labelPlural: "mois", seconds: 2_592_000 },
+    { label: "semaine", labelPlural: "semaines", seconds: 604_800 },
+    { label: "jour", labelPlural: "jours", seconds: 86_400 },
+    { label: "heure", labelPlural: "heures", seconds: 3_600 },
+    { label: "minute", labelPlural: "minutes", seconds: 60 },
+    { label: "seconde", labelPlural: "secondes", seconds: 1 },
   ];
 
-  if (typeof Intl !== 'undefined' && 'RelativeTimeFormat' in Intl) {
+  if (typeof Intl !== "undefined" && "RelativeTimeFormat" in Intl) {
     const rtf = new (Intl as any).RelativeTimeFormat(DEFAULT_LOCALE, {
-      numeric: 'auto',
+      numeric: "auto",
     });
 
     for (const { label, seconds } of units) {
@@ -79,7 +81,7 @@ function formatRelativeDate(date: Date): string {
       }
     }
 
-    return rtf.format(0, 'second');
+    return rtf.format(0, "second");
   }
 
   // Fallback for React Native JSC/Hermes without RelativeTimeFormat
@@ -91,7 +93,7 @@ function formatRelativeDate(date: Date): string {
     }
   }
 
-  return 'maintenant';
+  return "maintenant";
 }
 
 /**
@@ -100,18 +102,16 @@ function formatRelativeDate(date: Date): string {
  * Output: "06 12 34 56 78".
  */
 export function formatPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
+  const digits = phone.replace(/\D/g, "");
 
   // Normalise international prefix to local
-  const local = digits.startsWith('33')
-    ? '0' + digits.slice(2)
-    : digits;
+  const local = digits.startsWith("33") ? "0" + digits.slice(2) : digits;
 
   if (local.length !== 10) {
     return phone; // return as-is if unexpected length
   }
 
-  return local.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
+  return local.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4 $5");
 }
 
 /**
@@ -131,7 +131,7 @@ export function formatMileage(km: number): string {
  * Accepts "AA123AA", "aa-123-aa", "AA 123 AA", etc.
  */
 export function formatLicensePlate(plate: string): string {
-  const cleaned = plate.replace(/[\s-]/g, '').toUpperCase();
+  const cleaned = plate.replace(/[\s-]/g, "").toUpperCase();
 
   // Standard French SIV format: 2 letters, 3 digits, 2 letters
   const match = cleaned.match(/^([A-Z]{2})(\d{3})([A-Z]{2})$/);

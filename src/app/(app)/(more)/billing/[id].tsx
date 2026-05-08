@@ -31,17 +31,19 @@ import {
   useSendInvoiceReminder,
 } from "@/hooks/useInvoices";
 import { usePayments } from "@/hooks/usePayments";
+import { useAgency } from "@/hooks/useAgency";
 import type { InvoiceStatus } from "@/types/billing";
 import type { PaymentMethod } from "@/types/payment";
+import { centsToUnits, unitsToCents } from "@/utils/money";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatEuro(amount: number): string {
+function formatEuro(cents: number): string {
   return (
     new Intl.NumberFormat("fr-FR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(amount) + " \u20AC"
+    }).format(centsToUnits(cents)) + " \u20AC"
   );
 }
 
@@ -122,6 +124,7 @@ export default function InvoiceDetailScreen() {
   const showToast = useToastStore((s) => s.show);
 
   const { data: invoice, isLoading } = useInvoice(id ?? "");
+  const { data: agency } = useAgency();
   const { data: payments = [] } = usePayments(
     id ? { invoiceId: id } : undefined,
   );
@@ -171,8 +174,13 @@ export default function InvoiceDetailScreen() {
 
   const handleCashPayment = useCallback(() => {
     if (!invoice) return;
-    const amount = parseFloat(cashAmount.replace(",", "."));
-    if (isNaN(amount) || amount <= 0 || amount > invoice.remainingBalance) {
+    const euros = parseFloat(cashAmount.replace(",", "."));
+    const amountCents = unitsToCents(euros);
+    if (
+      isNaN(amountCents) ||
+      amountCents <= 0 ||
+      amountCents > invoice.remainingBalance
+    ) {
       showToast({
         variant: "error",
         title: "Montant invalide",
@@ -182,7 +190,7 @@ export default function InvoiceDetailScreen() {
     }
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     recordPaymentMutation.mutate(
-      { id: invoice.id, data: { amount, method: "cash" } },
+      { id: invoice.id, data: { amount: amountCents, method: "cash" } },
       {
         onSuccess: () => {
           setCashAmount("");
@@ -190,7 +198,7 @@ export default function InvoiceDetailScreen() {
           showToast({
             variant: "success",
             title: "Paiement enregistr\u00E9",
-            message: `${formatEuro(amount)} re\u00E7u en esp\u00E8ces`,
+            message: `${formatEuro(amountCents)} re\u00E7u en esp\u00E8ces`,
           });
         },
       },
@@ -317,21 +325,34 @@ export default function InvoiceDetailScreen() {
           <Divider className="my-4" />
 
           {/* Agency info */}
-          <Text variant="titleSmall">My Fleet SAS</Text>
-          <Text
-            variant="bodySmall"
-            color={theme.textSecondary}
-            className="mt-1"
-          >
-            12 Boulevard Mohammed V, Casablanca 20000
-          </Text>
-          <Text
-            variant="bodySmall"
-            color={theme.textSecondary}
-            className="mt-0.5"
-          >
-            +212 5 22 00 00 00
-          </Text>
+          <Text variant="titleSmall">{agency?.name ?? "—"}</Text>
+          {agency?.address ? (
+            <Text
+              variant="bodySmall"
+              color={theme.textSecondary}
+              className="mt-1"
+            >
+              {agency.address}
+            </Text>
+          ) : null}
+          {agency?.phone ? (
+            <Text
+              variant="bodySmall"
+              color={theme.textSecondary}
+              className="mt-0.5"
+            >
+              {agency.phone}
+            </Text>
+          ) : null}
+          {agency?.email ? (
+            <Text
+              variant="bodySmall"
+              color={theme.textSecondary}
+              className="mt-0.5"
+            >
+              {agency.email}
+            </Text>
+          ) : null}
 
           <Divider className="my-4" />
 
@@ -424,7 +445,7 @@ export default function InvoiceDetailScreen() {
                   {item.quantity}
                 </Text>
                 <Text variant="bodySmall" className="w-16" align="right">
-                  {item.unitPrice} \u20AC
+                  {formatEuro(item.unitPrice)}
                 </Text>
                 <Text variant="bodySmall" className="w-20" align="right">
                   {formatEuro(item.total)}

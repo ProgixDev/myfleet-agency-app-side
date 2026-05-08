@@ -51,12 +51,16 @@ import {
   useCreateContract,
   useSignContract,
 } from "@/hooks/useContracts";
+import { invoiceKeys, useInvoices } from "@/hooks/useInvoices";
+import { useAgency } from "@/hooks/useAgency";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   SignaturePad,
   type SignaturePadRef,
 } from "@/components/contracts/SignaturePad";
 import { BookingInspectionStep } from "@/components/inspection/BookingInspectionStep";
 import { getPickupEligibility } from "@/utils/pickupEligibility";
+import { formatCurrency } from "@/utils/format";
 import { useTheme } from "@/hooks/useTheme";
 import { shadows } from "@/theme/shadows";
 import { ActivityIndicator } from "react-native";
@@ -252,6 +256,8 @@ export default function PickupScreen() {
   } = useBooking(id);
   const { data: vehicle } = useVehicle(realBooking?.vehicleId ?? "");
   const { data: client } = useClient(realBooking?.clientId ?? "");
+  const { data: agency } = useAgency();
+  const currency = agency?.currency ?? "EUR";
 
   const startPickupMutation = useStartPickup();
   const recordStartMileageMutation = useRecordStartMileage();
@@ -267,12 +273,14 @@ export default function PickupScreen() {
   const contractId = existingContracts[0]?.id ?? null;
 
   // For online bookings: refetch on focus so a Stripe webhook flipping
-  // paymentStatus → 'paid' is reflected on the checklist without a manual
-  // pull-to-refresh.
+  // the rental invoice → 'paid' is reflected on the checklist without a
+  // manual pull-to-refresh.
+  const queryClient = useQueryClient();
   useFocusEffect(
     React.useCallback(() => {
       void refetchBooking();
-    }, [refetchBooking]),
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
+    }, [refetchBooking, queryClient]),
   );
 
   // Stamp pickupStartedAt on the booking when this screen first opens.
@@ -303,15 +311,34 @@ export default function PickupScreen() {
   const [identityVerified, setIdentityVerified] = useState(false);
   // Cash bookings: agent ticks this manually; the toggle is sent to the
   // backend (markCashPaid) when pickup completes.
-  // Online bookings: derived from the deposit hold — Stripe webhook is the
-  // source of truth and flips depositStatus to 'held' once authorized.
+  // Online bookings: server is the source of truth — the rental invoice's
+  // status flips to 'paid' (or 'partially-paid'/'refund_pending' for edge
+  // cases) once the Stripe webhook reconciles. We never gate pickup on a
+  // manually-ticked checkbox for online bookings.
   const [cashPaymentTicked, setCashPaymentTicked] = useState(false);
   const isCashBooking = realBooking?.paymentMethod === "cash";
-  const onlineReady = realBooking?.depositStatus === "held";
-  const paymentReceived = isCashBooking ? cashPaymentTicked : onlineReady;
+  const { data: bookingInvoices } = useInvoices(
+    realBooking?.id ? { bookingId: realBooking.id, kind: "rental" } : undefined,
+    { enabled: !!realBooking?.id },
+  );
+  const rentalInvoice = bookingInvoices?.[0];
+  const onlinePaid = rentalInvoice?.status === "paid";
+  const paymentReceived = isCashBooking ? cashPaymentTicked : onlinePaid;
   const [keysReady, setKeysReady] = useState(false);
   const [startMileageInput, setStartMileageInput] = useState("");
   const [startFuelLevel, setStartFuelLevel] = useState<number | null>(null);
+
+  // Seed the mileage field from the persisted value once the booking
+  // hydrates, so an agent revisiting this screen mid-pickup sees what's
+  // already on record (set via recordStartMileage on a previous attempt).
+  React.useEffect(() => {
+    if (startMileageInput !== "") return;
+    const saved = realBooking?.startMileage;
+    if (saved != null && saved > 0) {
+      setStartMileageInput(String(saved));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realBooking?.startMileage]);
 
   // Step 3 state
   const [contractSigned, setContractSigned] = useState(false);
@@ -353,7 +380,7 @@ export default function PickupScreen() {
           daily: realBooking.dailyRate,
           total: realBooking.totalAmount,
           deposit: realBooking.deposit,
-          currency: "MAD",
+          currency,
         },
         insurance:
           realBooking.insurance?.tier === "all_inclusive"
@@ -782,7 +809,10 @@ export default function PickupScreen() {
                 color={theme.accent}
                 style={{ fontWeight: "700" }}
               >
-                {booking.pricing.total} {booking.pricing.currency}
+                {formatCurrency(
+                  booking.pricing.total,
+                  booking.pricing.currency,
+                )}
               </Text>
             </View>
           </View>
@@ -828,16 +858,37 @@ export default function PickupScreen() {
           })}
           sublabel={
             isCashBooking
-              ? t("pickup.checklist.paymentCashHint", {
-                  defaultValue: "Cash at pickup — tick once collected",
-                })
-              : onlineReady
-                ? t("pickup.checklist.paymentOnlinePaid", {
-                    defaultValue: "Deposit hold confirmed",
+              ? rentalInvoice
+                ? t("pickup.checklist.paymentCashHintAmount", {
+                    defaultValue: "Collect {{amount}} cash",
+                    amount: formatCurrency(
+                      rentalInvoice.remainingBalance,
+                      currency,
+                    ),
                   })
-                : t("pickup.checklist.paymentOnlineWaiting", {
-                    defaultValue: "Awaiting deposit authorization",
+                : t("pickup.checklist.paymentCashHint", {
+                    defaultValue: "Cash at pickup — tick once collected",
                   })
+              : onlinePaid
+                ? rentalInvoice
+                  ? t("pickup.checklist.paymentOnlinePaidAmount", {
+                      defaultValue: "Invoice paid · {{amount}}",
+                      amount: formatCurrency(rentalInvoice.totalDue, currency),
+                    })
+                  : t("pickup.checklist.paymentOnlinePaid", {
+                      defaultValue: "Invoice marked paid",
+                    })
+                : rentalInvoice
+                  ? t("pickup.checklist.paymentOnlineWaitingAmount", {
+                      defaultValue: "Awaiting payment · {{amount}} due",
+                      amount: formatCurrency(
+                        rentalInvoice.remainingBalance,
+                        currency,
+                      ),
+                    })
+                  : t("pickup.checklist.paymentOnlineWaiting", {
+                      defaultValue: "Awaiting payment confirmation",
+                    })
           }
           checked={paymentReceived}
           onToggle={() => setCashPaymentTicked((v) => !v)}
@@ -1006,7 +1057,10 @@ export default function PickupScreen() {
                 {t("pickup.contract.dailyRate", { defaultValue: "Daily Rate" })}
               </Text>
               <Text variant="bodySmall" style={{ fontWeight: "600" }}>
-                {booking.pricing.daily} {booking.pricing.currency}
+                {formatCurrency(
+                  booking.pricing.daily,
+                  booking.pricing.currency,
+                )}
               </Text>
             </View>
             <View
@@ -1022,7 +1076,10 @@ export default function PickupScreen() {
                 color={theme.accent}
                 style={{ fontWeight: "700" }}
               >
-                {booking.pricing.total} {booking.pricing.currency}
+                {formatCurrency(
+                  booking.pricing.total,
+                  booking.pricing.currency,
+                )}
               </Text>
             </View>
             <View
@@ -1032,7 +1089,10 @@ export default function PickupScreen() {
                 {t("pickup.contract.deposit", { defaultValue: "Deposit" })}
               </Text>
               <Text variant="bodySmall" style={{ fontWeight: "600" }}>
-                {booking.pricing.deposit} {booking.pricing.currency}
+                {formatCurrency(
+                  booking.pricing.deposit,
+                  booking.pricing.currency,
+                )}
               </Text>
             </View>
           </View>

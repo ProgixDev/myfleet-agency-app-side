@@ -47,6 +47,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getPickupEligibility } from "@/utils/pickupEligibility";
+import { formatCurrency } from "@/utils/format";
 import { useTheme } from "@/hooks/useTheme";
 import { useToastStore } from "@/components/ui/Toast";
 import {
@@ -606,8 +607,7 @@ export default function BookingDetailScreen() {
                   lineHeight: 24,
                 }}
               >
-                {"\u20AC"}
-                {booking.dailyRate}
+                {formatCurrency(booking.dailyRate)}
               </Text>
               <Text
                 variant="caption"
@@ -633,7 +633,7 @@ export default function BookingDetailScreen() {
               label={
                 booking.status === "active"
                   ? `${remaining}d ${t("bookings.detail.left", "left")}`
-                  : `${"\u20AC"}${total.toLocaleString("fr-FR")}`
+                  : formatCurrency(total)
               }
               color={theme.success}
               bg={theme.successSoft}
@@ -641,7 +641,7 @@ export default function BookingDetailScreen() {
             />
             <StatChip
               icon={FileText}
-              label={`${"\u20AC"}${booking.deposit.toLocaleString("fr-FR")}`}
+              label={formatCurrency(booking.deposit)}
               color={theme.info}
               bg={theme.infoSoft}
               theme={theme}
@@ -1058,15 +1058,15 @@ export default function BookingDetailScreen() {
             }}
           >
             <PriceRow
-              label={`${"\u20AC"}${booking.dailyRate} x ${totalDays} ${t("bookings.detail.days", "days")}`}
-              value={`${"\u20AC"}${subtotal.toLocaleString("fr-FR")}`}
+              label={`${formatCurrency(booking.dailyRate)} x ${totalDays} ${t("bookings.detail.days", "days")}`}
+              value={formatCurrency(subtotal)}
               theme={theme}
             />
             {perDayOptions.map((opt) => (
               <PriceRow
                 key={opt.id}
-                label={`${opt.label} (${"\u20AC"}${opt.price}/day)`}
-                value={`${"\u20AC"}${(opt.price * totalDays).toLocaleString("fr-FR")}`}
+                label={`${opt.label} (${formatCurrency(opt.price)}/day)`}
+                value={formatCurrency(opt.price * totalDays)}
                 theme={theme}
               />
             ))}
@@ -1077,7 +1077,7 @@ export default function BookingDetailScreen() {
                     "bookings.new.delivery.optionLabel",
                     "Home delivery",
                   )}
-                  value={`${"\u20AC"}${deliveryOption.deliveryDetails.fee.toFixed(2)}`}
+                  value={formatCurrency(deliveryOption.deliveryDetails.fee)}
                   theme={theme}
                 />
                 <Text
@@ -1097,7 +1097,7 @@ export default function BookingDetailScreen() {
 
             <PriceRow
               label={t("bookings.detail.deposit", "Deposit")}
-              value={`${"\u20AC"}${booking.deposit.toLocaleString("fr-FR")}`}
+              value={formatCurrency(booking.deposit)}
               theme={theme}
             />
 
@@ -1113,8 +1113,7 @@ export default function BookingDetailScreen() {
                 color={theme.accent}
                 style={{ fontFamily: fontFamilies.bold, fontSize: 18 }}
               >
-                {"\u20AC"}
-                {total.toLocaleString("fr-FR")}
+                {formatCurrency(total)}
               </Text>
             </View>
           </View>
@@ -1196,13 +1195,9 @@ export default function BookingDetailScreen() {
                       {t("booking.deposit.captured", "Captured")}
                     </Text>
                     <Text variant="bodySmall">
-                      {"€"}
-                      {(booking.depositCapturedAmount / 100).toLocaleString(
-                        "fr-FR",
-                      )}
+                      {formatCurrency(booking.depositCapturedAmount)}
                       {" / "}
-                      {"€"}
-                      {(booking.deposit / 100).toLocaleString("fr-FR")}
+                      {formatCurrency(booking.deposit)}
                     </Text>
                   </View>
                 )}
@@ -1293,7 +1288,7 @@ export default function BookingDetailScreen() {
                 color={theme.textTertiary}
                 style={{ marginTop: 8, fontSize: 12 }}
               >
-                Excess: CHF {booking.insurance.excess.toLocaleString("fr-FR")}
+                Excess: {formatCurrency(booking.insurance.excess)}
               </Text>
             </View>
           </Animated.View>

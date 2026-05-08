@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { unitsToCents } from "@/utils/money";
+
 // Mirrors server `createVehicleSchema` in src/fleet/fleet.types.ts (camelCase).
 // Slug is omitted on the client; the server derives it from the name.
 
@@ -48,15 +50,16 @@ export const vehicleFormSchema = z.object({
     .max(2100, "Year must be between 1900 and 2100"),
   mileage: z.coerce.number().int().min(0, "Mileage must be ≥ 0").default(0),
   licensePlate: z.string().min(1, "License plate is required").max(50),
+  // Form input is whole euros; schema converts to cents (the wire format).
   dailyRate: z.coerce
     .number({ message: "Daily rate is required" })
-    .int()
-    .min(0, "Daily rate must be ≥ 0"),
+    .min(0, "Daily rate must be ≥ 0")
+    .transform(unitsToCents),
   deposit: z.coerce
     .number({ message: "Deposit must be a number" })
-    .int()
     .min(0, "Deposit must be ≥ 0")
-    .default(0),
+    .default(0)
+    .transform(unitsToCents),
   fuelType: fuelTypeSchema,
   transmission: transmissionSchema,
   seats: z.coerce
@@ -69,7 +72,13 @@ export const vehicleFormSchema = z.object({
   images: z.array(vehicleImageInputSchema).default([]),
   quantity: z.coerce.number().int().min(1).default(1),
   includedKm: z.coerce.number().int().min(0).optional(),
-  extraKmRate: z.coerce.number().int().min(0).optional(),
+  extraKmRate: z.coerce
+    .number()
+    .min(0)
+    .optional()
+    .transform((euros) =>
+      euros === undefined ? undefined : unitsToCents(euros),
+    ),
 });
 
 export type VehicleFormInput = z.input<typeof vehicleFormSchema>;

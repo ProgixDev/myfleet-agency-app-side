@@ -64,6 +64,7 @@ import {
   useUpdateAgencySettings,
 } from "@/hooks/useAgency";
 import { formatCurrency, formatDate } from "@/utils/format";
+import { centsToUnits, unitsToCents } from "@/utils/money";
 import { getSignedDocumentUrl } from "@/services/agencyService";
 import type { AgencyBookingOption, AgencyDocumentType } from "@/types/agency";
 import {
@@ -130,7 +131,7 @@ export default function AgencyScreen() {
       : "",
   );
   const [deliveryRate, setDeliveryRateInput] = useState(
-    delivery.ratePerKm > 0 ? String(delivery.ratePerKm / 100) : "",
+    delivery.ratePerKm > 0 ? String(centsToUnits(delivery.ratePerKm)) : "",
   );
   const [deliveryMinFee, setDeliveryMinFeeInput] = useState(
     delivery.minFee != null ? String(delivery.minFee) : "",
@@ -158,7 +159,7 @@ export default function AgencyScreen() {
   // ── Business settings edit state ──────────────────────────────────
   const [isEditingBusiness, setIsEditingBusiness] = useState(false);
   const [editAdminFee, setEditAdminFee] = useState(
-    settings?.adminFee != null ? String(settings.adminFee / 100) : "",
+    settings?.adminFee != null ? String(centsToUnits(settings.adminFee)) : "",
   );
   const [editWorkingHoursStart, setEditWorkingHoursStart] = useState(
     settings?.workingHoursStart ?? "",
@@ -286,10 +287,10 @@ export default function AgencyScreen() {
         : "",
     );
     setDeliveryRateInput(
-      delivery.ratePerKm > 0 ? String(delivery.ratePerKm / 100) : "",
+      delivery.ratePerKm > 0 ? String(centsToUnits(delivery.ratePerKm)) : "",
     );
     setDeliveryMinFeeInput(
-      delivery.minFee != null ? String(delivery.minFee / 100) : "",
+      delivery.minFee != null ? String(centsToUnits(delivery.minFee)) : "",
     );
     setDeliveryMaxDistanceInput(
       delivery.maxDistanceKm != null ? String(delivery.maxDistanceKm) : "",
@@ -315,7 +316,7 @@ export default function AgencyScreen() {
   // Reset business edit form when settings change.
   useEffect(() => {
     setEditAdminFee(
-      settings?.adminFee != null ? String(settings.adminFee / 100) : "",
+      settings?.adminFee != null ? String(centsToUnits(settings.adminFee)) : "",
     );
     setEditWorkingHoursStart(settings?.workingHoursStart ?? "");
     setEditWorkingHoursEnd(settings?.workingHoursEnd ?? "");
@@ -401,12 +402,12 @@ export default function AgencyScreen() {
         deliveryBasePointAddress: resolvedAddress || deliveryAddress.trim(),
         deliveryBasePointLat: resolvedLat,
         deliveryBasePointLng: resolvedLng,
-        deliveryRatePerKm: Math.round(rate * 100),
+        deliveryRatePerKm: unitsToCents(rate),
         deliveryMinFee:
           parsedMinFee != null &&
           Number.isFinite(parsedMinFee) &&
           parsedMinFee >= 0
-            ? Math.round(parsedMinFee * 100)
+            ? unitsToCents(parsedMinFee)
             : undefined,
         deliveryMaxDistanceKm:
           parsedMaxDistance != null &&
@@ -583,7 +584,7 @@ export default function AgencyScreen() {
     if (editAdminFee.trim()) {
       const fee = Number.parseFloat(editAdminFee.replace(",", "."));
       if (Number.isFinite(fee) && fee >= 0) {
-        payload.adminFee = Math.round(fee * 100);
+        payload.adminFee = unitsToCents(fee);
       }
     }
     if (editWorkingHoursStart.trim()) {
@@ -619,7 +620,7 @@ export default function AgencyScreen() {
   const handleCancelBusinessEdit = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEditAdminFee(
-      settings?.adminFee != null ? String(settings.adminFee / 100) : "",
+      settings?.adminFee != null ? String(centsToUnits(settings.adminFee)) : "",
     );
     setEditWorkingHoursStart(settings?.workingHoursStart ?? "");
     setEditWorkingHoursEnd(settings?.workingHoursEnd ?? "");
@@ -682,7 +683,7 @@ export default function AgencyScreen() {
       const cleaned = raw.replace(/[^0-9.,]/g, "");
       const parsed = Number.parseFloat(cleaned.replace(",", "."));
       const cents =
-        Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed * 100) : 0;
+        Number.isFinite(parsed) && parsed >= 0 ? unitsToCents(parsed) : 0;
       setEditBookingOptions((prev) =>
         prev.map((o) => (o.id === id ? { ...o, price: cents } : o)),
       );
@@ -1188,7 +1189,7 @@ export default function AgencyScreen() {
             </Text>
             <Text variant="titleMedium">
               {agency?.subscription?.monthlyPrice != null
-                ? `${formatCurrency(agency.subscription.monthlyPrice / 100, agency.currency)}/mois`
+                ? `${formatCurrency(agency.subscription.monthlyPrice, agency.currency)}/mois`
                 : "—"}
             </Text>
           </View>
@@ -1296,7 +1297,7 @@ export default function AgencyScreen() {
                 </Text>
                 <Text variant="titleMedium" color={theme.accent}>
                   {settings?.adminFee != null
-                    ? formatCurrency(settings.adminFee / 100, agency?.currency)
+                    ? formatCurrency(settings.adminFee, agency?.currency)
                     : "—"}
                 </Text>
               </View>
@@ -1652,7 +1653,7 @@ export default function AgencyScreen() {
                           color={theme.textSecondary}
                           className="mt-0.5"
                         >
-                          {formatCurrency(option.price / 100, agency?.currency)}
+                          {formatCurrency(option.price, agency?.currency)}
                         </Text>
                       </View>
                       <Switch
@@ -1710,7 +1711,7 @@ export default function AgencyScreen() {
                             "E.g. 15.00",
                           )}
                           value={
-                            option.price > 0 ? String(option.price / 100) : ""
+                            option.price > 0 ? String(centsToUnits(option.price)) : ""
                           }
                           onChangeText={(text) =>
                             handleEditBookingOptionPrice(option.id, text)

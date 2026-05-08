@@ -35,6 +35,7 @@ import { useVehicles } from "@/hooks/useFleet";
 import { useAgency } from "@/hooks/useAgency";
 import { useFleetStore } from "@/stores/useFleetStore";
 import { matchesVehicleQuery } from "@/utils/vehicleSearch";
+import { formatCurrency } from "@/utils/format";
 import { fontFamilies } from "@/theme/typography";
 import type { Vehicle, VehicleStatus, VehicleBrand } from "@/types/vehicle";
 
@@ -235,7 +236,7 @@ export default function FleetScreen() {
                 marginTop: 8,
               }}
             >
-              {currency} {item.dailyRate}
+              {formatCurrency(item.dailyRate, currency)}
               <Text
                 variant="caption"
                 color={theme.textTertiary}
@@ -333,7 +334,7 @@ export default function FleetScreen() {
               color={theme.accent}
               style={{ fontFamily: fontFamilies.bold, fontSize: 13 }}
             >
-              {currency} {item.dailyRate}
+              {formatCurrency(item.dailyRate, currency)}
             </Text>
             <View style={{ marginTop: 4 }}>
               <StatusBadge status={item.status} size="sm" />

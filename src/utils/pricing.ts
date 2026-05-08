@@ -1,4 +1,4 @@
-import type { PricingConfig } from '@/types/billing';
+import type { PricingConfig } from "@/types/billing";
 
 // ── Default config ──────────────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ function isHighSeason(date: Date, months: number[]): boolean {
 
 function getLongRentalDiscount(
   days: number,
-  discounts: PricingConfig['longRentalDiscounts'],
+  discounts: PricingConfig["longRentalDiscounts"],
 ): number {
   // Sort descending by minDays so we pick the best applicable discount first
   const sorted = [...discounts].sort((a, b) => b.minDays - a.minDays);
@@ -36,17 +36,30 @@ function getLongRentalDiscount(
 
 // ── Main calculator ─────────────────────────────────────────────────────────
 
+/**
+ * Computes a rental total. Inputs and outputs are in **cents** (the canonical
+ * monetary unit on the wire and in the DB). Pass integer cents in; you get
+ * integer cents back.
+ */
 export function calculateRentalPrice(
   dailyRate: number,
   startDate: string,
   endDate: string,
   config?: PricingConfig,
-): { days: number; baseTotal: number; adjustedTotal: number; discount: number } {
+): {
+  days: number;
+  baseTotal: number;
+  adjustedTotal: number;
+  discount: number;
+} {
   const cfg = config ?? DEFAULT_PRICING;
 
   const start = new Date(startDate);
   const end = new Date(endDate);
-  const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
+  const days = Math.max(
+    1,
+    Math.ceil((end.getTime() - start.getTime()) / 86_400_000),
+  );
 
   // ── Base total (flat daily rate x days) ─────────────────────────────────
   const baseTotal = dailyRate * days;
@@ -82,8 +95,8 @@ export function calculateRentalPrice(
 
   return {
     days,
-    baseTotal: Math.round(baseTotal * 100) / 100,
-    adjustedTotal: Math.round(adjustedTotal * 100) / 100,
+    baseTotal: Math.round(baseTotal),
+    adjustedTotal: Math.round(adjustedTotal),
     discount,
   };
 }

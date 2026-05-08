@@ -25,6 +25,7 @@ import { useToastStore } from "@/components/ui/Toast";
 import { useTheme } from "@/hooks/useTheme";
 import { useCreateViolation, useViolationLookup } from "@/hooks/useViolations";
 import type { ViolationType } from "@/types/violation";
+import { unitsToCents } from "@/utils/money";
 
 // ── Type chips config ──────────────────────────────────────────────────────
 
@@ -142,8 +143,8 @@ export default function NewViolationScreen() {
         clientName: lookupResult.clientName ?? null,
         type: violationType,
         date: date.trim(),
-        fineAmount: Math.round(fineNum * 100),
-        adminFee: Math.round(adminNum * 100),
+        fineAmount: unitsToCents(fineNum),
+        adminFee: unitsToCents(adminNum),
         location: location.trim(),
         description: getTypeLabel(violationType),
         notes: notes.trim(),

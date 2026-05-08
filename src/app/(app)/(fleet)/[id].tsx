@@ -48,6 +48,7 @@ import { useVehicle } from "@/hooks/useFleet";
 import { useAgency } from "@/hooks/useAgency";
 import { fontFamilies } from "@/theme/typography";
 import type { Vehicle, FuelType, DamageRecord } from "@/types/vehicle";
+import { formatCurrency } from "@/utils/format";
 
 type TabKey = "overview" | "damages" | "rentals" | "documents";
 type MediaTab = "photos" | "video";
@@ -496,7 +497,7 @@ export default function VehicleDetailScreen() {
                   lineHeight: 24,
                 }}
               >
-                {currency} {vehicle.dailyRate}
+                {formatCurrency(vehicle.dailyRate, currency)}
               </Text>
               <Text
                 variant="caption"
@@ -1206,7 +1207,7 @@ function RentalsTab({ vehicle, theme, t, currency }: TabProps) {
               marginTop: 2,
             }}
           >
-            {currency} {totalRevenue.toLocaleString("fr-FR")}
+            {formatCurrency(totalRevenue, currency)}
           </Text>
         </View>
       </View>
@@ -1253,7 +1254,7 @@ function RentalsTab({ vehicle, theme, t, currency }: TabProps) {
               color={theme.accent}
               style={{ fontFamily: fontFamilies.bold, fontSize: 14 }}
             >
-              {currency} {rental.revenue}
+              {formatCurrency(rental.revenue, currency)}
             </Text>
             <ChevronRight
               size={16}

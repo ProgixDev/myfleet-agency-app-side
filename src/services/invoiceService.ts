@@ -14,8 +14,23 @@ export interface RecordPaymentInput {
   reference?: string;
 }
 
-export async function getInvoices(): Promise<Invoice[]> {
-  return authedRequest<Invoice[]>(`/invoices`, { method: "GET" });
+export interface InvoiceListFilters {
+  bookingId?: string;
+  kind?: "rental" | "damages";
+  status?: string;
+}
+
+export async function getInvoices(
+  filters?: InvoiceListFilters,
+): Promise<Invoice[]> {
+  const qs = new URLSearchParams();
+  if (filters?.bookingId) qs.set("bookingId", filters.bookingId);
+  if (filters?.kind) qs.set("kind", filters.kind);
+  if (filters?.status) qs.set("status", filters.status);
+  const query = qs.toString();
+  return authedRequest<Invoice[]>(query ? `/invoices?${query}` : `/invoices`, {
+    method: "GET",
+  });
 }
 
 export async function getInvoiceById(id: string): Promise<Invoice> {

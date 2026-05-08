@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useTheme } from "@/hooks/useTheme";
 import { useToastStore } from "@/components/ui/Toast";
 import { useContract, useContractPdfUrl } from "@/hooks/useContracts";
+import { formatCurrency } from "@/utils/format";
 import type {
   Contract,
   ContractStatus,
@@ -416,8 +417,7 @@ export default function ContractDetailScreen() {
               {t("contracts.detail.dailyRate", "Tarif journalier")}
             </Text>
             <Text variant="bodySmall">
-              {"\u20AC"}
-              {formatNumber(contract.dailyRate)}/jour
+              {formatCurrency(contract.dailyRate)}/jour
             </Text>
           </View>
 
@@ -427,8 +427,7 @@ export default function ContractDetailScreen() {
               {t("contracts.detail.total", "Total")}
             </Text>
             <Text variant="titleSmall" color={theme.accent}>
-              {"\u20AC"}
-              {formatNumber(contract.totalAmount)}
+              {formatCurrency(contract.totalAmount)}
             </Text>
           </View>
 
@@ -437,10 +436,7 @@ export default function ContractDetailScreen() {
             <Text variant="bodySmall" color={theme.textSecondary}>
               {t("contracts.detail.deposit", "Caution")}
             </Text>
-            <Text variant="bodySmall">
-              {"\u20AC"}
-              {formatNumber(contract.deposit)}
-            </Text>
+            <Text variant="bodySmall">{formatCurrency(contract.deposit)}</Text>
           </View>
 
           <Divider className="my-3" />

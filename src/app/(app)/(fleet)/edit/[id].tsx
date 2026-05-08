@@ -30,6 +30,7 @@ import {
 } from "@/components/vehicle/VehicleFormFields";
 import { useVehiclePhotoUploads } from "@/components/vehicle/useVehiclePhotoUploads";
 import { vehicleFormSchema } from "@/types/vehicleSchema";
+import { centsToUnits } from "@/utils/money";
 import type {
   VehicleBrand,
   VehicleCategory,
@@ -108,8 +109,8 @@ export default function EditVehicleScreen() {
     setFuelType(vehicle.fuelType);
     setTransmission(vehicle.transmission);
     setSeats(String(vehicle.seats));
-    setDailyRate(String(vehicle.dailyRate));
-    setDeposit(String(vehicle.deposit ?? 0));
+    setDailyRate(String(centsToUnits(vehicle.dailyRate ?? 0)));
+    setDeposit(String(centsToUnits(vehicle.deposit ?? 0)));
     setFeatures(vehicle.features ?? []);
     setStatus(vehicle.status);
     if (vehicle.images?.length) {

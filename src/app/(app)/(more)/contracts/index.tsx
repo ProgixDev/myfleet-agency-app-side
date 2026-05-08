@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { IconButton } from "@/components/ui/IconButton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTheme } from "@/hooks/useTheme";
-import { formatDate } from "@/utils/format";
+import { formatCurrency, formatDate } from "@/utils/format";
 import { useContracts } from "@/hooks/useContracts";
 import type { Contract, ContractStatus } from "@/types/contract";
 
@@ -103,8 +103,7 @@ function ContractCard({ contract, index, onPress }: ContractCardProps) {
           {formatDate(contract.endDate, "short")}
         </Text>
         <Text variant="bodySmall" color={theme.accent}>
-          {"\u20AC"}
-          {contract.totalAmount}
+          {formatCurrency(contract.totalAmount)}
         </Text>
       </View>
     </AnimatedPressable>
