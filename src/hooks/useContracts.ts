@@ -4,6 +4,7 @@ import {
   getContractById,
   getContractPdfUrl,
   getContracts,
+  regenerateContract,
   signContract,
 } from "@/services/contractService";
 import type { Contract } from "@/types/contract";
@@ -59,6 +60,23 @@ export function useCreateContract() {
     onSuccess: (contract) => {
       void qc.invalidateQueries({ queryKey: contractKeys.all });
       qc.setQueryData(contractKeys.detail(contract.id), contract);
+    },
+  });
+}
+
+/** Admin-only mutation that regenerates the contract PDF in place. */
+export function useRegenerateContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await regenerateContract(id);
+      if (!res.data) throw new Error("Failed to regenerate contract");
+      return res.data;
+    },
+    onSuccess: (contract) => {
+      void qc.invalidateQueries({ queryKey: contractKeys.all });
+      qc.setQueryData(contractKeys.detail(contract.id), contract);
+      void qc.invalidateQueries({ queryKey: contractKeys.pdf(contract.id) });
     },
   });
 }

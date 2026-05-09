@@ -58,3 +58,14 @@ export async function getContractPdfUrl(
   );
   return ok(data);
 }
+
+/** Admin-only: re-render the contract PDF in place (e.g. after fixing
+ *  agency profile data). Returns the updated contract row. */
+export async function regenerateContract(
+  id: string,
+): Promise<ApiResponse<Contract>> {
+  const data = await authedRequest<Contract>(`/contracts/${id}/regenerate`, {
+    method: "POST",
+  });
+  return ok(data);
+}

@@ -26,7 +26,9 @@ import {
   Shield,
   Car,
   AlertTriangle,
+  PenTool,
 } from "lucide-react-native";
+import { SvgXml } from "react-native-svg";
 
 import { Text } from "@/components/ui/Text";
 import { Card } from "@/components/ui/Card";
@@ -54,10 +56,7 @@ import {
 import { invoiceKeys, useInvoices } from "@/hooks/useInvoices";
 import { useAgency } from "@/hooks/useAgency";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  SignaturePad,
-  type SignaturePadRef,
-} from "@/components/contracts/SignaturePad";
+import { SignaturePad } from "@/components/contracts/SignaturePad";
 import { BookingInspectionStep } from "@/components/inspection/BookingInspectionStep";
 import { getPickupEligibility } from "@/utils/pickupEligibility";
 import { formatCurrency } from "@/utils/format";
@@ -264,7 +263,17 @@ export default function PickupScreen() {
   const markCashPaidMutation = useMarkCashPaid();
   const createContractMutation = useCreateContract();
   const signContractMutation = useSignContract();
-  const sigPadRef = React.useRef<SignaturePadRef>(null);
+  // Both parties sign at pickup — the server finalizes the PDF and emails
+  // it to the client when both signatures land.
+  const [agentSignatureSvg, setAgentSignatureSvg] = useState<string | null>(
+    null,
+  );
+  const [clientSignatureSvg, setClientSignatureSvg] = useState<string | null>(
+    null,
+  );
+  const [signingRole, setSigningRole] = useState<"agent" | "client" | null>(
+    null,
+  );
 
   // Look up an existing contract for this booking so we don't create duplicates.
   const { data: existingContracts = [] } = useContracts(
@@ -339,9 +348,6 @@ export default function PickupScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realBooking?.startMileage]);
-
-  // Step 3 state
-  const [contractSigned, setContractSigned] = useState(false);
 
   // Derive the view-model that the existing JSX expects from real backend data.
   // Some fields (vin, license number) are not yet on the typed entities and fall
@@ -438,11 +444,11 @@ export default function PickupScreen() {
       });
       return;
     }
-    if (sigPadRef.current?.isEmpty() ?? true) {
+    if (!agentSignatureSvg || !clientSignatureSvg) {
       showToast({
         variant: "error",
         title: t("pickup.contract.signatureRequired", {
-          defaultValue: "Signature required",
+          defaultValue: "Both signatures are required",
         }),
       });
       return;
@@ -463,12 +469,24 @@ export default function PickupScreen() {
     }
 
     try {
-      const svg = sigPadRef.current?.toSvg() ?? "";
+      // Sign as lessor (agent) first, then lessee (client). The server
+      // finalizes the PDF and emails the signed copy to the client when
+      // both signatures land.
+      await signContractMutation.mutateAsync({
+        id: contractId,
+        payload: {
+          role: "lessor",
+          svg: agentSignatureSvg,
+          signerName: t("pickup.contract.agentName", {
+            defaultValue: "Agent",
+          }),
+        },
+      });
       await signContractMutation.mutateAsync({
         id: contractId,
         payload: {
           role: "lessee",
-          svg,
+          svg: clientSignatureSvg,
           signerName: realBooking?.clientName ?? "Client",
         },
       });
@@ -518,6 +536,8 @@ export default function PickupScreen() {
     cashPaymentTicked,
     markCashPaidMutation,
     showToast,
+    agentSignatureSvg,
+    clientSignatureSvg,
     t,
   ]);
 
@@ -1142,56 +1162,106 @@ export default function PickupScreen() {
         </View>
       </Card>
 
-      {/* Contract Signature */}
+      {/* Contract Signatures — both parties sign here. The signed PDF is
+          generated server-side and emailed to the client automatically. */}
       <Card>
-        <Text variant="titleLarge" style={{ marginBottom: 12 }}>
+        <Text variant="titleLarge" style={{ marginBottom: 4 }}>
           {t("pickup.contract.signatureTitle", {
-            defaultValue: "Contract Signature",
+            defaultValue: "Contract Signatures",
           })}
         </Text>
-        <SignaturePad
-          ref={sigPadRef}
-          label={t("pickup.contract.clientSignature", {
-            defaultValue: "Client Signature",
+        <Text
+          variant="bodySmall"
+          color={theme.textSecondary}
+          style={{ marginBottom: 12 }}
+        >
+          {t("pickup.contract.signatureSubtitle", {
+            defaultValue:
+              "Both you and the client sign here. The agreement will be emailed to the client right after pickup.",
           })}
-          onSignatureChange={setContractSigned}
-        />
+        </Text>
+        <View style={{ gap: 12 }}>
+          <PickupSignatureRow
+            label={t("pickup.contract.agentSignature", {
+              defaultValue: "Agent Signature",
+            })}
+            svg={agentSignatureSvg}
+            theme={theme}
+            onSign={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setSigningRole("agent");
+            }}
+            onClear={() => setAgentSignatureSvg(null)}
+            t={t}
+          />
+          <PickupSignatureRow
+            label={t("pickup.contract.clientSignature", {
+              defaultValue: "Client Signature",
+            })}
+            svg={clientSignatureSvg}
+            theme={theme}
+            onSign={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setSigningRole("client");
+            }}
+            onClear={() => setClientSignatureSvg(null)}
+            t={t}
+          />
+        </View>
       </Card>
 
       {/* Sign & Complete */}
-      <View style={{ ...shadows.accent, borderRadius: 9999 }}>
-        <LinearGradient
-          colors={[theme.accentGradientStart, theme.accentGradientEnd]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{ borderRadius: 9999, overflow: "hidden" }}
-        >
-          <Pressable
-            onPress={handleComplete}
-            disabled={!contractSigned}
-            style={{
-              height: 52,
-              borderRadius: 9999,
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "row",
-              gap: 8,
-              opacity: contractSigned ? 1 : 0.5,
-            }}
-          >
-            <CheckCircle size={20} color="#FFFFFF" />
-            <Text
-              variant="bodyLarge"
-              color="#FFFFFF"
-              style={{ fontWeight: "700" }}
+      {(() => {
+        const isSubmitting =
+          signContractMutation.isPending ||
+          recordStartMileageMutation.isPending ||
+          markCashPaidMutation.isPending;
+        const canSubmit =
+          !!agentSignatureSvg && !!clientSignatureSvg && !isSubmitting;
+        return (
+          <View style={{ ...shadows.accent, borderRadius: 9999 }}>
+            <LinearGradient
+              colors={[theme.accentGradientStart, theme.accentGradientEnd]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ borderRadius: 9999, overflow: "hidden" }}
             >
-              {t("pickup.contract.complete", {
-                defaultValue: "Sign & Complete",
-              })}
-            </Text>
-          </Pressable>
-        </LinearGradient>
-      </View>
+              <Pressable
+                onPress={handleComplete}
+                disabled={!canSubmit}
+                style={{
+                  height: 52,
+                  borderRadius: 9999,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  gap: 8,
+                  opacity: canSubmit ? 1 : 0.5,
+                }}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <CheckCircle size={20} color="#FFFFFF" />
+                )}
+                <Text
+                  variant="bodyLarge"
+                  color="#FFFFFF"
+                  style={{ fontWeight: "700" }}
+                >
+                  {isSubmitting
+                    ? t("pickup.contract.completing", {
+                        defaultValue: "Completing…",
+                      })
+                    : t("pickup.contract.complete", {
+                        defaultValue: "Sign & Complete",
+                      })}
+                </Text>
+              </Pressable>
+            </LinearGradient>
+          </View>
+        );
+      })()}
     </Animated.View>
   );
 
@@ -1243,7 +1313,106 @@ export default function PickupScreen() {
         {currentStep === 1 && renderStep2()}
         {currentStep === 2 && renderStep3()}
       </ScrollView>
+
+      <SignaturePad
+        visible={signingRole !== null}
+        title={
+          signingRole === "agent"
+            ? t("pickup.contract.agentSignature", {
+                defaultValue: "Agent Signature",
+              })
+            : t("pickup.contract.clientSignature", {
+                defaultValue: "Client Signature",
+              })
+        }
+        label={
+          signingRole === "agent"
+            ? t("pickup.contract.agentName", { defaultValue: "Agent" })
+            : (realBooking?.clientName ?? "Client")
+        }
+        onClose={() => setSigningRole(null)}
+        onSubmit={(svg) => {
+          if (signingRole === "agent") setAgentSignatureSvg(svg);
+          else if (signingRole === "client") setClientSignatureSvg(svg);
+          void Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Success,
+          );
+          setSigningRole(null);
+        }}
+      />
     </SafeAreaView>
+  );
+}
+
+// ── Pickup signature row ────────────────────────────────────────────────────
+
+interface PickupSignatureRowProps {
+  label: string;
+  svg: string | null;
+  theme: ReturnType<typeof useTheme>;
+  onSign: () => void;
+  onClear: () => void;
+  t: ReturnType<typeof useTranslation>["t"];
+}
+
+function PickupSignatureRow({
+  label,
+  svg,
+  theme,
+  onSign,
+  onClear,
+  t,
+}: PickupSignatureRowProps) {
+  return (
+    <View style={{ gap: 8 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text variant="bodyMedium" style={{ fontWeight: "600" }}>
+          {label}
+        </Text>
+        {svg && (
+          <Pressable onPress={onClear} hitSlop={8}>
+            <Text variant="bodySmall" color={theme.danger}>
+              {t("common.clear", { defaultValue: "Clear" })}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+      <Pressable
+        onPress={onSign}
+        style={{
+          height: 110,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderStyle: svg ? "solid" : "dashed",
+          borderColor: svg ? theme.border : theme.accent,
+          backgroundColor: svg ? theme.surface : theme.accentSoft,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 8,
+        }}
+      >
+        {svg ? (
+          <SvgXml xml={svg} width="100%" height="100%" />
+        ) : (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <PenTool size={18} color={theme.accent} />
+            <Text
+              variant="bodyMedium"
+              color={theme.accent}
+              style={{ fontWeight: "600" }}
+            >
+              {t("pickup.contract.tapToSign", { defaultValue: "Tap to sign" })}
+            </Text>
+          </View>
+        )}
+      </Pressable>
+    </View>
   );
 }
 

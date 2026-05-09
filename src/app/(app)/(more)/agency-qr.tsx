@@ -1,9 +1,14 @@
-import React, { useCallback } from "react";
-import { View, Alert } from "react-native";
+import React, { useCallback, useRef } from "react";
+import { View, Alert, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Share2, Download, Printer } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import * as Sharing from "expo-sharing";
+import { File, Paths } from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
+import * as Print from "expo-print";
+import QRCode from "react-native-qrcode-svg";
 
 import { ScreenWrapper } from "@/components/ui/ScreenWrapper";
 import { Text } from "@/components/ui/Text";
@@ -13,62 +18,11 @@ import { useAgency } from "@/hooks/useAgency";
 import { shadows } from "@/theme/shadows";
 import { fontFamilies } from "@/theme/typography";
 
-// ── QR Code Placeholder ─────────────────────────────────────────────────────
-// Replace this with `import QRCode from 'react-native-qrcode-svg'` once installed.
-// Install: npx expo install react-native-qrcode-svg react-native-svg
+const QR_SIZE = 256;
 
-function QRCodePlaceholder({ value, size }: { value: string; size: number }) {
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        backgroundColor: "#FFFFFF",
-        borderRadius: 12,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 2,
-        borderColor: "#E5E4EB",
-      }}
-    >
-      {/* Grid pattern to simulate QR code appearance */}
-      <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            width: size * 0.7,
-            justifyContent: "center",
-          }}
-        >
-          {Array.from({ length: 49 }).map((_, i) => (
-            <View
-              key={i}
-              style={{
-                width: size * 0.08,
-                height: size * 0.08,
-                margin: size * 0.005,
-                backgroundColor:
-                  (i + Math.floor(i / 7)) % 3 === 0 ? "#1A1A2E" : "#FFFFFF",
-                borderRadius: 2,
-              }}
-            />
-          ))}
-        </View>
-        <Text
-          variant="bodySmall"
-          color="#6E6E82"
-          align="center"
-          style={{ marginTop: 8 }}
-        >
-          {value}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-// ── Screen ──────────────────────────────────────────────────────────────────
+type QRRef = {
+  toDataURL: (cb: (data: string) => void) => void;
+};
 
 export default function AgencyQRScreen() {
   const { t } = useTranslation();
@@ -81,35 +35,150 @@ export default function AgencyQRScreen() {
   ).replace(/\/+$/, "");
   const agencyQrUrl = agency?.slug ? `${publicBase}/a/${agency.slug}` : "";
 
-  const handleShare = useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      t("agency.qrCode.shared", { defaultValue: "Shared!" }),
-      t("agency.qrCode.shareMessage", {
-        defaultValue: "QR code share dialog would open here.",
-      }),
-    );
-  }, [t]);
+  const qrRef = useRef<QRRef | null>(null);
 
-  const handleDownload = useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      t("agency.qrCode.saved", { defaultValue: "Saved!" }),
-      t("agency.qrCode.downloadMessage", {
-        defaultValue: "QR code has been saved to your gallery.",
-      }),
-    );
-  }, [t]);
+  const getQrBase64 = useCallback(() => {
+    return new Promise<string>((resolve, reject) => {
+      if (!qrRef.current) {
+        reject(new Error("QR not ready"));
+        return;
+      }
+      qrRef.current.toDataURL((data) => resolve(data));
+    });
+  }, []);
 
-  const handlePrint = useCallback(() => {
+  const writeQrToFile = useCallback(
+    async (filename: string) => {
+      const base64 = await getQrBase64();
+      const file = new File(Paths.cache, filename);
+      if (file.exists) {
+        file.delete();
+      }
+      file.create();
+      file.write(base64, { encoding: "base64" });
+      return { uri: file.uri, base64 };
+    },
+    [getQrBase64],
+  );
+
+  const handleShare = useCallback(async () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      t("agency.qrCode.printing", { defaultValue: "Print" }),
-      t("agency.qrCode.printMessage", {
-        defaultValue: "Print dialog would open here.",
-      }),
-    );
-  }, [t]);
+    try {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert(
+          t("agency.qrCode.shareUnavailable", {
+            defaultValue: "Sharing is not available on this device.",
+          }),
+        );
+        return;
+      }
+      const slug = agency?.slug ?? "agency";
+      const { uri } = await writeQrToFile(`agency-qr-${slug}.png`);
+      await Sharing.shareAsync(uri, {
+        mimeType: "image/png",
+        dialogTitle: t("agency.qrCode.shareTitle", {
+          defaultValue: "Share agency QR code",
+        }),
+        UTI: "public.png",
+      });
+    } catch (err) {
+      Alert.alert(
+        t("common.error", { defaultValue: "Error" }),
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }, [agency?.slug, t, writeQrToFile]);
+
+  const handleDownload = useCallback(async () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const perm = await MediaLibrary.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          t("agency.qrCode.permissionDenied", {
+            defaultValue: "Permission to access the gallery was denied.",
+          }),
+        );
+        return;
+      }
+      const slug = agency?.slug ?? "agency";
+      const { uri } = await writeQrToFile(`agency-qr-${slug}.png`);
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert(
+        t("agency.qrCode.saved", { defaultValue: "Saved!" }),
+        t("agency.qrCode.downloadMessage", {
+          defaultValue: "QR code has been saved to your gallery.",
+        }),
+      );
+    } catch (err) {
+      Alert.alert(
+        t("common.error", { defaultValue: "Error" }),
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }, [agency?.slug, t, writeQrToFile]);
+
+  const handlePrint = useCallback(async () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const base64 = await getQrBase64();
+      const dataUri = `data:image/png;base64,${base64}`;
+      const safeName = (agencyName || "").replace(
+        /[<>&"']/g,
+        (c) =>
+          (
+            ({
+              "<": "&lt;",
+              ">": "&gt;",
+              "&": "&amp;",
+              '"': "&quot;",
+              "'": "&#39;",
+            }) as Record<string, string>
+          )[c] ?? c,
+      );
+      const subtitle = t("agency.qrCode.subtitle", {
+        defaultValue: "Scan to visit our agency",
+      });
+      const html = `
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <style>
+              @page { margin: 24px; }
+              body {
+                font-family: -apple-system, Helvetica, Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 48px 24px;
+              }
+              h1 { font-size: 28px; margin: 0 0 24px; }
+              p { font-size: 16px; color: #555; margin: 16px 0 0; }
+              img { width: 360px; height: 360px; }
+              .url { font-size: 12px; color: #888; margin-top: 12px; word-break: break-all; }
+            </style>
+          </head>
+          <body>
+            <h1>${safeName}</h1>
+            <img src="${dataUri}" />
+            <p>${subtitle}</p>
+            <p class="url">${agencyQrUrl}</p>
+          </body>
+        </html>
+      `;
+      await Print.printAsync({ html });
+    } catch (err) {
+      if (Platform.OS === "ios" && /did not complete/i.test(String(err))) {
+        return;
+      }
+      Alert.alert(
+        t("common.error", { defaultValue: "Error" }),
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }, [agencyName, agencyQrUrl, getQrBase64, t]);
 
   const actionButtons = [
     {
@@ -169,7 +238,32 @@ export default function AgencyQRScreen() {
             ...shadows.lg,
           }}
         >
-          <QRCodePlaceholder value={agencyQrUrl} size={256} />
+          {agencyQrUrl ? (
+            <QRCode
+              value={agencyQrUrl}
+              size={QR_SIZE}
+              backgroundColor="#FFFFFF"
+              color="#1A1A2E"
+              getRef={(ref) => {
+                qrRef.current = ref as QRRef | null;
+              }}
+            />
+          ) : (
+            <View
+              style={{
+                width: QR_SIZE,
+                height: QR_SIZE,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text variant="bodySmall" color={theme.textSecondary}>
+                {t("agency.qrCode.unavailable", {
+                  defaultValue: "QR code unavailable",
+                })}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 

@@ -130,6 +130,11 @@ export interface Booking {
     postInspectionId?: string;
     contractId?: string;
     returnContractId?: string;
+    contractSentAt?: string;
+    contractSignedAt?: string;
+    invoiceSentAt?: string;
+    invoiceId?: string;
+    paymentReceivedAt?: string;
   };
 
   // Mileage (recorded at pickup / return)

@@ -21,7 +21,9 @@
     "android": {
       "package": "com.digitariawebs.myfleet",
       "versionCode": 1,
-      "permissions": ["CAMERA"],
+      "permissions": [
+        "CAMERA"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#7C3AED",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -57,7 +59,9 @@
         {
           "cameraPermission": "Used to capture photos of your fleet vehicles."
         }
-      ]
+      ],
+      "expo-video",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

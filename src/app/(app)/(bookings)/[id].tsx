@@ -30,6 +30,8 @@ import {
   CalendarCheck,
   CalendarX,
   FileText,
+  FileSignature,
+  FilePlus,
   ArrowRight,
   RefreshCw,
   ClipboardList,
@@ -130,14 +132,14 @@ function statusLabel(status: BookingStatus): string {
 }
 
 function buildTimeline(booking: Booking): TimelineStep[] {
-  const { status, createdAt } = booking;
+  const { status, createdAt, workflow } = booking;
 
   const isConfirmedOrLater =
     status === "confirmed" || status === "active" || status === "completed";
   const isActiveOrLater = status === "active" || status === "completed";
   const isCompleted = status === "completed";
 
-  return [
+  const steps: TimelineStep[] = [
     {
       key: "created",
       label: "Created",
@@ -152,6 +154,43 @@ function buildTimeline(booking: Booking): TimelineStep[] {
       completed: isConfirmedOrLater,
       active: status === "confirmed",
     },
+  ];
+
+  // Lifecycle events emitted by the server. Only render the row if the
+  // event has fired (or is the next reasonable step) — keeps the timeline
+  // accurate for both agency-initiated (in-person signing) and
+  // client-initiated (online signing) bookings.
+  if (workflow?.contractSignedAt || workflow?.contractSentAt) {
+    steps.push({
+      key: "contract_signed",
+      label: workflow.contractSignedAt
+        ? "Contract Signed"
+        : "Contract Sent for Signing",
+      date: workflow.contractSignedAt ?? workflow.contractSentAt ?? null,
+      completed: !!workflow.contractSignedAt,
+      active: !workflow.contractSignedAt && !!workflow.contractSentAt,
+    });
+  }
+  if (workflow?.invoiceSentAt) {
+    steps.push({
+      key: "invoice_sent",
+      label: "Invoice Sent",
+      date: workflow.invoiceSentAt,
+      completed: true,
+      active: false,
+    });
+  }
+  if (workflow?.paymentReceivedAt) {
+    steps.push({
+      key: "payment_received",
+      label: "Payment Received",
+      date: workflow.paymentReceivedAt,
+      completed: true,
+      active: false,
+    });
+  }
+
+  steps.push(
     {
       key: "picked_up",
       label: "Vehicle Picked Up",
@@ -180,7 +219,8 @@ function buildTimeline(booking: Booking): TimelineStep[] {
       completed: isCompleted,
       active: false,
     },
-  ];
+  );
+  return steps;
 }
 
 // ── Main Screen ─────────────────────────────────────────────────────────────
@@ -1812,47 +1852,68 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
         </View>
       );
 
-    case "completed":
+    case "completed": {
+      const invoiceId = booking.workflow?.invoiceId;
+      const inspectionId =
+        booking.workflow?.postInspectionId ?? booking.workflow?.preInspectionId;
+      const contractId = booking.workflow?.contractId;
       return (
         <View className="gap-3">
+          {invoiceId && (
+            <Button
+              variant="primary"
+              fullWidth
+              leftIcon={FileText}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push(`/(app)/(more)/billing/${invoiceId}` as never);
+              }}
+            >
+              {t("bookings.detail.viewInvoice", "View Invoice")}
+            </Button>
+          )}
+          {contractId && (
+            <Button
+              variant="secondary"
+              fullWidth
+              leftIcon={FileSignature}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push(`/(app)/(more)/contracts/${contractId}` as never);
+              }}
+            >
+              {t("bookings.detail.viewContract", "View Contract")}
+            </Button>
+          )}
+          {inspectionId && (
+            <Button
+              variant="secondary"
+              fullWidth
+              leftIcon={ClipboardList}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push(`/(app)/(inspections)/${inspectionId}` as never);
+              }}
+            >
+              {t("bookings.detail.viewInspection", "View Inspection")}
+            </Button>
+          )}
           <Button
-            variant="primary"
+            variant="ghost"
             fullWidth
-            leftIcon={FileText}
+            leftIcon={FilePlus}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              showToast({
-                variant: "info",
-                title: t("bookings.detail.viewInvoice", "View Invoice"),
-                message: t(
-                  "bookings.detail.viewInvoiceMsg",
-                  "Invoice viewer will be available soon.",
-                ),
-              });
+              router.push(
+                `/(app)/(more)/billing/new?bookingId=${booking.id}` as never,
+              );
             }}
           >
-            {t("bookings.detail.viewInvoice", "View Invoice")}
-          </Button>
-          <Button
-            variant="secondary"
-            fullWidth
-            leftIcon={ClipboardList}
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              showToast({
-                variant: "info",
-                title: t("bookings.detail.viewInspection", "View Inspection"),
-                message: t(
-                  "bookings.detail.viewInspectionMsg",
-                  "Inspection viewer will be available soon.",
-                ),
-              });
-            }}
-          >
-            {t("bookings.detail.viewInspection", "View Inspection")}
+            {t("bookings.detail.newInvoice", "New Invoice")}
           </Button>
         </View>
       );
+    }
 
     case "cancelled":
       return (

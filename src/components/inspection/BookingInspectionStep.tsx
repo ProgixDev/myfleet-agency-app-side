@@ -138,6 +138,21 @@ export function BookingInspectionStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId, existingInspectionId, relatedInspections.length]);
 
+  // Seed already-captured photos from the inspection record so the agent
+  // can review and continue without re-uploading every angle.
+  const seedFromInspection = useMemo(() => {
+    const insp = relatedInspections.find(
+      (i) => i.id === inspectionId || (i.type === type && !inspectionId),
+    );
+    if (!insp) return undefined;
+    return insp.photos
+      .map((p) => ({
+        uri: (p.url ?? p.uri) as string,
+        angle: p.angle,
+      }))
+      .filter((p) => p.uri && p.uri.length > 0);
+  }, [relatedInspections, inspectionId, type]);
+
   // Upload management — same hook used by (inspections)/new.tsx.
   const {
     photos,
@@ -147,7 +162,7 @@ export function BookingInspectionStep({
     removePhoto,
     awaitAll,
     snapshot,
-  } = useInspectionPhotoUploads(inspectionId);
+  } = useInspectionPhotoUploads(inspectionId, seedFromInspection);
 
   // Photo-capture UI state — mirrors new.tsx
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);

@@ -33,14 +33,41 @@ export interface UseInspectionPhotoUploads {
  */
 export function useInspectionPhotoUploads(
   inspectionId: string | null,
+  initialPhotos?: { uri: string; angle: PhotoAngle }[],
 ): UseInspectionPhotoUploads {
   const [photos, setPhotosState] = useState<ManagedInspectionPhoto[]>([]);
   const photosRef = useRef<ManagedInspectionPhoto[]>([]);
   const inspectionIdRef = useRef<string | null>(inspectionId);
+  const hydratedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     inspectionIdRef.current = inspectionId;
   }, [inspectionId]);
+
+  // Hydrate from server-side photos the first time we see this inspection id.
+  // Treat them as already-uploaded so the Continue gate passes without the
+  // user redoing the capture; they can still retake any angle to replace it.
+  useEffect(() => {
+    if (!inspectionId) return;
+    if (hydratedForRef.current === inspectionId) return;
+    if (!initialPhotos || initialPhotos.length === 0) return;
+    hydratedForRef.current = inspectionId;
+    setPhotosState((prev) => {
+      const existingAngles = new Set(prev.map((p) => p.angle));
+      const seeded: ManagedInspectionPhoto[] = initialPhotos
+        .filter((p) => !existingAngles.has(p.angle))
+        .map((p) => ({
+          uri: p.uri,
+          angle: p.angle,
+          status: "uploaded",
+          progress: 1,
+          uploadId: 0,
+        }));
+      const next = [...prev, ...seeded];
+      photosRef.current = next;
+      return next;
+    });
+  }, [inspectionId, initialPhotos]);
 
   const setPhotos = useCallback(
     (updater: (prev: ManagedInspectionPhoto[]) => ManagedInspectionPhoto[]) => {

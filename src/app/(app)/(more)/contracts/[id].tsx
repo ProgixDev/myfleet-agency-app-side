@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable, Linking } from "react-native";
+import { View, Pressable, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -14,9 +14,8 @@ import {
   MapPin,
   CheckCircle,
   Clock,
-  Share2,
-  Download,
-  ExternalLink,
+  Eye,
+  RefreshCw,
   StickyNote,
 } from "lucide-react-native";
 
@@ -30,7 +29,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTheme } from "@/hooks/useTheme";
 import { useToastStore } from "@/components/ui/Toast";
-import { useContract, useContractPdfUrl } from "@/hooks/useContracts";
+import {
+  useContract,
+  useContractPdfUrl,
+  useRegenerateContract,
+} from "@/hooks/useContracts";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { formatCurrency } from "@/utils/format";
 import type {
   Contract,
@@ -617,7 +621,7 @@ export default function ContractDetailScreen() {
           <Button
             variant="ghost"
             fullWidth
-            leftIcon={ExternalLink}
+            leftIcon={Eye}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push(`/(app)/(bookings)/${contract.bookingId}`);
@@ -669,7 +673,11 @@ interface ActionButtonsProps {
 }
 
 function ActionButtons({ contract, pdfUrl, showToast, t }: ActionButtonsProps) {
-  const openPdf = async () => {
+  const router = useRouter();
+  const isAdmin = useAuthStore((s) => s.user?.role) === "admin";
+  const regenerate = useRegenerateContract();
+
+  const viewPdf = () => {
     if (!pdfUrl) {
       showToast({
         variant: "info",
@@ -682,14 +690,60 @@ function ActionButtons({ contract, pdfUrl, showToast, t }: ActionButtonsProps) {
       return;
     }
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      await Linking.openURL(pdfUrl);
-    } catch {
-      showToast({
-        variant: "error",
-        title: t("common.errorTitle", "Une erreur est survenue"),
-      });
-    }
+    router.push({
+      pathname: "/(app)/pdf-viewer",
+      params: {
+        url: pdfUrl,
+        title: t("contracts.detail.pdfTitle", {
+          defaultValue: "Contract {{ref}}",
+          ref: contract.reference,
+        }),
+        filename: `contract-${contract.reference}.pdf`,
+      },
+    });
+  };
+
+  const handleRegenerate = () => {
+    Alert.alert(
+      t("contracts.detail.regenerateTitle", {
+        defaultValue: "Regenerate PDF?",
+      }),
+      t("contracts.detail.regenerateMessage", {
+        defaultValue:
+          "Re-render the contract PDF using the latest agency profile and signature data. The client will not be re-emailed.",
+      }),
+      [
+        { text: t("common.cancel", "Cancel"), style: "cancel" },
+        {
+          text: t("contracts.detail.regenerate", {
+            defaultValue: "Regenerate",
+          }),
+          style: "destructive",
+          onPress: () => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            regenerate.mutate(contract.id, {
+              onSuccess: () => {
+                showToast({
+                  variant: "success",
+                  title: t("contracts.detail.regenerated", {
+                    defaultValue: "Contract PDF regenerated",
+                  }),
+                });
+              },
+              onError: (err) => {
+                showToast({
+                  variant: "error",
+                  title: t("contracts.detail.regenerateFailed", {
+                    defaultValue: "Couldn't regenerate PDF",
+                  }),
+                  message: err instanceof Error ? err.message : undefined,
+                });
+              },
+            });
+          },
+        },
+      ],
+    );
   };
 
   const isPendingClientSig =
@@ -708,21 +762,26 @@ function ActionButtons({ contract, pdfUrl, showToast, t }: ActionButtonsProps) {
       <Button
         variant="primary"
         fullWidth
-        leftIcon={Download}
+        leftIcon={Eye}
         disabled={!pdfUrl}
-        onPress={openPdf}
+        onPress={viewPdf}
       >
-        {t("contracts.detail.downloadPdf", "Télécharger PDF")}
+        {t("contracts.detail.viewPdf", { defaultValue: "View PDF" })}
       </Button>
-      <Button
-        variant="secondary"
-        fullWidth
-        leftIcon={Share2}
-        disabled={!pdfUrl}
-        onPress={openPdf}
-      >
-        {t("contracts.detail.share", "Partager")}
-      </Button>
+      {isAdmin && (
+        <Button
+          variant="secondary"
+          fullWidth
+          leftIcon={RefreshCw}
+          loading={regenerate.isPending}
+          disabled={regenerate.isPending}
+          onPress={handleRegenerate}
+        >
+          {t("contracts.detail.regeneratePdf", {
+            defaultValue: "Regenerate PDF",
+          })}
+        </Button>
+      )}
     </View>
   );
 }
