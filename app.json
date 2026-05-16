@@ -21,8 +21,11 @@
     "android": {
       "package": "com.digitariawebs.myfleet",
       "versionCode": 1,
+      "usesCleartextTraffic": true,
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#7C3AED",
@@ -33,7 +36,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -68,11 +71,11 @@
       "reactCompiler": true
     },
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "6011ec8a-296d-4356-b958-9ecad2764c95"
-      },
-      "router": {}
+        "projectId": "71b4b5b6-6fcb-48d8-8113-e7bb0e847129"
+      }
     },
-    "owner": "achrefdev"
+    "owner": "iheb1"
   }
 }
