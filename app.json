@@ -21,7 +21,6 @@
     "android": {
       "package": "com.digitariawebs.myfleet",
       "versionCode": 1,
-      "usesCleartextTraffic": true,
       "permissions": [
         "CAMERA",
         "android.permission.CAMERA",
