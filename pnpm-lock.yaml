@@ -7,6 +7,11 @@ settings:
 overrides:
   lightningcss: 1.30.1
 
+patchedDependencies:
+  '@supabase/supabase-js@2.106.1':
+    hash: 55f0c293f733e0c9a856e8c9ad132d5a0163a7a8f814a06a4296948378061655
+    path: patches/@supabase__supabase-js@2.106.1.patch
+
 importers:
 
   .:
@@ -37,7 +42,7 @@ importers:
         version: 7.2.4(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.15)(react@19.2.0))(react@19.2.0)
       '@supabase/supabase-js':
         specifier: ^2.105.1
-        version: 2.106.1
+        version: 2.106.1(patch_hash=55f0c293f733e0c9a856e8c9ad132d5a0163a7a8f814a06a4296948378061655)
       '@tanstack/react-query':
         specifier: ^5.100.7
         version: 5.100.11(react@19.2.0)
@@ -6691,7 +6696,7 @@ snapshots:
       iceberg-js: 0.8.1
       tslib: 2.8.1
 
-  '@supabase/supabase-js@2.106.1':
+  '@supabase/supabase-js@2.106.1(patch_hash=55f0c293f733e0c9a856e8c9ad132d5a0163a7a8f814a06a4296948378061655)':
     dependencies:
       '@supabase/auth-js': 2.106.1
       '@supabase/functions-js': 2.106.1
