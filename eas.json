@@ -20,7 +20,7 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://217.65.144.155:10000",
+        "EXPO_PUBLIC_API_URL": "https://217.65.144.155.nip.io",
         "EXPO_PUBLIC_SUPABASE_URL": "https://uwttnmzrzrspqjveqjug.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3dHRubXpyenJzcHFqdmVxanVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0Nzk3OTgsImV4cCI6MjA5MzA1NTc5OH0.ziB58x9F1NluvTBkfAKHmr2I8q_MlLQCPk_PHMvvy8s",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "197129159980-eqohviovp1oct62jgo7702f6sdh7r88l.apps.googleusercontent.com",
