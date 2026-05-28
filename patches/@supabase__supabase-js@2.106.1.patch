@@ -1,0 +1,26 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 56a9c3ae14fc07a912304e6bf2909d02c811600f..df157ae52946cf1563c88279d8ad78ed63672d45 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -624,7 +624,7 @@ var require_extract = /* @__PURE__ */ __commonJSMin(((exports) => {
+ 	let otelModulePromise = null;
+ 	const OTEL_PKG = "@opentelemetry/api";
+ 	function loadOtel() {
+-		if (otelModulePromise === null) otelModulePromise = Promise.resolve(`${OTEL_PKG}`).then((s) => tslib_1.__importStar(require(s))).catch(() => null);
++		if (otelModulePromise === null) otelModulePromise = Promise.resolve(null);
+ 		return otelModulePromise;
+ 	}
+ 	/**
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 0b333458104c5cf5718e39a9e76bd17b98265ec0..fc8172367762234c713dbcc4c789363e97aafcbd 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -68,7 +68,7 @@ function __awaiter(thisArg, _arguments, P, generator) {
+ let otelModulePromise = null;
+ const OTEL_PKG = "@opentelemetry/api";
+ function loadOtel() {
+-	if (otelModulePromise === null) otelModulePromise = import(/* webpackIgnore: true */ /* turbopackIgnore: true */ /* @vite-ignore */ OTEL_PKG).catch(() => null);
++	if (otelModulePromise === null) otelModulePromise = Promise.resolve(null);
+ 	return otelModulePromise;
+ }
+ /**

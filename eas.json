@@ -13,8 +13,19 @@
     },
     "preview": {
       "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "ios": {
         "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://217.65.144.155.nip.io",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://uwttnmzrzrspqjveqjug.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3dHRubXpyenJzcHFqdmVxanVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0Nzk3OTgsImV4cCI6MjA5MzA1NTc5OH0.ziB58x9F1NluvTBkfAKHmr2I8q_MlLQCPk_PHMvvy8s",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "197129159980-eqohviovp1oct62jgo7702f6sdh7r88l.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "197129159980-960pm1tg57pqt2molo0d814f6559kmbj.apps.googleusercontent.com",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SeJG1EEvXUAChuljwgpH5rv5xfScHoyi8Q8WVgB7rORBdspma8bXoNwtj0eH4aU3X5foLPe9EqVwWiioUry2n1T00Nuigqhbs"
       }
     },
     "production": {
