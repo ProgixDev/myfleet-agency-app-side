@@ -2,12 +2,16 @@ module.exports = function (api) {
   api.cache(true);
   return {
     presets: ['babel-preset-expo'],
-    plugins: [
-      // Metro's web bundler wraps modules in CommonJS, so any `import.meta`
-      // (used by some Supabase / OpenTelemetry / Stripe deps) crashes with
-      // "Cannot use 'import.meta' outside a module". This plugin rewrites
-      // those references to a CommonJS-safe stub.
-      ['babel-plugin-transform-import-meta', { module: 'ES6' }],
+    // Babel skips node_modules by default, but several deps (zustand
+    // devtools, some Supabase helpers) ship ESM with `import.meta.env`
+    // which crashes Metro's CommonJS-wrapped web bundle. We force the
+    // transform for those specific paths instead of widening to every
+    // node_module (which would slow the build).
+    overrides: [
+      {
+        test: /node_modules[\\/](zustand|@supabase|@opentelemetry)[\\/]/,
+        plugins: [['babel-plugin-transform-import-meta', { module: 'ES6' }]],
+      },
     ],
   };
 };
