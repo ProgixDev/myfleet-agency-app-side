@@ -1,6 +1,7 @@
 import React, { useCallback, useRef } from "react";
 import { View, Alert, Platform } from "react-native";
 import { useRouter } from "expo-router";
+import * as Linking from "expo-linking";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Share2, Download, Printer } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
@@ -33,7 +34,11 @@ export default function AgencyQRScreen() {
   const publicBase = (
     process.env.EXPO_PUBLIC_PUBLIC_URL ?? "https://myfleet.app"
   ).replace(/\/+$/, "");
-  const agencyQrUrl = agency?.slug ? `${publicBase}/a/${agency.slug}` : "";
+  const publicQrUrl = agency?.slug ? `${publicBase}/pair/${agency.slug}` : "";
+  const deepLinkUrl = agency?.slug
+    ? Linking.createURL(`pair/${agency.slug}`)
+    : "";
+  const agencyQrUrl = deepLinkUrl || publicQrUrl;
 
   const qrRef = useRef<QRRef | null>(null);
 
@@ -138,7 +143,7 @@ export default function AgencyQRScreen() {
           )[c] ?? c,
       );
       const subtitle = t("agency.qrCode.subtitle", {
-        defaultValue: "Scan to visit our agency",
+        defaultValue: "Scan to connect the client app",
       });
       const html = `
         <html>
@@ -165,6 +170,7 @@ export default function AgencyQRScreen() {
             <img src="${dataUri}" />
             <p>${subtitle}</p>
             <p class="url">${agencyQrUrl}</p>
+            ${publicQrUrl && publicQrUrl !== agencyQrUrl ? `<p class="url">${publicQrUrl}</p>` : ""}
           </body>
         </html>
       `;
@@ -178,7 +184,7 @@ export default function AgencyQRScreen() {
         err instanceof Error ? err.message : String(err),
       );
     }
-  }, [agencyName, agencyQrUrl, getQrBase64, t]);
+  }, [agencyName, agencyQrUrl, getQrBase64, publicQrUrl, t]);
 
   const actionButtons = [
     {
@@ -287,9 +293,20 @@ export default function AgencyQRScreen() {
           className="mt-1"
         >
           {t("agency.qrCode.subtitle", {
-            defaultValue: "Scan to visit our agency",
+            defaultValue: "Scan to connect the client app",
           })}
         </Text>
+        {publicQrUrl && publicQrUrl !== agencyQrUrl ? (
+          <Text
+            variant="caption"
+            align="center"
+            color={theme.textTertiary}
+            className="mt-2"
+            style={{ maxWidth: 260 }}
+          >
+            {publicQrUrl}
+          </Text>
+        ) : null}
       </View>
 
       {/* Action Buttons */}

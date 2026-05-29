@@ -84,7 +84,11 @@ export default function FleetScreen() {
   const currency = agency?.currency ?? "EUR";
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === "admin";
+  // Anyone logged into the agency app may attempt to add a vehicle; the
+  // backend enforces the actual authorization. The previous strict check
+  // hid the entry point for users whose role hadn't been hydrated yet,
+  // which made the fleet screen look read-only on first launch.
+  const canManageFleet = user != null && user.role !== "client";
   const params = useLocalSearchParams<{ status?: string }>();
 
   const { data: vehicles = [], isLoading, refetch } = useVehicles();
@@ -412,7 +416,7 @@ export default function FleetScreen() {
                 />
               )}
             </Pressable>
-            {isAdmin && (
+            {canManageFleet && (
               <Pressable
                 onPress={handleAddVehicle}
                 hitSlop={8}
@@ -587,7 +591,7 @@ export default function FleetScreen() {
     [
       t,
       viewMode,
-      isAdmin,
+      canManageFleet,
       search,
       statusFilter,
       brandFilter,
@@ -602,21 +606,43 @@ export default function FleetScreen() {
     ],
   );
 
-  const ListEmpty = useMemo(
-    () => (
+  const ListEmpty = useMemo(() => {
+    // When the agency has literally zero vehicles we offer a primary action
+    // to add the first one. The "adjust search/filters" copy only makes
+    // sense when there *are* vehicles but the active filter excludes them.
+    const isFleetEmpty = vehicles.length === 0;
+    return (
       <View className="flex-1 pt-16">
         <EmptyState
-          icon={SearchX}
-          title={t("fleet.noVehicles", "No vehicles found")}
-          subtitle={t(
-            "fleet.noVehiclesSubtitle",
-            "Try adjusting your search or filters",
-          )}
+          icon={isFleetEmpty ? Car : SearchX}
+          title={
+            isFleetEmpty
+              ? t("fleet.empty.title", "No vehicles yet")
+              : t("fleet.noVehicles", "No vehicles found")
+          }
+          subtitle={
+            isFleetEmpty
+              ? t(
+                  "fleet.empty.subtitle",
+                  "Add your first vehicle to get your fleet started.",
+                )
+              : t(
+                  "fleet.noVehiclesSubtitle",
+                  "Try adjusting your search or filters",
+                )
+          }
+          actionLabel={
+            isFleetEmpty && canManageFleet
+              ? t("fleet.empty.cta", "Add your first vehicle")
+              : undefined
+          }
+          onAction={
+            isFleetEmpty && canManageFleet ? handleAddVehicle : undefined
+          }
         />
       </View>
-    ),
-    [t],
-  );
+    );
+  }, [t, vehicles.length, canManageFleet, handleAddVehicle]);
 
   // Initial loading: show skeletons matching the current view mode.
   const showSkeletons = isLoading && vehicles.length === 0;

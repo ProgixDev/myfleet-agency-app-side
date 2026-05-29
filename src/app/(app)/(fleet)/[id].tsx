@@ -209,7 +209,8 @@ export default function VehicleDetailScreen() {
   const { data: vehicle, isLoading } = useVehicle(id);
   const { data: agency } = useAgency();
   const currency = agency?.currency ?? "EUR";
-  const isAdmin = useAuthStore((s) => s.user?.role) === "admin";
+  const canManageFleet =
+    useAuthStore((s) => s.user?.role === "admin" || s.user?.role === "employee");
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [mediaTab, setMediaTab] = useState<MediaTab>("photos");
 
@@ -350,7 +351,7 @@ export default function VehicleDetailScreen() {
                 gap: 8,
               }}
             >
-              {isAdmin && (
+              {canManageFleet && (
                 <Pressable
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

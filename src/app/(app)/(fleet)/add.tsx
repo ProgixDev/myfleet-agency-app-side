@@ -51,7 +51,8 @@ export default function AddVehicleScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const showToast = useToastStore((s) => s.show);
-  const isAdmin = user?.role === "admin";
+  const canManageFleet =
+    user?.role === "admin" || user?.role === "employee";
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const clearFieldError = useCallback((key: string) => {
@@ -350,7 +351,7 @@ export default function AddVehicleScreen() {
 
   // ── Unauthorized state ──────────────────────────────────────────────────
 
-  if (!isAdmin) {
+  if (!canManageFleet) {
     return (
       <ScreenWrapper>
         <View className="flex-1 items-center justify-center gap-4">
@@ -360,7 +361,7 @@ export default function AddVehicleScreen() {
           <Text variant="bodyMedium" color={theme.textSecondary} align="center">
             {t("common.adminOnly", {
               defaultValue:
-                "You need administrator privileges to access this page.",
+                "You need agency staff permissions to access this page.",
             })}
           </Text>
           <Button variant="secondary" onPress={() => router.back()}>
