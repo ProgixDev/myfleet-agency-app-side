@@ -18,7 +18,8 @@
     "no": "No",
     "ok": "OK",
     "or": "or",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "openWebAdmin": "Buy credits"
   },
   "auth": {
     "login": "Log in",
@@ -477,7 +478,12 @@
       "stackedView": "Stacked view",
       "pairedSubtitle": "Pre + Post-rental",
       "fullscreenTitle": "Photo",
-      "closeFullscreen": "Close"
+      "closeFullscreen": "Close",
+      "ai": {
+        "errorTitle": "AI analysis failed",
+        "insufficientCreditsTitle": "Out of AI credits",
+        "insufficientCreditsMessage": "Your agency has run out of AI inspection credits. Top up on the web admin to keep using AI analysis."
+      }
     }
   },
   "bookings": {

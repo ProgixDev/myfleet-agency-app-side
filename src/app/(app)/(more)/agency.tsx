@@ -40,6 +40,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as Linking from "expo-linking";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
+import { WEB_ADMIN_URL } from "@/config/webAdmin";
 import { ScreenWrapper } from "@/components/ui/ScreenWrapper";
 import { Text } from "@/components/ui/Text";
 import { Badge } from "@/components/ui/Badge";
@@ -1203,7 +1204,13 @@ export default function AgencyScreen() {
                 : "—"}
             </Text>
           </View>
-          <Button fullWidth variant="secondary" onPress={comingSoon}>
+          <Button
+            fullWidth
+            variant="secondary"
+            onPress={() => {
+              void Linking.openURL(WEB_ADMIN_URL);
+            }}
+          >
             Mettre à niveau
           </Button>
         </Card>

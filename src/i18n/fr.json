@@ -18,7 +18,8 @@
     "no": "Non",
     "ok": "OK",
     "or": "ou",
-    "comingSoon": "Bientôt disponible"
+    "comingSoon": "Bientôt disponible",
+    "openWebAdmin": "Acheter des crédits"
   },
   "auth": {
     "login": "Se connecter",
@@ -477,7 +478,12 @@
       "stackedView": "Vue empilée",
       "pairedSubtitle": "Pré + Post-location",
       "fullscreenTitle": "Photo",
-      "closeFullscreen": "Fermer"
+      "closeFullscreen": "Fermer",
+      "ai": {
+        "errorTitle": "Échec de l'analyse IA",
+        "insufficientCreditsTitle": "Crédits IA épuisés",
+        "insufficientCreditsMessage": "Votre agence n'a plus de crédits d'inspection IA. Rechargez-les sur l'admin web pour continuer à utiliser l'analyse IA."
+      }
     }
   },
   "bookings": {

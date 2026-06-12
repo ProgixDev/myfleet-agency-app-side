@@ -7,6 +7,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+  Linking,
   type DimensionValue,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -58,6 +59,8 @@ import { PrePostAngleList } from "@/components/inspections/PrePostAngleList";
 import { ManualAngleReviewModal } from "@/components/inspections/ManualAngleReviewModal";
 import { getVehicleImage } from "@/data/vehicleImages";
 import { fontFamilies } from "@/theme/typography";
+import { isInsufficientCredits } from "@/services/apiErrors";
+import { WEB_ADMIN_URL } from "@/config/webAdmin";
 import type {
   Inspection,
   CapturedPhoto,
@@ -257,6 +260,28 @@ export default function InspectionDetailScreen() {
       { id: inspection.id, angle },
       {
         onError: (err) => {
+          if (isInsufficientCredits(err)) {
+            Alert.alert(
+              t(
+                "inspections.detail.ai.insufficientCreditsTitle",
+                "Out of AI credits",
+              ),
+              t(
+                "inspections.detail.ai.insufficientCreditsMessage",
+                "Your agency has run out of AI inspection credits. Top up on the web admin to keep using AI analysis.",
+              ),
+              [
+                { text: t("common.close", "Close"), style: "cancel" },
+                {
+                  text: t("common.openWebAdmin", "Buy credits"),
+                  onPress: () => {
+                    void Linking.openURL(WEB_ADMIN_URL);
+                  },
+                },
+              ],
+            );
+            return;
+          }
           showToast({
             variant: "error",
             title: t("inspections.detail.ai.errorTitle", "AI analysis failed"),

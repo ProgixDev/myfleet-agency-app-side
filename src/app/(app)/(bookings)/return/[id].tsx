@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, Pressable, ScrollView } from "react-native";
+import { View, Pressable, ScrollView, Alert, Linking } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -53,6 +53,8 @@ import { useVehicle } from "@/hooks/useFleet";
 import { useClient } from "@/hooks/useClients";
 import { useAgency } from "@/hooks/useAgency";
 import { formatCurrency } from "@/utils/format";
+import { isInsufficientCredits } from "@/services/apiErrors";
+import { WEB_ADMIN_URL } from "@/config/webAdmin";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Image } from "@/components/ui/Image";
 import { resolveVehicleImageSource } from "@/data/vehicleImages";
@@ -378,6 +380,28 @@ export default function ReturnScreen() {
         { id: postRentalInspection.id, angle },
         {
           onError: (err) => {
+            if (isInsufficientCredits(err)) {
+              Alert.alert(
+                t(
+                  "inspections.detail.ai.insufficientCreditsTitle",
+                  "Out of AI credits",
+                ),
+                t(
+                  "inspections.detail.ai.insufficientCreditsMessage",
+                  "Your agency has run out of AI inspection credits. Top up on the web admin to keep using AI analysis.",
+                ),
+                [
+                  { text: t("common.close", "Close"), style: "cancel" },
+                  {
+                    text: t("common.openWebAdmin", "Buy credits"),
+                    onPress: () => {
+                      void Linking.openURL(WEB_ADMIN_URL);
+                    },
+                  },
+                ],
+              );
+              return;
+            }
             showToast({
               variant: "error",
               title: t(
