@@ -180,10 +180,11 @@ export default function RegisterWizardScreen() {
   const handleFinalize = async () => {
     try {
       setLoading(true);
+      const normalizedEmail = email.trim().toLowerCase();
       await signUpAgency({
         fullName: name.trim(),
         phone: phone.trim(),
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         agency: agency.trim(),
         city: city.trim(),
         fleetSize,
@@ -197,7 +198,10 @@ export default function RegisterWizardScreen() {
         title: t("common.success"),
         message: t("auth.registerScreen.step4.finalize"),
       });
-      router.replace("/(auth)/login");
+      router.replace({
+        pathname: "/(auth)/verify-email",
+        params: { email: normalizedEmail, password },
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : t("common.error");
       showToast({
@@ -457,6 +461,8 @@ export default function RegisterWizardScreen() {
                   docsUploaded={docsUploaded}
                   onUploadDoc={handleUploadDoc}
                   uploadingDoc={uploadingDoc}
+                  onSkipDev={() => void handleFinalize()}
+                  isLoading={isLoading}
                 />
               )}
             </Animated.View>
@@ -934,6 +940,8 @@ interface Step4Props {
   docsUploaded: UploadedDocsMap;
   onUploadDoc: (k: DocKey) => void;
   uploadingDoc: DocKey | null;
+  onSkipDev: () => void;
+  isLoading: boolean;
 }
 
 function Step4({
@@ -942,7 +950,10 @@ function Step4({
   docsUploaded,
   onUploadDoc,
   uploadingDoc,
+  onSkipDev,
+  isLoading,
 }: Step4Props) {
+  const devSkipEnabled = process.env.EXPO_PUBLIC_DEV_SKIP_DOCS === "true";
   const DOCS: {
     key: DocKey;
     icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
@@ -1073,6 +1084,41 @@ function Step4({
       >
         {t("auth.registerScreen.step4.skipForNow")}
       </Text>
+
+      {devSkipEnabled && (
+        <Pressable
+          testID="register-skip-docs-dev"
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onSkipDev();
+          }}
+          disabled={isLoading}
+          style={({ pressed }) => ({
+            alignSelf: "center",
+            marginTop: 14,
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderRadius: 9999,
+            backgroundColor: theme.surfaceTertiary,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+            borderStyle: "dashed",
+            opacity: pressed ? 0.85 : isLoading ? 0.55 : 1,
+          })}
+        >
+          <Text
+            variant="labelSmall"
+            style={{
+              fontFamily: fontFamilies.semiBold,
+              fontSize: 12,
+              color: ACCENT,
+              letterSpacing: 0.3,
+            }}
+          >
+            {t("auth.registerScreen.step4.skipForNowDev")}
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
 }

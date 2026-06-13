@@ -145,7 +145,7 @@ export default function LoginScreen() {
       if (err instanceof EmailNotConfirmedError) {
         router.push({
           pathname: "/(auth)/verify-email",
-          params: { email: err.email },
+          params: { email: err.email, autoSend: "true" },
         });
         return;
       }

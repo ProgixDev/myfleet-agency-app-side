@@ -2,12 +2,23 @@ import { getAuthHeader } from "@/services/authHeader";
 
 const DEFAULT_API_BASE_URL = "http://localhost:4000";
 
-export const BASE_URL = (
-  process.env.EXPO_PUBLIC_API_URL ?? DEFAULT_API_BASE_URL
+// Use `??` only catches null/undefined, so an env var set to "" (which happens
+// when a key is present-but-blank in .env / EAS) would slip through and point
+// requests at the wrong origin (e.g. the Metro dev server). Treat blank/
+// whitespace-only values as absent and fall back.
+const envOr = (value: string | undefined, fallback: string): string => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : fallback;
+};
+
+export const BASE_URL = envOr(
+  process.env.EXPO_PUBLIC_API_URL,
+  DEFAULT_API_BASE_URL,
 ).replace(/\/+$/, "");
 
-export const AUTH_BASE_URL = (
-  process.env.EXPO_PUBLIC_AUTH_BASE_URL ?? `${BASE_URL}/auth`
+export const AUTH_BASE_URL = envOr(
+  process.env.EXPO_PUBLIC_AUTH_BASE_URL,
+  `${BASE_URL}/auth`,
 ).replace(/\/+$/, "");
 
 export interface ApiResponse<T> {

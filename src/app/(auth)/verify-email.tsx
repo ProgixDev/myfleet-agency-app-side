@@ -40,12 +40,18 @@ export default function VerifyEmailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ email?: string }>();
+  const params = useLocalSearchParams<{
+    email?: string;
+    password?: string;
+    autoSend?: string;
+  }>();
   const loginWithSession = useAuthStore((s) => s.loginWithSession);
   const isLoading = useAuthStore((s) => s.isLoading);
   const showToast = useToastStore((s) => s.show);
 
   const email = params.email ?? "";
+  const autoSend = params.autoSend === "true";
+  const autoSentRef = useRef(false);
 
   const [step, setStep] = useState<"send" | "verify">("send");
   const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(""));
@@ -93,6 +99,16 @@ export default function VerifyEmailScreen() {
       setIsSending(false);
     }
   };
+
+  useEffect(() => {
+    if (autoSend && email && !autoSentRef.current && step === "send") {
+      autoSentRef.current = true;
+      void handleSend();
+    }
+    // handleSend is stable enough for this one-shot auto-send; intentionally
+    // not in deps to avoid re-firing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSend, email, step]);
 
   const handleVerify = useCallback(
     async (codeToVerify: string) => {
@@ -392,6 +408,7 @@ export default function VerifyEmailScreen() {
 
               <TextInput
                 ref={inputRef}
+                testID="verify-email-code-input"
                 value={joinedCode}
                 onChangeText={handleChange}
                 keyboardType="number-pad"
@@ -452,6 +469,7 @@ export default function VerifyEmailScreen() {
                   </View>
                 ) : (
                   <Pressable
+                    testID="verify-email-resend"
                     onPress={handleResend}
                     style={({ pressed }) => ({
                       paddingHorizontal: 10,
@@ -479,6 +497,7 @@ export default function VerifyEmailScreen() {
 
           {step === "verify" && (
             <Pressable
+              testID="verify-email-submit"
               onPress={() => void handleVerify(joinedCode)}
               disabled={!isComplete || isLoading}
               style={({ pressed }) => ({
