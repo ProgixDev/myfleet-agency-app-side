@@ -10,8 +10,9 @@ import {
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { StatusBar } from "expo-status-bar";
+import * as Linking from "expo-linking";
 import { Image } from "@/components/ui/Image";
-import { ArrowRight, ChevronRight, Lock, Mail, Phone, X } from "lucide-react-native";
+import { ArrowRight, ChevronRight, Lock, Mail, QrCode, X } from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import Svg, { Path } from "react-native-svg";
@@ -22,6 +23,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useToastStore } from "@/components/ui/Toast";
 import { isAppleSignInAvailable, EmailNotConfirmedError } from "@/services/authService";
+import { WEB_ADMIN_URL } from "@/config/webAdmin";
 import { fontFamilies } from "@/theme/typography";
 
 const ACCENT = "#7C3AED";
@@ -289,15 +291,16 @@ export default function LoginScreen() {
               </View>
             </Animated.View>
 
-            {/* Continue with phone pill */}
+            {/* Sign in with QR code pill */}
             <Animated.View
               entering={FadeInDown.delay(170).duration(400)}
               style={{ marginBottom: 22, paddingHorizontal: 20 }}
             >
               <Pressable
+                testID="login-qr-button"
                 onPress={() => {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push("/(auth)/phone-login");
+                  router.push("/(auth)/qr-login");
                 }}
                 style={({ pressed }) => ({
                   flexDirection: "row",
@@ -314,7 +317,7 @@ export default function LoginScreen() {
                   borderColor: theme.borderLight,
                 })}
               >
-                <Phone size={16} color={ACCENT} strokeWidth={2} />
+                <QrCode size={16} color={ACCENT} strokeWidth={2} />
                 <Text
                   variant="bodySmall"
                   style={{
@@ -322,7 +325,7 @@ export default function LoginScreen() {
                     color: theme.textPrimary,
                   }}
                 >
-                  {t("auth.loginScreen.continueWithPhone")}
+                  {t("auth.qrLogin.openButton")}
                 </Text>
               </Pressable>
             </Animated.View>
@@ -507,9 +510,9 @@ export default function LoginScreen() {
               className="items-center mt-8"
             >
               <Pressable
+                testID="login-signup-link"
                 onPress={() => {
-                  router.back();
-                  setTimeout(() => router.push("/(auth)/register"), 250);
+                  void Linking.openURL(`${WEB_ADMIN_URL}/signup`);
                 }}
                 style={({ pressed }) => ({
                   flexDirection: "row",

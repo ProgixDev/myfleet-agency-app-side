@@ -76,6 +76,17 @@
       "register": "S'inscrire",
       "continueWithPhone": "Continuer avec téléphone"
     },
+    "qrLogin": {
+      "title": "Se connecter avec un QR code",
+      "subtitle": "Pointez votre caméra vers le QR code affiché dans le back-office.",
+      "openButton": "Se connecter avec un QR code",
+      "permissionTitle": "Accès à la caméra requis",
+      "permissionMessage": "Veuillez autoriser l'accès à la caméra pour scanner le QR code de connexion.",
+      "grantPermission": "Autoriser",
+      "scanning": "Connexion en cours…",
+      "invalid": "Ce QR code n'est pas un code de connexion MyFleet valide.",
+      "success": "Connexion réussie."
+    },
     "registerScreen": {
       "title": "Créer un compte",
       "subtitle": "Configurez votre profil d'agence",

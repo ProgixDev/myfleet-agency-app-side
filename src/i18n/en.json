@@ -76,6 +76,17 @@
       "noAccount": "Don't have an account?",
       "register": "Register"
     },
+    "qrLogin": {
+      "title": "Sign in with QR code",
+      "subtitle": "Point your camera at the QR code shown in the back-office.",
+      "openButton": "Sign in with QR code",
+      "permissionTitle": "Camera access required",
+      "permissionMessage": "Please allow camera access to scan the login QR code.",
+      "grantPermission": "Grant Permission",
+      "scanning": "Signing you in…",
+      "invalid": "That QR code isn't a valid MyFleet login code.",
+      "success": "Signed in successfully."
+    },
     "registerScreen": {
       "title": "Create Account",
       "subtitle": "Set up your agency profile",
