@@ -130,8 +130,15 @@
         "upload": "Téléverser",
         "uploaded": "Téléversé",
         "skipForNow": "Je téléverserai plus tard",
+        "skipForNowDev": "Passer pour l'instant (dev)",
         "finalize": "Créer mon compte"
       }
+    },
+    "verifyEmail": {
+      "title": "Vérifiez votre e-mail",
+      "subtitle": "Nous devons vérifier votre adresse e-mail",
+      "sendButton": "Envoyer l'e-mail de vérification",
+      "sent": "E-mail de vérification envoyé"
     },
     "phoneLoginScreen": {
       "title": "Connexion par téléphone",

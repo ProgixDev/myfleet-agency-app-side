@@ -9,8 +9,10 @@ import {
   signInWithApple,
   signInWithGoogle,
   signInWithFacebook,
+  EmailNotConfirmedError,
   type SocialProvider,
 } from '@/services/authService';
+import { ApiClientError } from '@/services/api';
 import { supabase } from '@/lib/supabase';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -116,6 +118,15 @@ export const useAuthStore = create<AuthStore>()(
           });
         } catch (error) {
           set({ isLoading: false });
+          // The backend /validate endpoint rejects an unconfirmed email with a
+          // 403 envelope whose code is EMAIL_NOT_CONFIRMED; normalize it so the
+          // UI can route the user into the email-OTP verification flow.
+          if (
+            error instanceof ApiClientError &&
+            error.code === 'EMAIL_NOT_CONFIRMED'
+          ) {
+            throw new EmailNotConfirmedError(email.trim().toLowerCase());
+          }
           throw error;
         }
       },

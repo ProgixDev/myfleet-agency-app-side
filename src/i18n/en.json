@@ -130,8 +130,15 @@
         "upload": "Upload",
         "uploaded": "Uploaded",
         "skipForNow": "I'll upload later",
+        "skipForNowDev": "Skip for now (dev)",
         "finalize": "Create my account"
       }
+    },
+    "verifyEmail": {
+      "title": "Verify your email",
+      "subtitle": "We need to verify your email address",
+      "sendButton": "Send verification email",
+      "sent": "Verification email sent"
     },
     "phoneLoginScreen": {
       "title": "Phone sign-in",
