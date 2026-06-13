@@ -2,6 +2,7 @@ import React from "react";
 import { Dimensions, Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import * as Linking from "expo-linking";
 import { Image } from "@/components/ui/Image";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,6 +15,7 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import { ArrowRight, ChevronRight } from "lucide-react-native";
 
+import { WEB_ADMIN_URL } from "@/config/webAdmin";
 import { fontFamilies } from "@/theme/typography";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -27,7 +29,7 @@ export default function WelcomeScreen() {
 
   const goRegister = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push("/(auth)/register");
+    void Linking.openURL(`${WEB_ADMIN_URL}/signup`);
   };
   const goLogin = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

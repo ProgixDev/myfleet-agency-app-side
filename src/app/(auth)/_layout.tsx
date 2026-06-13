@@ -22,11 +22,15 @@ export default function AuthLayout() {
           presentation: "modal",
         }}
       />
-      <Stack.Screen name="register" />
       <Stack.Screen name="forgot-password" />
-      <Stack.Screen name="phone-login" />
-      <Stack.Screen name="otp" />
       <Stack.Screen name="verify-email" />
+      <Stack.Screen
+        name="qr-login"
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
     </Stack>
   );
 }

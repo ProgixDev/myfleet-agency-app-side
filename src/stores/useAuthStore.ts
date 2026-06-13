@@ -9,6 +9,7 @@ import {
   signInWithApple,
   signInWithGoogle,
   signInWithFacebook,
+  exchangeQrToken,
   EmailNotConfirmedError,
   type SocialProvider,
 } from '@/services/authService';
@@ -18,7 +19,7 @@ import { supabase } from '@/lib/supabase';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type UserRole = 'admin' | 'employee' | 'client';
-export type AuthProvider = 'email' | 'apple' | 'google' | 'facebook';
+export type AuthProvider = 'email' | 'apple' | 'google' | 'facebook' | 'qr';
 
 export interface AuthUser {
   id: string;
@@ -46,6 +47,7 @@ interface AuthState {
 interface AuthActions {
   login: (email: string, password: string) => Promise<void>;
   loginWithSocial: (provider: SocialProvider) => Promise<void>;
+  loginWithQrToken: (token: string) => Promise<void>;
   loginWithSession: (accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
   setLoading: (loading: boolean) => void;
@@ -178,6 +180,31 @@ export const useAuthStore = create<AuthStore>()(
         } catch (error) {
           set({ isLoading: false });
           throw error;
+        }
+      },
+
+      loginWithQrToken: async (token: string) => {
+        set({ isLoading: true });
+        try {
+          const { accessToken, refreshToken } = await exchangeQrToken(token);
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) throw error;
+          const user = await validateSession(accessToken);
+          set({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+            authProvider: 'qr',
+            accessToken,
+            refreshToken,
+          });
+        } catch (e) {
+          set({ isLoading: false });
+          await supabase.auth.signOut().catch(() => {});
+          throw e;
         }
       },
 

@@ -4,7 +4,6 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin";
 
 import { apiRequest, AUTH_BASE_URL } from "@/services/api";
 import { supabase } from "@/lib/supabase";
-import type { UploadedSignupDocument } from "@/services/storage";
 
 // Configure Google Sign-In
 GoogleSignin.configure({
@@ -38,36 +37,6 @@ export interface AuthUser {
   role: "admin" | "employee" | "client";
   agencyId: string;
   avatar?: string;
-}
-
-export interface AgencySignUpPayload {
-  fullName: string;
-  email: string;
-  password: string;
-  phone: string;
-  agency: string;
-  city: string;
-  fleetSize: "s" | "m" | "l" | "xl" | null;
-  docsUploaded: {
-    kbis: UploadedSignupDocument | null;
-    license: UploadedSignupDocument | null;
-    insurance: UploadedSignupDocument | null;
-  };
-  cguAccepted: boolean;
-}
-
-export interface AgencySignUpResult {
-  user: {
-    id: string;
-    name: string;
-    email: string;
-  };
-  organization: {
-    id: string;
-    name: string;
-    slug: string;
-  };
-  memberRole: "admin";
 }
 
 export function isAppleSignInAvailable(): boolean {
@@ -269,15 +238,24 @@ export async function verifyEmailOtp(
   };
 }
 
-export function signUpAgency(
-  payload: AgencySignUpPayload,
-): Promise<AgencySignUpResult> {
-  return apiRequest<AgencySignUpResult>("/signup/agency", {
+export async function exchangeQrToken(
+  token: string,
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const result = await apiRequest<{
+    accessToken: string;
+    refreshToken: string;
+    user: AuthUser;
+  }>("/qr/exchange", {
     baseUrl: AUTH_BASE_URL,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ token }),
   });
+
+  return {
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+  };
 }
