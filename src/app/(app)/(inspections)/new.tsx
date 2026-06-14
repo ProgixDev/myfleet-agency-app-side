@@ -568,7 +568,13 @@ export default function NewInspectionScreen() {
                 }}
               />
               {searchQuery.length > 0 && (
-                <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+                <Pressable
+                  testID="inspections-new-search-clear-button"
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                  onPress={() => setSearchQuery("")}
+                  hitSlop={8}
+                >
                   <X size={14} color={theme.textTertiary} />
                 </Pressable>
               )}
@@ -602,6 +608,9 @@ export default function NewInspectionScreen() {
                     )}
                   </Text>
                   <Pressable
+                    testID="inspections-new-vehicles-retry-button"
+                    accessibilityRole="button"
+                    accessibilityLabel={t("common.retry", "Retry")}
                     onPress={() => {
                       void Haptics.impactAsync(
                         Haptics.ImpactFeedbackStyle.Light,
@@ -753,6 +762,9 @@ export default function NewInspectionScreen() {
                   return (
                     <Pressable
                       key={level}
+                      testID={`inspections-new-fuel-level-${level}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${level}%`}
                       onPress={() => handleFuelLevel(level)}
                       style={({ pressed }) => ({
                         flex: 1,
@@ -874,6 +886,9 @@ export default function NewInspectionScreen() {
             style={{ paddingTop: 12, paddingBottom: 6 }}
           >
             <Pressable
+              testID="inspections-new-back-button"
+              accessibilityRole="button"
+              accessibilityLabel="Back"
               onPress={goBack}
               hitSlop={10}
               style={{
@@ -996,6 +1011,9 @@ export default function NewInspectionScreen() {
           }}
         >
           <Pressable
+            testID="inspections-new-photo-preview-backdrop"
+            accessibilityRole="button"
+            accessibilityLabel="Close preview"
             onPress={() => setPreviewUri(null)}
             style={{
               position: "absolute",
@@ -1017,6 +1035,9 @@ export default function NewInspectionScreen() {
             />
           )}
           <Pressable
+            testID="inspections-new-photo-preview-close-button"
+            accessibilityRole="button"
+            accessibilityLabel="Close preview"
             onPress={() => setPreviewUri(null)}
             style={{
               position: "absolute",
@@ -1058,6 +1079,9 @@ function VehicleRow({
   return (
     <Animated.View entering={FadeInDown.delay(index * 30).duration(300)}>
       <Pressable
+        testID={`inspections-new-vehicle-row-${vehicle.id}`}
+        accessibilityRole="button"
+        accessibilityLabel={vehicle.name}
         onPress={onPress}
         style={({ pressed }) => ({
           backgroundColor: selected ? theme.accentSoft : theme.surface,
@@ -1219,6 +1243,9 @@ function SelectedVehicleHeader({
 
       {onChange && (
         <Pressable
+          testID="inspections-new-change-vehicle-button"
+          accessibilityRole="button"
+          accessibilityLabel={changeLabel}
           onPress={onChange}
           hitSlop={6}
           style={({ pressed }) => ({
@@ -1263,6 +1290,9 @@ function TypeRow({
   return (
     <Animated.View entering={FadeInDown.delay(index * 60).duration(350)}>
       <Pressable
+        testID={`inspections-new-type-${option.type}`}
+        accessibilityRole="button"
+        accessibilityLabel={t(option.titleKey, option.titleFallback)}
         onPress={onPress}
         style={({ pressed }) => ({
           backgroundColor: selected ? theme.accentSoft : theme.surface,

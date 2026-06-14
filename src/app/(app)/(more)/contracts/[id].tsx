@@ -3,6 +3,7 @@ import { View, Pressable, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { SvgUri } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 import {
   ChevronLeft,
@@ -32,14 +33,17 @@ import { useToastStore } from "@/components/ui/Toast";
 import {
   useContract,
   useContractPdfUrl,
+  useContractSignatureUrl,
   useRegenerateContract,
 } from "@/hooks/useContracts";
+import type { ContractSignatureRole } from "@/services/contractService";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { formatCurrency } from "@/utils/format";
 import type {
   Contract,
   ContractStatus,
   ContractClause,
+  SignatureData,
 } from "@/types/contract";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -173,6 +177,96 @@ function ContractDetailSkeleton() {
         </View>
       </View>
     </ScreenWrapper>
+  );
+}
+
+// ── Signature Card ──────────────────────────────────────────────────────────
+
+interface SignatureCardProps {
+  contractId: string;
+  role: ContractSignatureRole;
+  signature: SignatureData | null;
+  /** Party label shown while awaiting signature (e.g. "Client" / "Agent"). */
+  pendingLabel: string;
+  testID: string;
+}
+
+const SIGNATURE_WIDTH = 120;
+const SIGNATURE_HEIGHT = 70;
+
+function SignatureCard({
+  contractId,
+  role,
+  signature,
+  pendingLabel,
+  testID,
+}: SignatureCardProps) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+  // Only fetch the signed-URL once the party has actually signed.
+  const { data: signatureData } = useContractSignatureUrl(
+    signature ? contractId : undefined,
+    role,
+  );
+  const signatureUrl = signatureData?.url ?? null;
+
+  return (
+    <View className="flex-1" testID={testID}>
+      <View
+        style={{ backgroundColor: theme.surface, minHeight: 96 }}
+        className="rounded-xl p-4 items-center justify-center"
+      >
+        {signature ? (
+          <>
+            {signatureUrl ? (
+              <View
+                style={{
+                  width: SIGNATURE_WIDTH,
+                  height: SIGNATURE_HEIGHT,
+                  backgroundColor: theme.surfaceTertiary,
+                }}
+                className="rounded-md items-center justify-center overflow-hidden mb-2"
+                testID={`${testID}-image`}
+              >
+                <SvgUri
+                  uri={signatureUrl}
+                  width={SIGNATURE_WIDTH}
+                  height={SIGNATURE_HEIGHT}
+                />
+              </View>
+            ) : (
+              <CheckCircle size={24} color={theme.success} />
+            )}
+            <Text
+              variant="bodySmall"
+              color={theme.success}
+              className="mt-2"
+              align="center"
+            >
+              {t("contracts.detail.signedBy", "Signé par")}
+            </Text>
+            <Text variant="bodySmall" align="center" numberOfLines={1}>
+              {signature.signerName}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Clock size={24} color={theme.warning} />
+            <Text
+              variant="bodySmall"
+              color={theme.warning}
+              className="mt-2"
+              align="center"
+            >
+              {pendingLabel}
+            </Text>
+            <Text variant="bodySmall" color={theme.textTertiary} align="center">
+              {t("contracts.detail.awaitingSignature", "En attente")}
+            </Text>
+          </>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -509,93 +603,23 @@ export default function ContractDetailScreen() {
           {t("contracts.detail.signatures", "Signatures")}
         </Text>
         <View className="flex-row gap-3">
-          {/* Client Signature */}
-          <View className="flex-1">
-            <View
-              style={{ backgroundColor: theme.surface, height: 96 }}
-              className="rounded-xl p-4 items-center justify-center"
-            >
-              {contract.clientSignature ? (
-                <>
-                  <CheckCircle size={24} color={theme.success} />
-                  <Text
-                    variant="bodySmall"
-                    color={theme.success}
-                    className="mt-2"
-                    align="center"
-                  >
-                    {t("contracts.detail.signedBy", "Signé par")}
-                  </Text>
-                  <Text variant="bodySmall" align="center" numberOfLines={1}>
-                    {contract.clientSignature.signerName}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Clock size={24} color={theme.warning} />
-                  <Text
-                    variant="bodySmall"
-                    color={theme.warning}
-                    className="mt-2"
-                    align="center"
-                  >
-                    {t("contracts.detail.clientLabel", "Client")}
-                  </Text>
-                  <Text
-                    variant="bodySmall"
-                    color={theme.textTertiary}
-                    align="center"
-                  >
-                    {t("contracts.detail.awaitingSignature", "En attente")}
-                  </Text>
-                </>
-              )}
-            </View>
-          </View>
+          {/* Client (lessee) Signature */}
+          <SignatureCard
+            contractId={contract.id}
+            role="client"
+            signature={contract.clientSignature}
+            pendingLabel={t("contracts.detail.clientLabel", "Client")}
+            testID="contract-signature-client"
+          />
 
-          {/* Agent Signature */}
-          <View className="flex-1">
-            <View
-              style={{ backgroundColor: theme.surface, height: 96 }}
-              className="rounded-xl p-4 items-center justify-center"
-            >
-              {contract.agentSignature ? (
-                <>
-                  <CheckCircle size={24} color={theme.success} />
-                  <Text
-                    variant="bodySmall"
-                    color={theme.success}
-                    className="mt-2"
-                    align="center"
-                  >
-                    {t("contracts.detail.signedBy", "Signé par")}
-                  </Text>
-                  <Text variant="bodySmall" align="center" numberOfLines={1}>
-                    {contract.agentSignature.signerName}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Clock size={24} color={theme.warning} />
-                  <Text
-                    variant="bodySmall"
-                    color={theme.warning}
-                    className="mt-2"
-                    align="center"
-                  >
-                    {t("contracts.detail.agentLabel", "Agent")}
-                  </Text>
-                  <Text
-                    variant="bodySmall"
-                    color={theme.textTertiary}
-                    align="center"
-                  >
-                    {t("contracts.detail.awaitingSignature", "En attente")}
-                  </Text>
-                </>
-              )}
-            </View>
-          </View>
+          {/* Agent (lessor) Signature */}
+          <SignatureCard
+            contractId={contract.id}
+            role="agent"
+            signature={contract.agentSignature}
+            pendingLabel={t("contracts.detail.agentLabel", "Agent")}
+            testID="contract-signature-agent"
+          />
         </View>
       </Animated.View>
 

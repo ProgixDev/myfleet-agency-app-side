@@ -161,6 +161,7 @@ interface ChecklistItemProps {
   checked: boolean;
   onToggle: () => void;
   disabled?: boolean;
+  testID?: string;
 }
 
 function ChecklistItem({
@@ -170,6 +171,7 @@ function ChecklistItem({
   checked,
   onToggle,
   disabled,
+  testID,
 }: ChecklistItemProps) {
   const theme = useTheme();
 
@@ -180,6 +182,8 @@ function ChecklistItem({
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onToggle();
       }}
+      testID={testID}
+      accessibilityRole="button"
       style={{
         flexDirection: "row",
         alignItems: "center",
@@ -632,7 +636,11 @@ export default function PickupScreen() {
           <Text variant="bodyMedium" color={theme.textSecondary} align="center">
             {message}
           </Text>
-          <Button fullWidth onPress={() => router.back()}>
+          <Button
+            testID="pickup-gate-done-button"
+            fullWidth
+            onPress={() => router.back()}
+          >
             {t("common.done", { defaultValue: "Done" })}
           </Button>
         </View>
@@ -716,7 +724,11 @@ export default function PickupScreen() {
             entering={FadeInUp.delay(500).springify()}
             style={{ width: "100%" }}
           >
-            <Button fullWidth onPress={() => router.back()}>
+            <Button
+              testID="pickup-success-done-button"
+              fullWidth
+              onPress={() => router.back()}
+            >
               {t("pickup.success.done", { defaultValue: "Done" })}
             </Button>
           </Animated.View>
@@ -857,6 +869,7 @@ export default function PickupScreen() {
         </Text>
 
         <ChecklistItem
+          testID="pickup-checklist-identity-item"
           icon={UserCheck}
           label={t("pickup.checklist.identity", {
             defaultValue: "Client identity verified",
@@ -872,6 +885,7 @@ export default function PickupScreen() {
           }}
         />
         <ChecklistItem
+          testID="pickup-checklist-payment-item"
           icon={CreditCard}
           label={t("pickup.checklist.payment", {
             defaultValue: "Payment received",
@@ -922,6 +936,7 @@ export default function PickupScreen() {
           }}
         />
         <ChecklistItem
+          testID="pickup-checklist-keys-item"
           icon={Key}
           label={t("pickup.checklist.keys", {
             defaultValue: "Vehicle keys prepared",
@@ -932,7 +947,12 @@ export default function PickupScreen() {
       </Card>
 
       {/* Continue Button */}
-      <Button fullWidth disabled={!allChecked} onPress={handleNext}>
+      <Button
+        testID="pickup-reservation-continue-button"
+        fullWidth
+        disabled={!allChecked}
+        onPress={handleNext}
+      >
         {t("pickup.reservation.continue", {
           defaultValue: "Continue to Inspection",
         })}
@@ -1182,6 +1202,7 @@ export default function PickupScreen() {
         </Text>
         <View style={{ gap: 12 }}>
           <PickupSignatureRow
+            testID="pickup-agent-signature"
             label={t("pickup.contract.agentSignature", {
               defaultValue: "Agent Signature",
             })}
@@ -1195,6 +1216,7 @@ export default function PickupScreen() {
             t={t}
           />
           <PickupSignatureRow
+            testID="pickup-client-signature"
             label={t("pickup.contract.clientSignature", {
               defaultValue: "Client Signature",
             })}
@@ -1229,6 +1251,8 @@ export default function PickupScreen() {
               <Pressable
                 onPress={handleComplete}
                 disabled={!canSubmit}
+                testID="pickup-contract-complete-button"
+                accessibilityRole="button"
                 style={{
                   height: 52,
                   borderRadius: 9999,
@@ -1353,6 +1377,7 @@ interface PickupSignatureRowProps {
   onSign: () => void;
   onClear: () => void;
   t: ReturnType<typeof useTranslation>["t"];
+  testID?: string;
 }
 
 function PickupSignatureRow({
@@ -1362,6 +1387,7 @@ function PickupSignatureRow({
   onSign,
   onClear,
   t,
+  testID,
 }: PickupSignatureRowProps) {
   return (
     <View style={{ gap: 8 }}>
@@ -1376,7 +1402,12 @@ function PickupSignatureRow({
           {label}
         </Text>
         {svg && (
-          <Pressable onPress={onClear} hitSlop={8}>
+          <Pressable
+            onPress={onClear}
+            hitSlop={8}
+            testID={testID ? `${testID}-clear` : undefined}
+            accessibilityRole="button"
+          >
             <Text variant="bodySmall" color={theme.danger}>
               {t("common.clear", { defaultValue: "Clear" })}
             </Text>
@@ -1385,6 +1416,9 @@ function PickupSignatureRow({
       </View>
       <Pressable
         onPress={onSign}
+        testID={testID ? `${testID}-sign` : undefined}
+        accessibilityRole="button"
+        accessibilityLabel={label}
         style={{
           height: 110,
           borderRadius: 14,

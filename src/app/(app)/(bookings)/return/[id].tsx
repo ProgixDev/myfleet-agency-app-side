@@ -228,6 +228,7 @@ interface ChecklistItemProps {
   checked: boolean;
   onToggle: () => void;
   subtitle?: string;
+  testID?: string;
 }
 
 function ChecklistItem({
@@ -236,6 +237,7 @@ function ChecklistItem({
   checked,
   onToggle,
   subtitle,
+  testID,
 }: ChecklistItemProps) {
   const theme = useTheme();
 
@@ -245,6 +247,8 @@ function ChecklistItem({
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onToggle();
       }}
+      testID={testID}
+      accessibilityRole="button"
       style={{
         flexDirection: "row",
         alignItems: "center",
@@ -872,6 +876,12 @@ export default function ReturnScreen() {
               `/(app)/(inspections)/${preRentalInspection.id}` as never,
             );
           }}
+          testID={`return-pre-rental-reference-${preRentalInspection.id}`}
+          accessibilityRole="button"
+          accessibilityLabel={t(
+            "return.preRentalReference.title",
+            "Pre-rental reference",
+          )}
           style={{
             backgroundColor: theme.surface,
             borderRadius: 16,
@@ -1092,6 +1102,7 @@ export default function ReturnScreen() {
           })}
         </Text>
         <ChecklistItem
+          testID="return-checklist-keys-item"
           icon={Key}
           label={t("return.checklist.keys", {
             defaultValue: "Keys returned",
@@ -1102,7 +1113,12 @@ export default function ReturnScreen() {
       </Card>
 
       {/* Continue */}
-      <Button fullWidth disabled={!allChecked} onPress={handleNext}>
+      <Button
+        testID="return-checklist-continue-button"
+        fullWidth
+        disabled={!allChecked}
+        onPress={handleNext}
+      >
         {t("return.checklist.continue", {
           defaultValue: "Continue to Inspection",
         })}
@@ -1211,6 +1227,7 @@ export default function ReturnScreen() {
       )}
 
       <Button
+        testID="return-comparison-continue-button"
         fullWidth
         disabled={!preRentalInspection || !postRentalInspection}
         onPress={handleNext}
@@ -1446,6 +1463,8 @@ export default function ReturnScreen() {
               <Pressable
                 onPress={handleComplete}
                 disabled={isSubmitting}
+                testID="return-close-booking-button"
+                accessibilityRole="button"
                 style={{
                   height: 52,
                   borderRadius: 9999,

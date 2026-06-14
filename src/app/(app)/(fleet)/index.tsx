@@ -163,6 +163,9 @@ export default function FleetScreen() {
         style={{ flex: 1 }}
       >
         <Pressable
+          testID={`fleet-vehicle-card-${item.id}`}
+          accessibilityRole="button"
+          accessibilityLabel={item.name}
           onPress={() => navigateToVehicle(item.id)}
           style={({ pressed }) => ({
             backgroundColor: theme.surface,
@@ -259,6 +262,9 @@ export default function FleetScreen() {
     ({ item, index }: ListRenderItemInfo<Vehicle>) => (
       <Animated.View entering={FadeInDown.delay(index * 30).duration(300)}>
         <Pressable
+          testID={`fleet-vehicle-row-${item.id}`}
+          accessibilityRole="button"
+          accessibilityLabel={item.name}
           onPress={() => navigateToVehicle(item.id)}
           style={({ pressed }) => ({
             backgroundColor: theme.surface,
@@ -389,6 +395,9 @@ export default function FleetScreen() {
 
           <View className="flex-row" style={{ gap: 8 }}>
             <Pressable
+              testID="fleet-toggle-view-button"
+              accessibilityRole="button"
+              accessibilityLabel="Toggle view"
               onPress={handleToggleView}
               hitSlop={8}
               style={{
@@ -414,6 +423,9 @@ export default function FleetScreen() {
             </Pressable>
             {isAdmin && (
               <Pressable
+                testID="fleet-add-vehicle-button"
+                accessibilityRole="button"
+                accessibilityLabel={t("fleet.addVehicle", "Add Vehicle")}
                 onPress={handleAddVehicle}
                 hitSlop={8}
                 style={{
@@ -511,7 +523,13 @@ export default function FleetScreen() {
             }}
           />
           {search.length > 0 && (
-            <Pressable onPress={() => setSearch("")} hitSlop={8}>
+            <Pressable
+              testID="fleet-search-clear-button"
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              onPress={() => setSearch("")}
+              hitSlop={8}
+            >
               <X size={14} color={theme.textTertiary} />
             </Pressable>
           )}
@@ -532,6 +550,7 @@ export default function FleetScreen() {
               return (
                 <FilterPill
                   key={opt.label}
+                  testID={`fleet-status-filter-${opt.value ?? "all"}`}
                   label={`${opt.label} (${countByStatus(vehicles, opt.value)})`}
                   selected={selected}
                   onPress={() => {
@@ -557,6 +576,7 @@ export default function FleetScreen() {
               contentContainerStyle={{ gap: 8, paddingRight: 4 }}
             >
               <FilterPill
+                testID="fleet-brand-filter-all"
                 label={`${t("fleet.filter.all", "All")} (${countByBrand(vehicles, null)})`}
                 selected={brandFilter === null}
                 onPress={() => {
@@ -568,6 +588,7 @@ export default function FleetScreen() {
               {brands.map((brand) => (
                 <FilterPill
                   key={brand}
+                  testID={`fleet-brand-filter-${brand}`}
                   label={`${brand} (${countByBrand(vehicles, brand)})`}
                   selected={brandFilter === brand}
                   onPress={() => {
@@ -760,11 +781,14 @@ interface FilterPillProps {
   selected: boolean;
   onPress: () => void;
   theme: ReturnType<typeof useTheme>;
+  testID?: string;
 }
 
-function FilterPill({ label, selected, onPress, theme }: FilterPillProps) {
+function FilterPill({ label, selected, onPress, theme, testID }: FilterPillProps) {
   return (
     <Pressable
+      testID={testID}
+      accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => ({
         paddingHorizontal: 14,

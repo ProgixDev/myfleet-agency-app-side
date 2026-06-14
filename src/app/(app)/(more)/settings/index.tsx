@@ -44,6 +44,8 @@ interface SettingsRowProps {
   danger?: boolean;
   iconColor?: string;
   isLast?: boolean;
+  testID?: string;
+  switchTestID?: string;
 }
 
 function SettingsRow({
@@ -57,6 +59,8 @@ function SettingsRow({
   danger = false,
   iconColor,
   isLast = false,
+  testID,
+  switchTestID,
 }: SettingsRowProps) {
   const theme = useTheme();
   const textColor = danger ? theme.danger : theme.textPrimary;
@@ -64,6 +68,8 @@ function SettingsRow({
 
   return (
     <Pressable
+      testID={testID}
+      accessibilityRole="button"
       onPress={() => {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress?.();
@@ -88,6 +94,9 @@ function SettingsRow({
       )}
       {rightElement === 'switch' && (
         <Switch
+          testID={switchTestID}
+          accessibilityRole="switch"
+          accessibilityLabel={label}
           value={switchValue}
           onValueChange={(val) => {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -166,6 +175,9 @@ export default function SettingsScreen() {
         className="flex-row items-center pt-6 pb-4"
       >
         <Pressable
+          testID="settings-back-button"
+          accessibilityRole="button"
+          accessibilityLabel="Retour"
           onPress={() => {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.back();
@@ -196,6 +208,8 @@ export default function SettingsScreen() {
             {user?.email ?? ''}
           </Text>
           <Pressable
+            testID="settings-edit-profile-button"
+            accessibilityRole="button"
             onPress={() => router.push('/(app)/(more)/settings/profile' as never)}
             className="mt-3"
           >
@@ -217,12 +231,14 @@ export default function SettingsScreen() {
             icon={Palette}
             label="Thème"
             onPress={() => router.push('/(app)/(more)/settings/theme' as never)}
+            testID="settings-row-theme"
           />
           <SettingsRow
             icon={Globe}
             label="Langue"
             onPress={() => router.push('/(app)/(more)/settings/language' as never)}
             isLast
+            testID="settings-row-language"
           />
         </View>
       </Animated.View>
@@ -240,6 +256,8 @@ export default function SettingsScreen() {
             rightElement="switch"
             switchValue={pushEnabled}
             onSwitchChange={setPushEnabled}
+            testID="settings-row-push-notifications"
+            switchTestID="settings-switch-push-notifications"
           />
           <SettingsRow
             icon={Mail}
@@ -247,6 +265,8 @@ export default function SettingsScreen() {
             rightElement="switch"
             switchValue={emailEnabled}
             onSwitchChange={setEmailEnabled}
+            testID="settings-row-email-notifications"
+            switchTestID="settings-switch-email-notifications"
           />
           <SettingsRow
             icon={Calendar}
@@ -254,6 +274,8 @@ export default function SettingsScreen() {
             rightElement="switch"
             switchValue={bookingReminders}
             onSwitchChange={setBookingReminders}
+            testID="settings-row-booking-reminders"
+            switchTestID="settings-switch-booking-reminders"
           />
           <SettingsRow
             icon={Clock}
@@ -262,6 +284,8 @@ export default function SettingsScreen() {
             switchValue={returnAlerts}
             onSwitchChange={setReturnAlerts}
             isLast
+            testID="settings-row-return-alerts"
+            switchTestID="settings-switch-return-alerts"
           />
         </View>
       </Animated.View>
@@ -277,6 +301,7 @@ export default function SettingsScreen() {
             icon={KeyRound}
             label="Changer mot de passe"
             onPress={() => router.push('/(auth)/forgot-password')}
+            testID="settings-row-change-password"
           />
           <SettingsRow
             icon={Fingerprint}
@@ -285,6 +310,8 @@ export default function SettingsScreen() {
             switchValue={biometrics}
             onSwitchChange={setBiometrics}
             isLast
+            testID="settings-row-biometrics"
+            switchTestID="settings-switch-biometrics"
           />
         </View>
       </Animated.View>
@@ -301,6 +328,7 @@ export default function SettingsScreen() {
             label="Version"
             rightElement="badge"
             badgeText="1.0.0"
+            testID="settings-row-version"
           />
           <View className="flex-row items-center py-3.5 px-4">
             <Text variant="bodyMedium" color={theme.textSecondary}>
@@ -322,6 +350,7 @@ export default function SettingsScreen() {
             label="Déconnexion"
             danger
             onPress={handleLogout}
+            testID="settings-row-logout"
           />
           <SettingsRow
             icon={Trash2}
@@ -329,6 +358,7 @@ export default function SettingsScreen() {
             danger
             onPress={handleDeleteAccount}
             isLast
+            testID="settings-row-delete-account"
           />
         </View>
       </Animated.View>

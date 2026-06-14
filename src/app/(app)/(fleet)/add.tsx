@@ -363,7 +363,11 @@ export default function AddVehicleScreen() {
                 "You need administrator privileges to access this page.",
             })}
           </Text>
-          <Button variant="secondary" onPress={() => router.back()}>
+          <Button
+            testID="fleet-add-unauthorized-back-button"
+            variant="secondary"
+            onPress={() => router.back()}
+          >
             {t("common.goBack", { defaultValue: "Go Back" })}
           </Button>
         </View>
@@ -387,6 +391,9 @@ export default function AddVehicleScreen() {
             className="pt-4 mb-6"
           >
             <Pressable
+              testID="fleet-add-back-button"
+              accessibilityRole="button"
+              accessibilityLabel={t("common.back", { defaultValue: "Back" })}
               onPress={() => router.back()}
               className="flex-row items-center mb-4"
             >
@@ -400,6 +407,8 @@ export default function AddVehicleScreen() {
             </Text>
             {__DEV__ && (
               <Pressable
+                testID="fleet-add-dev-fill-button"
+                accessibilityRole="button"
                 onPress={handleDevFillRandom}
                 style={({ pressed }) => ({
                   alignSelf: "flex-start",
@@ -536,6 +545,9 @@ export default function AddVehicleScreen() {
           }}
         >
           <Pressable
+            testID="fleet-add-photo-preview-backdrop"
+            accessibilityRole="button"
+            accessibilityLabel="Close preview"
             onPress={() => setPreviewUri(null)}
             style={{
               position: "absolute",
@@ -557,6 +569,9 @@ export default function AddVehicleScreen() {
             />
           )}
           <Pressable
+            testID="fleet-add-photo-preview-close-button"
+            accessibilityRole="button"
+            accessibilityLabel="Close preview"
             onPress={() => setPreviewUri(null)}
             style={{
               position: "absolute",

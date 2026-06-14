@@ -37,6 +37,7 @@ interface MenuItem {
   bg: string;
   onPress: () => void;
   badge?: string;
+  testID: string;
 }
 
 interface MenuGroup {
@@ -72,6 +73,7 @@ export default function MoreScreen() {
           color: theme.accent,
           bg: theme.accentSoft,
           onPress: () => go("/(app)/(more)/contracts"),
+          testID: "more-menu-contracts",
         },
         {
           icon: AlertTriangle,
@@ -79,6 +81,7 @@ export default function MoreScreen() {
           color: theme.warning,
           bg: theme.warningSoft,
           onPress: () => go("/(app)/(more)/violations"),
+          testID: "more-menu-violations",
           badge:
             violationsSummary && violationsSummary.pendingCount > 0
               ? String(violationsSummary.pendingCount)
@@ -90,6 +93,7 @@ export default function MoreScreen() {
           color: theme.info,
           bg: theme.infoSoft,
           onPress: () => go("/(app)/(more)/clients"),
+          testID: "more-menu-clients",
         },
         {
           icon: Receipt,
@@ -97,6 +101,7 @@ export default function MoreScreen() {
           color: theme.success,
           bg: theme.successSoft,
           onPress: () => go("/(app)/(more)/billing"),
+          testID: "more-menu-billing",
           badge:
             invoicesSummary && invoicesSummary.overdueCents > 0
               ? "!"
@@ -110,6 +115,7 @@ export default function MoreScreen() {
                 color: theme.accent,
                 bg: theme.accentSoft,
                 onPress: () => go("/(app)/(more)/agency"),
+                testID: "more-menu-agency",
               },
             ]
           : []),
@@ -125,6 +131,7 @@ export default function MoreScreen() {
           color: theme.accent,
           bg: theme.accentSoft,
           onPress: () => go("/(app)/(more)/analytics"),
+          testID: "more-menu-analytics",
         },
         {
           icon: Bell,
@@ -132,6 +139,7 @@ export default function MoreScreen() {
           color: theme.accent,
           bg: theme.accentSoft,
           onPress: () => go("/(app)/(more)/notifications"),
+          testID: "more-menu-notifications",
           badge: unreadCount > 0 ? String(unreadCount) : undefined,
         },
         {
@@ -140,6 +148,7 @@ export default function MoreScreen() {
           color: theme.accent,
           bg: theme.accentSoft,
           onPress: () => go("/(app)/(more)/agency-qr"),
+          testID: "more-menu-qr-code",
         },
       ],
     },
@@ -153,6 +162,7 @@ export default function MoreScreen() {
           color: theme.accent,
           bg: theme.accentSoft,
           onPress: () => go("/(app)/(more)/settings"),
+          testID: "more-menu-settings",
         },
       ],
     },
@@ -185,6 +195,9 @@ export default function MoreScreen() {
         className="px-4"
       >
         <Pressable
+          testID="more-profile-card"
+          accessibilityRole="button"
+          accessibilityLabel={userName}
           onPress={() => go("/(app)/(more)/settings/profile")}
           style={({ pressed }) => ({
             backgroundColor: theme.surface,
@@ -296,6 +309,8 @@ export default function MoreScreen() {
                 return (
                   <Pressable
                     key={item.label}
+                    testID={item.testID}
+                    accessibilityRole="button"
                     onPress={item.onPress}
                     style={({ pressed }) => ({
                       flexDirection: "row",
@@ -388,6 +403,8 @@ export default function MoreScreen() {
       >
         <View className="px-4">
           <Pressable
+            testID="more-logout-button"
+            accessibilityRole="button"
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               Alert.alert(

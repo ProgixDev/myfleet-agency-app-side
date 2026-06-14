@@ -769,5 +769,14 @@
     "bookings": "Bookings",
     "clients": "Clients",
     "more": "More"
+  },
+  "contracts": {
+    "detail": {
+      "signatures": "Signatures",
+      "signedBy": "Signed by",
+      "awaitingSignature": "Awaiting",
+      "clientLabel": "Client",
+      "agentLabel": "Agent"
+    }
   }
 }

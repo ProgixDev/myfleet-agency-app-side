@@ -103,6 +103,8 @@ function BookingCard({ booking, vehicle, index, onPress }: BookingCardProps) {
         .duration(400)
         .springify()}
       onPress={handlePress}
+      testID={`bookings-card-${booking.id}`}
+      accessibilityRole="button"
       className="rounded-xl overflow-hidden mb-3"
       style={{ backgroundColor: theme.surface }}
     >
