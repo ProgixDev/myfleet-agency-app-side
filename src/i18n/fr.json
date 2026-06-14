@@ -471,6 +471,18 @@
       "share": "Partager",
       "download": "Télécharger",
       "print": "Imprimer"
+    },
+    "invite": {
+      "title": "Inviter un utilisateur",
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "email": "E-mail",
+      "submit": "Envoyer l'invitation",
+      "firstNameRequired": "Requis",
+      "lastNameRequired": "Requis",
+      "emailInvalid": "Saisissez un e-mail valide",
+      "success": "Invitation envoyée",
+      "failed": "Impossible d'envoyer l'invitation"
     }
   },
   "insurance": {
@@ -710,6 +722,12 @@
       "subtotal": "Sous-total",
       "optionsTotal": "Options",
       "perDay": "jour"
+    },
+    "detail": {
+      "noPhone": "Aucun numéro de téléphone enregistré",
+      "callFailed": "Impossible de démarrer l'appel",
+      "noEmail": "Aucune adresse e-mail enregistrée",
+      "emailFailed": "Impossible d'ouvrir l'e-mail"
     }
   },
   "billing": {

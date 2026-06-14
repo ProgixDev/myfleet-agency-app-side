@@ -4,9 +4,11 @@ import {
   getAgencyDocuments,
   getAgencySettings,
   getTeam,
+  inviteTeamMember,
   updateAgency,
   updateAgencyDocument,
   updateAgencySettings,
+  type InviteTeamMemberInput,
   type UpdateAgencyInput,
   type UpdateAgencySettingsInput,
 } from "@/services/agencyService";
@@ -42,6 +44,16 @@ export function useTeam() {
   return useQuery({
     queryKey: agencyKeys.team(),
     queryFn: getTeam,
+  });
+}
+
+export function useInviteTeamMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: InviteTeamMemberInput) => inviteTeamMember(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: agencyKeys.team() });
+    },
   });
 }
 

@@ -311,7 +311,7 @@ export default function BookingsScreen() {
 
   const handleCardPress = useCallback(
     (id: string) => {
-      router.push(`/(bookings)/${id}`);
+      router.push({ pathname: "/(app)/(bookings)/[id]", params: { id } });
     },
     [router],
   );
