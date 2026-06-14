@@ -556,6 +556,15 @@
     }
   },
   "bookings": {
+    "chat": {
+      "title": "Messages",
+      "empty": "Aucun message pour le moment",
+      "placeholder": "Écrire un message…",
+      "inputAccessibility": "Message au client",
+      "send": "Envoyer le message",
+      "sendError": "Impossible d'envoyer le message",
+      "loadError": "Impossible de charger les messages. Touchez pour réessayer."
+    },
     "mileage": {
       "sectionTitle": "Kilométrage",
       "startMileageLabel": "Kilométrage au départ",

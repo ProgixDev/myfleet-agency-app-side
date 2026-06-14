@@ -556,6 +556,15 @@
     }
   },
   "bookings": {
+    "chat": {
+      "title": "Messages",
+      "empty": "No messages yet",
+      "placeholder": "Write a message…",
+      "inputAccessibility": "Message to client",
+      "send": "Send message",
+      "sendError": "Could not send message",
+      "loadError": "Could not load messages. Tap to retry."
+    },
     "mileage": {
       "sectionTitle": "Mileage",
       "startMileageLabel": "Departure mileage",

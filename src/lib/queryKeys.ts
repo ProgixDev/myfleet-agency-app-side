@@ -22,3 +22,8 @@ export const agencyKeys = {
   me: () => [...agencyKeys.all, "me"] as const,
   settings: () => [...agencyKeys.all, "settings"] as const,
 };
+
+export const messageKeys = {
+  all: ["bookingMessages"] as const,
+  list: (bookingId: string) => [...messageKeys.all, "list", bookingId] as const,
+};

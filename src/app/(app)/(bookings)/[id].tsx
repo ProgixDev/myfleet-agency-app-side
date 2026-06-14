@@ -45,6 +45,7 @@ import {
 
 import { Text } from "@/components/ui/Text";
 import { Button } from "@/components/ui/Button";
+import { BookingChat } from "@/components/booking/BookingChat";
 import { Divider } from "@/components/ui/Divider";
 import { Avatar } from "@/components/ui/Avatar";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -1507,6 +1508,17 @@ export default function BookingDetailScreen() {
               </Text>
             )}
           </View>
+        </Animated.View>
+
+        {/* ── Messages ──────────────────────────────────────────────── */}
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(680)}
+          style={{ marginTop: 18, marginHorizontal: 16, marginBottom: 12 }}
+        >
+          <SectionLabel theme={theme}>
+            {t("bookings.chat.title", "Messages")}
+          </SectionLabel>
+          <BookingChat bookingId={booking.id} />
         </Animated.View>
       </ScrollView>
       {menuModal}
