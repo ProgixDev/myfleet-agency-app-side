@@ -59,6 +59,21 @@ export async function getContractPdfUrl(
   return ok(data);
 }
 
+/** Role of the signing party: 'client' = lessee, 'agent' = lessor. */
+export type ContractSignatureRole = "client" | "agent";
+
+/** Returns a short-TTL signed URL to the captured signature SVG for the given
+ *  party, or `{ url: null }` when that party hasn't signed yet. */
+export async function getContractSignatureUrl(
+  id: string,
+  role: ContractSignatureRole,
+): Promise<ApiResponse<{ url: string | null }>> {
+  const data = await authedRequest<{ url: string | null }>(
+    `/contracts/${id}/signature/${role}`,
+  );
+  return ok(data);
+}
+
 /** Admin-only: re-render the contract PDF in place (e.g. after fixing
  *  agency profile data). Returns the updated contract row. */
 export async function regenerateContract(

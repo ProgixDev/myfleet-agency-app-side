@@ -387,6 +387,9 @@ export default function BookingDetailScreen() {
     >
       <Pressable
         onPress={() => setMenuOpen(false)}
+        testID="bookings-detail-menu-backdrop"
+        accessibilityRole="button"
+        accessibilityLabel={t("common.close", "Close")}
         style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.25)" }}
       >
         <View
@@ -409,6 +412,8 @@ export default function BookingDetailScreen() {
         >
           <Pressable
             onPress={handleShare}
+            testID="bookings-detail-share-menu-item"
+            accessibilityRole="button"
             style={({ pressed }) => ({
               flexDirection: "row",
               alignItems: "center",
@@ -437,6 +442,8 @@ export default function BookingDetailScreen() {
               />
               <Pressable
                 onPress={handleDelete}
+                testID="bookings-detail-delete-menu-item"
+                accessibilityRole="button"
                 style={({ pressed }) => ({
                   flexDirection: "row",
                   alignItems: "center",
@@ -512,6 +519,9 @@ export default function BookingDetailScreen() {
                 router.back();
               }}
               hitSlop={10}
+              testID="bookings-detail-back-button"
+              accessibilityRole="button"
+              accessibilityLabel={t("common.back", "Back")}
               style={{
                 position: "absolute",
                 top: insets.top + 8,
@@ -534,6 +544,9 @@ export default function BookingDetailScreen() {
                 setMenuOpen(true);
               }}
               hitSlop={10}
+              testID="bookings-detail-menu-button"
+              accessibilityRole="button"
+              accessibilityLabel="More"
               style={{
                 position: "absolute",
                 top: insets.top + 8,
@@ -745,6 +758,8 @@ export default function BookingDetailScreen() {
                           params: { id: refId },
                         });
                       }}
+                      testID={`bookings-detail-conflict-chip-${refId}`}
+                      accessibilityRole="button"
                       style={{
                         backgroundColor: theme.surface,
                         borderWidth: 1,
@@ -826,6 +841,7 @@ export default function BookingDetailScreen() {
                   theme={theme}
                   disabled={!client?.phone}
                   testID="booking-call-button"
+                  accessibilityLabel="Call"
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     const phone = client?.phone;
@@ -857,6 +873,7 @@ export default function BookingDetailScreen() {
                   theme={theme}
                   disabled={!client?.email}
                   testID="booking-email-button"
+                  accessibilityLabel="Email"
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     const email = client?.email;
@@ -1768,7 +1785,12 @@ function DepositControls({ booking }: { booking: Booking }) {
           </View>
           <View className="flex-row" style={{ gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Button variant="ghost" fullWidth onPress={closePanel}>
+              <Button
+                testID="deposit-capture-cancel-button"
+                variant="ghost"
+                fullWidth
+                onPress={closePanel}
+              >
                 {t("booking.deposit.cancel", "Cancel")}
               </Button>
             </View>
@@ -1823,7 +1845,12 @@ function DepositControls({ booking }: { booking: Booking }) {
           </View>
           <View className="flex-row" style={{ gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Button variant="ghost" fullWidth onPress={closePanel}>
+              <Button
+                testID="deposit-release-cancel-button"
+                variant="ghost"
+                fullWidth
+                onPress={closePanel}
+              >
                 {t("booking.deposit.cancel", "Cancel")}
               </Button>
             </View>
@@ -1972,6 +1999,7 @@ function ContactButton({
   onPress,
   disabled = false,
   testID,
+  accessibilityLabel,
 }: {
   icon: React.ComponentType<{
     size?: number;
@@ -1982,12 +2010,15 @@ function ContactButton({
   onPress: () => void;
   disabled?: boolean;
   testID?: string;
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       style={({ pressed }) => ({
         width: 40,
         height: 40,
@@ -2161,6 +2192,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
       return (
         <View className="gap-3">
           <Button
+            testID="bookings-detail-confirm-button"
             variant="primary"
             fullWidth
             leftIcon={CalendarCheck}
@@ -2190,6 +2222,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
             {t("bookings.detail.confirm", "Confirm")}
           </Button>
           <Button
+            testID="bookings-detail-cancel-pending-button"
             variant="danger"
             fullWidth
             leftIcon={CalendarX}
@@ -2206,6 +2239,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
       return (
         <View className="gap-3">
           <Button
+            testID="bookings-detail-start-pickup-button"
             variant="primary"
             fullWidth
             leftIcon={Car}
@@ -2226,6 +2260,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
             </Text>
           )}
           <Button
+            testID="bookings-detail-cancel-confirmed-button"
             variant="danger"
             fullWidth
             leftIcon={CalendarX}
@@ -2241,6 +2276,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
       return (
         <View className="gap-3">
           <Button
+            testID="bookings-detail-start-return-button"
             variant="primary"
             fullWidth
             leftIcon={ClipboardList}
@@ -2252,6 +2288,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
             {t("return.title", "Start Return")}
           </Button>
           <Button
+            testID="bookings-detail-extend-button"
             variant="secondary"
             fullWidth
             leftIcon={Calendar}
@@ -2271,6 +2308,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
         <View className="gap-3">
           {invoiceId && (
             <Button
+              testID="bookings-detail-view-invoice-button"
               variant="primary"
               fullWidth
               leftIcon={FileText}
@@ -2284,6 +2322,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
           )}
           {contractId && (
             <Button
+              testID="bookings-detail-view-contract-button"
               variant="secondary"
               fullWidth
               leftIcon={FileSignature}
@@ -2297,6 +2336,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
           )}
           {inspectionId && (
             <Button
+              testID="bookings-detail-view-inspection-button"
               variant="secondary"
               fullWidth
               leftIcon={ClipboardList}
@@ -2309,6 +2349,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
             </Button>
           )}
           <Button
+            testID="bookings-detail-new-invoice-button"
             variant="ghost"
             fullWidth
             leftIcon={FilePlus}
@@ -2329,6 +2370,7 @@ function ActionButtons({ booking, router, showToast, t }: ActionButtonsProps) {
       return (
         <View className="gap-3">
           <Button
+            testID="bookings-detail-rebook-button"
             variant="primary"
             fullWidth
             leftIcon={RefreshCw}

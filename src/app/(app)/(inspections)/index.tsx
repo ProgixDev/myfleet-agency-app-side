@@ -91,6 +91,9 @@ function InspectionCard({
   return (
     <Animated.View entering={FadeInDown.delay(index * 40).duration(350)}>
       <Pressable
+        testID={`inspections-card-${inspection.id}`}
+        accessibilityRole="button"
+        accessibilityLabel={inspection.vehicleName}
         onPress={handlePress}
         style={({ pressed }) => ({
           backgroundColor: theme.surface,
@@ -247,11 +250,14 @@ interface FilterPillProps {
   selected: boolean;
   onPress: () => void;
   theme: ReturnType<typeof useTheme>;
+  testID?: string;
 }
 
-function FilterPill({ label, selected, onPress, theme }: FilterPillProps) {
+function FilterPill({ label, selected, onPress, theme, testID }: FilterPillProps) {
   return (
     <Pressable
+      testID={testID}
+      accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => ({
         paddingHorizontal: 14,
@@ -417,6 +423,9 @@ export default function InspectionsScreen() {
             </View>
           </View>
           <Pressable
+            testID="inspections-new-button"
+            accessibilityRole="button"
+            accessibilityLabel={t("inspections.new.title", "New Inspection")}
             onPress={handleNewInspection}
             hitSlop={8}
             style={{
@@ -509,7 +518,13 @@ export default function InspectionsScreen() {
             }}
           />
           {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+            <Pressable
+              testID="inspections-search-clear-button"
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              onPress={() => setSearchQuery("")}
+              hitSlop={8}
+            >
               <X size={14} color={theme.textTertiary} />
             </Pressable>
           )}
@@ -526,6 +541,7 @@ export default function InspectionsScreen() {
             contentContainerStyle={{ gap: 8, paddingRight: 4 }}
           >
             <FilterPill
+              testID="inspections-filter-all"
               label={`${t("inspections.all", "All")} (${counts.all})`}
               selected={typeFilter === null}
               onPress={() => {
@@ -535,6 +551,7 @@ export default function InspectionsScreen() {
               theme={theme}
             />
             <FilterPill
+              testID="inspections-filter-pre-rental"
               label={`${t("inspections.preRental", "Pre-rental")} (${counts["pre-rental"]})`}
               selected={typeFilter === "pre-rental"}
               onPress={() => {
@@ -546,6 +563,7 @@ export default function InspectionsScreen() {
               theme={theme}
             />
             <FilterPill
+              testID="inspections-filter-post-rental"
               label={`${t("inspections.postRental", "Post-rental")} (${counts["post-rental"]})`}
               selected={typeFilter === "post-rental"}
               onPress={() => {
@@ -557,6 +575,7 @@ export default function InspectionsScreen() {
               theme={theme}
             />
             <FilterPill
+              testID="inspections-filter-routine"
               label={`${t("inspections.routine", "Routine")} (${counts.routine})`}
               selected={typeFilter === "routine"}
               onPress={() => {
@@ -626,6 +645,9 @@ export default function InspectionsScreen() {
             )}
           />
           <Pressable
+            testID="inspections-error-retry-button"
+            accessibilityRole="button"
+            accessibilityLabel={t("common.retry", "Retry")}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               void refetch();

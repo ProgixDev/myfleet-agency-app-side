@@ -92,6 +92,9 @@ function ClientCard({ client, index, onPress }: ClientCardProps) {
 
   return (
     <AnimatedPressable
+      testID={`clients-client-card-${client.id}`}
+      accessibilityRole="button"
+      accessibilityLabel={fullName}
       entering={FadeInDown.delay(index * 50).duration(400).springify()}
       onPress={handlePress}
       className="rounded-2xl p-4 mb-3"
@@ -219,7 +222,13 @@ export default function ClientsScreen() {
       <View>
         {/* Header */}
         <View className="flex-row items-center pt-6 pb-4">
-          <Pressable onPress={() => router.back()} className="mr-3">
+          <Pressable
+            testID="clients-back-button"
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+            onPress={() => router.back()}
+            className="mr-3"
+          >
             <ChevronLeft size={24} color={theme.textPrimary} strokeWidth={2} />
           </Pressable>
           <Text variant="headlineLarge" className="flex-1">

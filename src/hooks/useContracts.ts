@@ -3,9 +3,11 @@ import {
   createContract,
   getContractById,
   getContractPdfUrl,
+  getContractSignatureUrl,
   getContracts,
   regenerateContract,
   signContract,
+  type ContractSignatureRole,
 } from "@/services/contractService";
 import type { Contract } from "@/types/contract";
 
@@ -21,6 +23,8 @@ export const contractKeys = {
     [...contractKeys.all, "list", filters ?? {}] as const,
   detail: (id: string) => [...contractKeys.all, "detail", id] as const,
   pdf: (id: string) => [...contractKeys.all, "pdf", id] as const,
+  signature: (id: string, role: ContractSignatureRole) =>
+    [...contractKeys.all, "signature", id, role] as const,
 };
 
 export function useContracts(filters?: ContractListFilters) {
@@ -46,6 +50,23 @@ export function useContractPdfUrl(id: string | undefined) {
     queryFn: async () => (await getContractPdfUrl(id as string)).data,
     enabled: typeof id === "string" && id.length > 0,
     staleTime: 5 * 60_000,
+  });
+}
+
+/** Fetches a short-TTL signed URL to the captured signature SVG for the given
+ *  party ('client' = lessee, 'agent' = lessor). The backend returns
+ *  `{ url: null }` until that party has signed. */
+export function useContractSignatureUrl(
+  id: string | undefined,
+  role: ContractSignatureRole,
+) {
+  return useQuery({
+    queryKey: contractKeys.signature(id ?? "_", role),
+    queryFn: async () => (await getContractSignatureUrl(id as string, role)).data,
+    enabled: typeof id === "string" && id.length > 0,
+    // URLs are short-lived signed URLs; refetch reasonably often so a rendered
+    // SvgUri doesn't point at an expired link.
+    staleTime: 60_000,
   });
 }
 

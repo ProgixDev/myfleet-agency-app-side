@@ -314,7 +314,12 @@ export default function HomeScreen() {
               className="flex-row items-center"
               style={{ gap: 12, flex: 1 }}
             >
-              <Pressable onPress={handleProfilePress}>
+              <Pressable
+                onPress={handleProfilePress}
+                testID="home-profile-button"
+                accessibilityRole="button"
+                accessibilityLabel="Profil"
+              >
                 <Avatar
                   name={user?.name ?? "U"}
                   source={user?.avatar}
@@ -346,6 +351,9 @@ export default function HomeScreen() {
             </View>
             <Pressable
               onPress={handleNotificationsPress}
+              testID="home-notifications-button"
+              accessibilityRole="button"
+              accessibilityLabel="Notifications"
               style={{
                 width: 42,
                 height: 42,
@@ -385,6 +393,8 @@ export default function HomeScreen() {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push(focus.route as never);
             }}
+            testID="home-focus-card"
+            accessibilityRole="button"
             style={({ pressed }) => ({
               borderRadius: 28,
               overflow: "hidden",
@@ -469,6 +479,9 @@ export default function HomeScreen() {
         >
           <Pressable
             onPress={handleSearchPress}
+            testID="home-search-pill"
+            accessibilityRole="button"
+            accessibilityLabel="Rechercher une réservation, client…"
             style={({ pressed }) => ({
               flexDirection: "row",
               alignItems: "center",
@@ -500,6 +513,8 @@ export default function HomeScreen() {
         >
           <Pressable
             onPress={handleFleetPress}
+            testID="home-fleet-pulse-button"
+            accessibilityRole="button"
             style={({ pressed }) => ({
               backgroundColor: theme.surface,
               borderRadius: 22,
@@ -698,6 +713,8 @@ export default function HomeScreen() {
             </Text>
             <Pressable
               onPress={() => router.push("/(app)/(bookings)?filter=active")}
+              testID="home-active-rentals-see-all"
+              accessibilityRole="button"
               style={({ pressed }) => ({
                 flexDirection: "row",
                 alignItems: "center",
@@ -827,6 +844,9 @@ const QuickAction = React.memo(function QuickAction({
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
+      testID={`home-quick-action-${label.toLowerCase()}`}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={({ pressed }) => ({
         flex: 1,
         paddingVertical: 14,
@@ -887,6 +907,8 @@ const ReturnRow = React.memo(function ReturnRow({
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
+      testID={`home-return-row-${item.id}`}
+      accessibilityRole="button"
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
@@ -984,6 +1006,8 @@ const RentalCard = React.memo(function RentalCard({
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
+      testID={`home-rental-card-${rental.id}`}
+      accessibilityRole="button"
       style={({ pressed }) => ({
         width: 260,
         backgroundColor: theme.surface,

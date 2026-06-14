@@ -319,6 +319,9 @@ export default function VehicleDetailScreen() {
 
             {/* Back */}
             <Pressable
+              testID="fleet-detail-back-button"
+              accessibilityRole="button"
+              accessibilityLabel={t("common.back", "Back")}
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.back();
@@ -352,6 +355,9 @@ export default function VehicleDetailScreen() {
             >
               {isAdmin && (
                 <Pressable
+                  testID="fleet-detail-edit-button"
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit vehicle"
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     router.push(`/(app)/(fleet)/edit/${vehicle.id}` as never);
@@ -421,6 +427,7 @@ export default function VehicleDetailScreen() {
               }}
             >
               <MediaTabPill
+                testID="fleet-detail-media-tab-photos"
                 active={mediaTab === "photos"}
                 icon={ImageIcon}
                 label={t("fleet.detail.photos", "Photos")}
@@ -431,6 +438,7 @@ export default function VehicleDetailScreen() {
                 }}
               />
               <MediaTabPill
+                testID="fleet-detail-media-tab-video"
                 active={mediaTab === "video"}
                 icon={Film}
                 label={t("fleet.detail.interiorVideo", "Interior Video")}
@@ -601,6 +609,7 @@ export default function VehicleDetailScreen() {
           {vehicle.status === "available" && (
             <View className="flex-row" style={{ gap: 10 }}>
               <Button
+                testID="fleet-detail-book-button"
                 variant="primary"
                 className="flex-1"
                 onPress={() => {
@@ -614,6 +623,7 @@ export default function VehicleDetailScreen() {
                 {t("fleet.detail.bookNow", "Book Now")}
               </Button>
               <Button
+                testID="fleet-detail-inspect-button"
                 variant="secondary"
                 className="flex-1"
                 onPress={() => {
@@ -631,7 +641,12 @@ export default function VehicleDetailScreen() {
 
           {vehicle.status === "rented" && (
             <>
-              <Button variant="primary" disabled fullWidth>
+              <Button
+                testID="fleet-detail-status-rented-button"
+                variant="primary"
+                disabled
+                fullWidth
+              >
                 {t("fleet.detail.currentlyRented", "Currently Rented")}
               </Button>
               {currentRental && (
@@ -688,19 +703,34 @@ export default function VehicleDetailScreen() {
           )}
 
           {vehicle.status === "maintenance" && (
-            <Button variant="danger" disabled fullWidth>
+            <Button
+              testID="fleet-detail-status-maintenance-button"
+              variant="danger"
+              disabled
+              fullWidth
+            >
               {t("fleet.detail.inMaintenance", "In Maintenance")}
             </Button>
           )}
 
           {vehicle.status === "reserved" && (
-            <Button variant="secondary" disabled fullWidth>
+            <Button
+              testID="fleet-detail-status-reserved-button"
+              variant="secondary"
+              disabled
+              fullWidth
+            >
               {t("fleet.detail.reserved", "Reserved")}
             </Button>
           )}
 
           {vehicle.status === "retired" && (
-            <Button variant="secondary" disabled fullWidth>
+            <Button
+              testID="fleet-detail-status-retired-button"
+              variant="secondary"
+              disabled
+              fullWidth
+            >
               {t("fleet.detail.retired", "Retired")}
             </Button>
           )}
@@ -721,6 +751,9 @@ export default function VehicleDetailScreen() {
               return (
                 <Pressable
                   key={tab.key}
+                  testID={`fleet-detail-tab-${tab.key}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={tab.label}
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setActiveTab(tab.key);
@@ -795,6 +828,7 @@ function MediaTabPill({
   label,
   theme,
   onPress,
+  testID,
 }: {
   active: boolean;
   icon: React.ComponentType<{
@@ -805,9 +839,13 @@ function MediaTabPill({
   label: string;
   theme: ReturnType<typeof useTheme>;
   onPress: () => void;
+  testID?: string;
 }) {
   return (
     <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={onPress}
       style={({ pressed }) => ({
         flex: 1,
@@ -1005,6 +1043,8 @@ function DamagesTab({ vehicle, theme, t }: TabProps) {
       {damageRecords.map((damage) => (
         <Pressable
           key={damage.id}
+          testID={`fleet-detail-damage-card-${damage.id}`}
+          accessibilityRole="button"
           disabled={!damage.inspectionId}
           onPress={() => {
             if (!damage.inspectionId) return;
@@ -1215,6 +1255,8 @@ function RentalsTab({ vehicle, theme, t, currency }: TabProps) {
       {rentalHistory.map((rental) => (
         <Pressable
           key={rental.id}
+          testID={`fleet-detail-rental-card-${rental.id}`}
+          accessibilityRole="button"
           onPress={() => {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.push({
@@ -1326,6 +1368,9 @@ function VehicleDetailSkeleton({
           <Skeleton width={"100%"} height={heroTotalHeight} radius={0} />
           {/* Back button stays visible so user can leave */}
           <Pressable
+            testID="fleet-detail-skeleton-back-button"
+            accessibilityRole="button"
+            accessibilityLabel="Back"
             onPress={onBack}
             hitSlop={10}
             style={{
