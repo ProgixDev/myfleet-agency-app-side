@@ -27,6 +27,7 @@ export interface ButtonProps {
   children: React.ReactNode;
   className?: string;
   testID?: string;
+  accessibilityLabel?: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -53,6 +54,7 @@ export function Button({
   children,
   className,
   testID,
+  accessibilityLabel,
 }: ButtonProps) {
   const theme = useTheme();
   const scale = useSharedValue(1);
@@ -192,6 +194,8 @@ export function Button({
         disabled={disabled || loading}
         className={className}
         testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
       >
         <LinearGradient
           colors={gradientColors}
@@ -217,6 +221,8 @@ export function Button({
       disabled={disabled || loading}
       className={className}
       testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
     >
       {renderContent()}
     </AnimatedPressable>
