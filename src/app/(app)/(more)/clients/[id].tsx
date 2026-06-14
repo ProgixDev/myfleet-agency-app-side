@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo } from "react";
-import { View, Pressable, ScrollView, FlatList } from "react-native";
+import React, { useState, useCallback } from "react";
+import { View, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -27,17 +27,20 @@ import { Card } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Divider } from "@/components/ui/Divider";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Image } from "@/components/ui/Image";
 import { useTheme } from "@/hooks/useTheme";
 import { useToastStore } from "@/components/ui/Toast";
 import { useClient, useUpdateClient } from "@/hooks/useClients";
-import { useViolationStore } from "@/stores/useViolationStore";
-import { useBillingStore } from "@/stores/useBillingStore";
-import { mockBookings } from "@/data/bookings";
+import { useBookings } from "@/hooks/useBookings";
+import { useInvoices } from "@/hooks/useInvoices";
+import { useViolations } from "@/hooks/useViolations";
+import { useClientDocuments } from "@/hooks/useClientDocuments";
 import { formatDate, formatCurrency } from "@/utils/format";
 import type { ClientTag } from "@/types/client";
 import type { Booking, BookingStatus } from "@/types/booking";
-import type { Violation, ViolationStatus } from "@/types/violation";
-import type { Invoice, InvoiceStatus } from "@/types/billing";
+import type { ViolationStatus } from "@/types/violation";
+import type { InvoiceStatus } from "@/types/billing";
+import type { ClientDocument } from "@/services/clientService";
 
 // ── Tag helpers ────────────────────────────────────────────────────────────
 
@@ -223,65 +226,32 @@ export default function ClientDetailScreen() {
 
   const { data: client, isLoading } = useClient(id);
   const updateClient = useUpdateClient();
-  const violations = useViolationStore((s) => s.violations);
-  const invoices = useBillingStore((s) => s.invoices);
+
+  // Bookings drive the header stat cards (last / active booking). The per-tab
+  // lists fetch their own data inside each tab component to keep this screen
+  // thin and avoid over-fetching tabs the user never opens.
+  const { data: clientBookings = [] } = useBookings({ clientId: id });
 
   const [activeTab, setActiveTab] = useState<TabKey>("bookings");
 
-  // Client bookings
-  const clientBookings = useMemo(
-    () =>
-      mockBookings
-        .filter((b) => b.clientId === id)
-        .sort(
-          (a, b) =>
-            new Date(b.startDate).getTime() - new Date(a.startDate).getTime(),
-        ),
-    [id],
+  const sortedBookings = [...clientBookings].sort(
+    (a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime(),
   );
 
   // Last booking
-  const lastBooking = useMemo(() => {
-    const completedOrActive = clientBookings.filter(
+  const lastBooking =
+    sortedBookings.find(
       (b) => b.status === "completed" || b.status === "active",
-    );
-    return completedOrActive.length > 0 ? completedOrActive[0] : null;
-  }, [clientBookings]);
+    ) ?? null;
 
   // Active booking
-  const activeBooking = useMemo(
-    () =>
-      clientBookings.find(
-        (b) =>
-          b.status === "active" ||
-          b.status === "confirmed" ||
-          b.status === "pending",
-      ) ?? null,
-    [clientBookings],
-  );
-
-  // Client violations
-  const clientViolations = useMemo(
-    () =>
-      violations
-        .filter((v) => v.clientId === id)
-        .sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-        ),
-    [violations, id],
-  );
-
-  // Client invoices
-  const clientInvoices = useMemo(
-    () =>
-      invoices
-        .filter((inv) => inv.clientId === id)
-        .sort(
-          (a, b) =>
-            new Date(b.issuedDate).getTime() - new Date(a.issuedDate).getTime(),
-        ),
-    [invoices, id],
-  );
+  const activeBooking =
+    sortedBookings.find(
+      (b) =>
+        b.status === "active" ||
+        b.status === "confirmed" ||
+        b.status === "pending",
+    ) ?? null;
 
   const isFlagged = client?.tags.includes("flagged") ?? false;
 
@@ -313,7 +283,17 @@ export default function ClientDetailScreen() {
     );
   }, [client, isFlagged, updateClient, showToast]);
 
-  // ── Not found ────────────────────────────────────────────────────────
+  // ── Loading / Not found ──────────────────────────────────────────────
+
+  if (isLoading && !client) {
+    return (
+      <ScreenWrapper>
+        <View className="flex-1 items-center justify-center py-20">
+          <ActivityIndicator size="small" color={theme.accent} />
+        </View>
+      </ScreenWrapper>
+    );
+  }
 
   if (!client) {
     return (
@@ -553,12 +533,10 @@ export default function ClientDetailScreen() {
 
       {/* ── Tab content ─────────────────────────────────────────── */}
       <View className="mt-4">
-        {activeTab === "bookings" && <BookingsTab bookings={clientBookings} />}
-        {activeTab === "violations" && (
-          <ViolationsTab violations={clientViolations} />
-        )}
-        {activeTab === "invoices" && <InvoicesTab invoices={clientInvoices} />}
-        {activeTab === "documents" && <DocumentsTab />}
+        {activeTab === "bookings" && <BookingsTab bookings={sortedBookings} />}
+        {activeTab === "violations" && <ViolationsTab clientId={id} />}
+        {activeTab === "invoices" && <InvoicesTab clientId={id} />}
+        {activeTab === "documents" && <DocumentsTab clientId={id} />}
       </View>
 
       {/* ── Action buttons ──────────────────────────────────────── */}
@@ -664,12 +642,21 @@ function BookingsTab({ bookings }: BookingsTabProps) {
 
 // ── Violations Tab ─────────────────────────────────────────────────────────
 
-interface ViolationsTabProps {
-  violations: Violation[];
-}
-
-function ViolationsTab({ violations }: ViolationsTabProps) {
+function ViolationsTab({ clientId }: { clientId: string }) {
   const theme = useTheme();
+  const { data = [], isLoading } = useViolations({ clientId });
+
+  if (isLoading) {
+    return (
+      <View className="items-center justify-center py-10">
+        <ActivityIndicator size="small" color={theme.accent} />
+      </View>
+    );
+  }
+
+  const violations = [...data].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  );
 
   if (violations.length === 0) {
     return (
@@ -718,12 +705,23 @@ function ViolationsTab({ violations }: ViolationsTabProps) {
 
 // ── Invoices Tab ───────────────────────────────────────────────────────────
 
-interface InvoicesTabProps {
-  invoices: Invoice[];
-}
-
-function InvoicesTab({ invoices }: InvoicesTabProps) {
+function InvoicesTab({ clientId }: { clientId: string }) {
   const theme = useTheme();
+  const router = useRouter();
+  const { data = [], isLoading } = useInvoices({ agencyClientId: clientId });
+
+  if (isLoading) {
+    return (
+      <View className="items-center justify-center py-10">
+        <ActivityIndicator size="small" color={theme.accent} />
+      </View>
+    );
+  }
+
+  const invoices = [...data].sort(
+    (a, b) =>
+      new Date(b.issuedDate).getTime() - new Date(a.issuedDate).getTime(),
+  );
 
   if (invoices.length === 0) {
     return (
@@ -745,26 +743,34 @@ function InvoicesTab({ invoices }: InvoicesTabProps) {
             .duration(400)
             .springify()}
         >
-          <Card className="mb-3">
-            <View className="flex-row items-center justify-between mb-2">
-              <Text variant="titleSmall" numberOfLines={1} className="flex-1">
-                {invoice.reference}
+          <Pressable
+            testID={`client-invoice-${invoice.id}`}
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push(`/(app)/(more)/billing/${invoice.id}` as never);
+            }}
+          >
+            <Card className="mb-3">
+              <View className="flex-row items-center justify-between mb-2">
+                <Text variant="titleSmall" numberOfLines={1} className="flex-1">
+                  {invoice.reference}
+                </Text>
+                <Badge
+                  variant={getInvoiceStatusVariant(invoice.status)}
+                  size="sm"
+                >
+                  {getInvoiceStatusLabel(invoice.status)}
+                </Badge>
+              </View>
+              <Text variant="bodySmall" color={theme.textSecondary}>
+                {formatDate(invoice.issuedDate, "short")} {"\u2014"}{" "}
+                {invoice.vehicleName}
               </Text>
-              <Badge
-                variant={getInvoiceStatusVariant(invoice.status)}
-                size="sm"
-              >
-                {getInvoiceStatusLabel(invoice.status)}
-              </Badge>
-            </View>
-            <Text variant="bodySmall" color={theme.textSecondary}>
-              {formatDate(invoice.issuedDate, "short")} {"\u2014"}{" "}
-              {invoice.vehicleName}
-            </Text>
-            <Text variant="bodySmall" color={theme.accent} className="mt-1">
-              {formatCurrency(invoice.totalDue)}
-            </Text>
-          </Card>
+              <Text variant="bodySmall" color={theme.accent} className="mt-1">
+                {formatCurrency(invoice.totalDue)}
+              </Text>
+            </Card>
+          </Pressable>
         </Animated.View>
       ))}
     </View>
@@ -773,13 +779,84 @@ function InvoicesTab({ invoices }: InvoicesTabProps) {
 
 // ── Documents Tab ──────────────────────────────────────────────────────────
 
-function DocumentsTab() {
+const DOCUMENT_TYPE_LABEL: Record<ClientDocument["type"], string> = {
+  "id-front": "Pièce d'identité (recto)",
+  "id-back": "Pièce d'identité (verso)",
+  "license-front": "Permis (recto)",
+  "license-back": "Permis (verso)",
+  "credit-card-front": "Carte bancaire",
+  other: "Autre document",
+};
+
+function DocumentsTab({ clientId }: { clientId: string }) {
+  const theme = useTheme();
+  const { data: documents = [], isLoading } = useClientDocuments(clientId);
+
+  if (isLoading) {
+    return (
+      <View className="items-center justify-center py-10">
+        <ActivityIndicator size="small" color={theme.accent} />
+      </View>
+    );
+  }
+
+  if (documents.length === 0) {
+    return (
+      <EmptyState
+        icon={FileText}
+        title="Aucun document"
+        subtitle="Les documents du client apparaîtront ici."
+        className="py-8"
+      />
+    );
+  }
+
   return (
-    <EmptyState
-      icon={FileText}
-      title="Aucun document"
-      subtitle="Les documents du client apparaîtront ici."
-      className="py-8"
-    />
+    <View>
+      {documents.map((doc, index) => (
+        <Animated.View
+          key={doc.id}
+          entering={FadeInDown.delay(index * 50)
+            .duration(400)
+            .springify()}
+        >
+          <Card className="mb-3">
+            <View className="flex-row items-center">
+              {doc.mimeType.startsWith("image/") ? (
+                <Image
+                  source={{ uri: doc.url }}
+                  style={{ width: 48, height: 48, borderRadius: 8 }}
+                />
+              ) : (
+                <View
+                  className="items-center justify-center rounded-lg"
+                  style={{
+                    width: 48,
+                    height: 48,
+                    backgroundColor: theme.surfaceTertiary,
+                  }}
+                >
+                  <FileText size={20} color={theme.textSecondary} />
+                </View>
+              )}
+              <View className="flex-1 ml-3">
+                <Text variant="titleSmall" numberOfLines={1}>
+                  {DOCUMENT_TYPE_LABEL[doc.type]}
+                </Text>
+                <Text
+                  variant="bodySmall"
+                  color={theme.textSecondary}
+                  numberOfLines={1}
+                >
+                  {doc.uploadedAt
+                    ? formatDate(doc.uploadedAt, "short")
+                    : doc.originalName}
+                </Text>
+              </View>
+            </View>
+          </Card>
+        </Animated.View>
+      ))}
+    </View>
   );
 }

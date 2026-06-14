@@ -254,6 +254,39 @@
         "failed": "Échoué"
       }
     },
+    "deposit": {
+      "label": "Caution",
+      "captured": "Capturé",
+      "status": {
+        "none": "Non bloquée",
+        "held": "Bloquée",
+        "captured": "Capturée",
+        "partially_captured": "Partiellement capturée",
+        "released": "Libérée",
+        "forfeited": "Confisquée",
+        "failed": "Échouée"
+      },
+      "failureReason": "Raison : {{reason}}",
+      "remaining": "Reste à capturer",
+      "capture": "Capturer",
+      "captureRemaining": "Capturer le reste",
+      "release": "Libérer",
+      "authorize": "Autoriser le blocage",
+      "amountLabel": "Montant à capturer",
+      "amountPlaceholder": "Max {{max}}",
+      "reasonLabel": "Raison (facultatif)",
+      "reasonPlaceholder": "ex. remboursé intégralement",
+      "confirmCapture": "Confirmer la capture",
+      "confirmRelease": "Confirmer la libération",
+      "cancel": "Annuler",
+      "errorAmount": "Saisissez un montant entre {{min}} et {{max}}",
+      "captureSuccess": "Caution capturée",
+      "releaseSuccess": "Caution libérée",
+      "authorizeSuccess": "Blocage de caution autorisé",
+      "captureError": "Impossible de capturer la caution",
+      "releaseError": "Impossible de libérer la caution",
+      "authorizeError": "Impossible d'autoriser la caution"
+    },
     "autoCancelIn": "Annulation auto dans {{time}}"
   },
   "inspection": {
@@ -302,6 +335,11 @@
       "front": "Recto",
       "back": "Verso",
       "retake": "Reprendre",
+      "tapToCapture": "Toucher pour capturer",
+      "cameraDeniedTitle": "Accès caméra requis",
+      "cameraDeniedMessage": "Activez l'accès à la caméra pour capturer les documents.",
+      "uploadPartialTitle": "Certains documents n'ont pas pu être envoyés",
+      "uploadPartialMessage": "Le client a été créé. Recapturez les documents plus tard.",
       "privacyNotice": "Image de carte stockée de manière sécurisée uniquement pour la vérification du dépôt",
       "register": "Enregistrer Client",
       "success": "Client Enregistré !",
@@ -477,7 +515,18 @@
       "mileage": "Kilométrage relevé",
       "keys": "Clés rendues"
     },
-    "success": "Retour Terminé !",
+    "success": {
+      "title": "Retour Terminé !",
+      "subtitle": "Le retour du véhicule a été traité avec succès",
+      "newDamages": "{{count}} nouveau(x) dommage(s) enregistré(s)",
+      "booking": "Réservation {{id}}",
+      "overageLabel": "Dépassement kilométrique ({{km}} km)",
+      "viewInvoice": "Voir la facture",
+      "captureDeposit": "Capturer la caution",
+      "depositCaptured": "Caution capturée",
+      "depositCaptureError": "Impossible de capturer la caution",
+      "done": "Terminé"
+    },
     "preRentalReference": {
       "title": "Référence avant location",
       "subtitle": "État documenté au départ",
@@ -650,6 +699,27 @@
       "subtotal": "Sous-total",
       "optionsTotal": "Options",
       "perDay": "jour"
+    }
+  },
+  "billing": {
+    "notFound": "Facture introuvable",
+    "notFoundDesc": "La facture que vous recherchez n'existe pas.",
+    "record": {
+      "sectionTitle": "Actions de paiement",
+      "cta": "Enregistrer un paiement reçu",
+      "title": "Enregistrer un paiement reçu",
+      "amountLabel": "Montant reçu",
+      "methodLabel": "Méthode",
+      "methodCard": "Carte",
+      "methodCash": "Espèces",
+      "methodTransfer": "Virement",
+      "cancel": "Annuler",
+      "confirm": "Enregistrer",
+      "success": "Paiement enregistré",
+      "failure": "Échec de l'enregistrement",
+      "errorTitle": "Montant invalide",
+      "errorMessage": "Saisissez un montant entre {{min}} et {{max}}",
+      "sendReminder": "Envoyer un rappel"
     }
   },
   "more": {

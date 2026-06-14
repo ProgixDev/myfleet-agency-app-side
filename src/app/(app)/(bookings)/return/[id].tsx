@@ -26,6 +26,8 @@ import {
   RotateCcw,
   FileText,
   Sparkles,
+  Receipt,
+  Banknote,
 } from "lucide-react-native";
 
 import { Text } from "@/components/ui/Text";
@@ -35,7 +37,11 @@ import { Badge } from "@/components/ui/Badge";
 import { Divider } from "@/components/ui/Divider";
 import { IconButton } from "@/components/ui/IconButton";
 import { useToastStore } from "@/components/ui/Toast";
-import { useBooking, useCloseBooking } from "@/hooks/useBookings";
+import {
+  useBooking,
+  useCaptureDeposit,
+  useCloseBooking,
+} from "@/hooks/useBookings";
 import {
   useInspections,
   useRunInspectionAngleAi,
@@ -49,6 +55,7 @@ import {
   type DamageSeverity,
 } from "@/types/inspection";
 import { BookingInspectionStep } from "@/components/inspection/BookingInspectionStep";
+import type { Booking } from "@/types/booking";
 import { useVehicle } from "@/hooks/useFleet";
 import { useClient } from "@/hooks/useClients";
 import { useAgency } from "@/hooks/useAgency";
@@ -318,6 +325,16 @@ export default function ReturnScreen() {
   );
 
   const closeMutation = useCloseBooking();
+  const captureDepositMutation = useCaptureDeposit();
+
+  // Result of the close call — the server-issued damages invoice id and the
+  // closed booking (carrying the authoritative overage figures + deposit
+  // status). Surfaced on the success screen.
+  const [closeResult, setCloseResult] = useState<{
+    booking: Booking;
+    invoiceId: string | null;
+  } | null>(null);
+  const [depositCaptured, setDepositCaptured] = useState(false);
 
   const [postInspectionId, setPostInspectionId] = useState<string | null>(null);
   const postRentalInspection = relatedInspections.find(
@@ -529,9 +546,11 @@ export default function ReturnScreen() {
 
     // The contract is already signed and emailed at pickup — return only
     // closes the booking with the final mileage / fuel readings and links
-    // the post-rental inspection.
+    // the post-rental inspection. Close ALREADY issues the damages invoice
+    // (incl. the km-overage line) and returns { booking, invoiceId } — capture
+    // it so the success screen can surface the overage + invoice + deposit.
     try {
-      await closeMutation.mutateAsync({
+      const result = await closeMutation.mutateAsync({
         id,
         payload: {
           returnMileage: parsedReturn,
@@ -539,6 +558,7 @@ export default function ReturnScreen() {
           postInspectionId: postInspectionId ?? undefined,
         },
       });
+      setCloseResult(result);
     } catch (err) {
       showToast({
         variant: "error",
@@ -560,6 +580,41 @@ export default function ReturnScreen() {
     showToast,
     t,
   ]);
+
+  // Capture the deposit (or part of it) to actually collect the damages /
+  // overage charged by the close call. We don't pass an amount so the backend
+  // applies its own default (the outstanding damages invoice balance) and we
+  // avoid double-charging from a stale client figure.
+  const handleCaptureDeposit = useCallback(() => {
+    const closedBooking = closeResult?.booking;
+    if (!closedBooking) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    captureDepositMutation.mutate(
+      { id: closedBooking.id },
+      {
+        onSuccess: () => {
+          setDepositCaptured(true);
+          void Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Success,
+          );
+          showToast({
+            variant: "success",
+            title: t("return.success.depositCaptured", "Deposit captured"),
+          });
+        },
+        onError: (err) => {
+          showToast({
+            variant: "error",
+            title: t(
+              "return.success.depositCaptureError",
+              "Could not capture deposit",
+            ),
+            message: err instanceof Error ? err.message : undefined,
+          });
+        },
+      },
+    );
+  }, [closeResult, captureDepositMutation, showToast, t]);
 
   // ── Loading / not-found guards ─────────────────────────────────────────
 
@@ -672,7 +727,7 @@ export default function ReturnScreen() {
               variant="bodySmall"
               color={theme.textTertiary}
               align="center"
-              style={{ marginBottom: 32 }}
+              style={{ marginBottom: 24 }}
             >
               {t("return.success.booking", {
                 defaultValue: "Booking {{id}}",
@@ -681,11 +736,98 @@ export default function ReturnScreen() {
             </Text>
           </Animated.View>
 
+          {/* Server-authoritative overage (from the closed booking). The close
+              call already billed it on the damages invoice. */}
+          {(() => {
+            const closed = closeResult?.booking;
+            const overageCost = closed?.overageCost ?? 0;
+            const kmOver = closed?.kmOverage ?? 0;
+            if (overageCost <= 0 && kmOver <= 0) return null;
+            return (
+              <Animated.View
+                entering={FadeInDown.delay(400).springify()}
+                style={{
+                  width: "100%",
+                  marginBottom: 16,
+                  borderRadius: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  backgroundColor: theme.warningSoft,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text variant="bodyMedium" color={theme.warning}>
+                    {t("return.success.overageLabel", {
+                      defaultValue: "Mileage overage ({{km}} km)",
+                      km: kmOver.toLocaleString(),
+                    })}
+                  </Text>
+                  <Text
+                    variant="titleSmall"
+                    color={theme.warning}
+                    style={{ fontWeight: "700" }}
+                  >
+                    {formatCurrency(overageCost, currency)}
+                  </Text>
+                </View>
+              </Animated.View>
+            );
+          })()}
+
           <Animated.View
             entering={FadeInUp.delay(500).springify()}
-            style={{ width: "100%" }}
+            style={{ width: "100%", gap: 12 }}
           >
-            <Button fullWidth onPress={() => router.back()}>
+            {/* View the damages invoice the close call issued. */}
+            {closeResult?.invoiceId ? (
+              <Button
+                testID="return-view-invoice-button"
+                variant="secondary"
+                fullWidth
+                leftIcon={Receipt}
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push(
+                    `/(app)/(more)/billing/${closeResult.invoiceId}` as never,
+                  );
+                }}
+              >
+                {t("return.success.viewInvoice", { defaultValue: "View invoice" })}
+              </Button>
+            ) : null}
+
+            {/* Collect the charge against the held deposit, if any. */}
+            {(closeResult?.booking?.depositStatus === "held" ||
+              closeResult?.booking?.depositStatus === "partially_captured") &&
+            !depositCaptured ? (
+              <Button
+                testID="return-capture-deposit-button"
+                variant="primary"
+                fullWidth
+                leftIcon={Banknote}
+                loading={captureDepositMutation.isPending}
+                onPress={handleCaptureDeposit}
+              >
+                {t("return.success.captureDeposit", {
+                  defaultValue: "Capture deposit",
+                })}
+              </Button>
+            ) : null}
+
+            <Button
+              testID="return-done-button"
+              variant={
+                closeResult?.invoiceId || depositCaptured ? "ghost" : "primary"
+              }
+              fullWidth
+              onPress={() => router.back()}
+            >
               {t("return.success.done", { defaultValue: "Done" })}
             </Button>
           </Animated.View>

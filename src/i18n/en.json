@@ -254,6 +254,39 @@
         "failed": "Failed"
       }
     },
+    "deposit": {
+      "label": "Deposit",
+      "captured": "Captured",
+      "status": {
+        "none": "Not held",
+        "held": "Held",
+        "captured": "Captured",
+        "partially_captured": "Partially captured",
+        "released": "Released",
+        "forfeited": "Forfeited",
+        "failed": "Failed"
+      },
+      "failureReason": "Reason: {{reason}}",
+      "remaining": "Remaining to capture",
+      "capture": "Capture",
+      "captureRemaining": "Capture remaining",
+      "release": "Release",
+      "authorize": "Authorize hold",
+      "amountLabel": "Amount to capture",
+      "amountPlaceholder": "Max {{max}}",
+      "reasonLabel": "Reason (optional)",
+      "reasonPlaceholder": "e.g. fully refunded",
+      "confirmCapture": "Confirm capture",
+      "confirmRelease": "Confirm release",
+      "cancel": "Cancel",
+      "errorAmount": "Enter an amount between {{min}} and {{max}}",
+      "captureSuccess": "Deposit captured",
+      "releaseSuccess": "Deposit released",
+      "authorizeSuccess": "Deposit hold authorized",
+      "captureError": "Could not capture deposit",
+      "releaseError": "Could not release deposit",
+      "authorizeError": "Could not authorize deposit"
+    },
     "autoCancelIn": "Auto-cancels in {{time}}"
   },
   "inspection": {
@@ -302,6 +335,11 @@
       "front": "Front",
       "back": "Back",
       "retake": "Retake",
+      "tapToCapture": "Tap to capture",
+      "cameraDeniedTitle": "Camera access needed",
+      "cameraDeniedMessage": "Enable camera access to capture documents.",
+      "uploadPartialTitle": "Some documents failed to upload",
+      "uploadPartialMessage": "The client was created. Re-capture documents later.",
       "privacyNotice": "Card image stored securely for deposit verification only",
       "register": "Register Client",
       "success": "Client Registered!",
@@ -477,7 +515,18 @@
       "mileage": "Mileage recorded",
       "keys": "Keys returned"
     },
-    "success": "Return Complete!",
+    "success": {
+      "title": "Return Complete!",
+      "subtitle": "Vehicle return processed successfully",
+      "newDamages": "{{count}} new damage(s) recorded",
+      "booking": "Booking {{id}}",
+      "overageLabel": "Mileage overage ({{km}} km)",
+      "viewInvoice": "View invoice",
+      "captureDeposit": "Capture deposit",
+      "depositCaptured": "Deposit captured",
+      "depositCaptureError": "Could not capture deposit",
+      "done": "Done"
+    },
     "preRentalReference": {
       "title": "Pre-rental reference",
       "subtitle": "Condition recorded at pickup",
@@ -650,6 +699,27 @@
       "subtotal": "Subtotal",
       "optionsTotal": "Options",
       "perDay": "day"
+    }
+  },
+  "billing": {
+    "notFound": "Invoice not found",
+    "notFoundDesc": "The invoice you are looking for does not exist.",
+    "record": {
+      "sectionTitle": "Payment actions",
+      "cta": "Record payment received",
+      "title": "Record payment received",
+      "amountLabel": "Amount received",
+      "methodLabel": "Method",
+      "methodCard": "Card",
+      "methodCash": "Cash",
+      "methodTransfer": "Transfer",
+      "cancel": "Cancel",
+      "confirm": "Record",
+      "success": "Payment recorded",
+      "failure": "Could not record payment",
+      "errorTitle": "Invalid amount",
+      "errorMessage": "Enter an amount between {{min}} and {{max}}",
+      "sendReminder": "Send a reminder"
     }
   },
   "more": {

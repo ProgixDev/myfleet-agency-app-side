@@ -21,6 +21,7 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   ChevronLeft,
@@ -40,10 +41,15 @@ import { ScreenWrapper } from "@/components/ui/ScreenWrapper";
 import { Text } from "@/components/ui/Text";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { Image } from "@/components/ui/Image";
 import { Divider } from "@/components/ui/Divider";
 import { useTheme } from "@/hooks/useTheme";
 import { useToastStore } from "@/components/ui/Toast";
 import { useCreateClient } from "@/hooks/useClients";
+import {
+  uploadClientDocument,
+  type ClientDocumentType,
+} from "@/services/clientService";
 import { fontFamilies } from "@/theme/typography";
 import { shadows } from "@/theme/shadows";
 import type { Client } from "@/types/client";
@@ -100,20 +106,24 @@ function SectionHeader({ title, icon, index }: SectionHeaderProps) {
 
 interface CaptureAreaProps {
   label: string;
-  captured: boolean;
+  uri: string | null;
   onCapture: () => void;
   onRetake: () => void;
   delay: number;
+  testID?: string;
 }
 
 function CaptureArea({
   label,
-  captured,
+  uri,
   onCapture,
   onRetake,
   delay,
+  testID,
 }: CaptureAreaProps) {
+  const captured = uri !== null;
   const theme = useTheme();
+  const { t } = useTranslation();
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -149,37 +159,46 @@ function CaptureArea({
               height: 160,
             }}
           >
-            {/* Simulated captured document placeholder */}
+            {/* Captured document preview */}
+            {uri ? (
+              <Image
+                source={{ uri }}
+                style={{ flex: 1 }}
+                contentFit="cover"
+                accessibilityLabel={label}
+              />
+            ) : null}
+
+            {/* Captured badge */}
             <View
               style={{
-                flex: 1,
-                backgroundColor: theme.surfaceSecondary,
-                justifyContent: "center",
+                position: "absolute",
+                bottom: 10,
+                left: 10,
+                flexDirection: "row",
                 alignItems: "center",
+                backgroundColor: "rgba(0,0,0,0.6)",
+                borderRadius: 20,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                gap: 5,
               }}
             >
-              <View
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 24,
-                  backgroundColor: theme.accentSoft,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
+              <Check size={13} color="#FFFFFF" strokeWidth={2.5} />
+              <Text
+                variant="bodySmall"
+                color="#FFFFFF"
+                style={{ fontFamily: fontFamilies.medium }}
               >
-                <Check size={24} color={theme.accent} strokeWidth={2.5} />
-              </View>
-              <Text variant="titleSmall" color={theme.textSecondary}>
                 {label}
               </Text>
             </View>
 
             {/* Retake overlay button */}
             <Pressable
+              testID={testID ? `${testID}-retake` : undefined}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 onRetake();
               }}
               style={{
@@ -201,7 +220,7 @@ function CaptureArea({
                 color="#FFFFFF"
                 style={{ fontFamily: fontFamilies.medium }}
               >
-                Retake
+                {t("clients.quickRegister.retake", { defaultValue: "Retake" })}
               </Text>
             </Pressable>
           </View>
@@ -214,6 +233,7 @@ function CaptureArea({
     <Animated.View entering={FadeInDown.delay(delay).duration(400).springify()}>
       <Animated.View style={animatedStyle}>
         <Pressable
+          testID={testID}
           onPress={handlePress}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
@@ -247,7 +267,9 @@ function CaptureArea({
               {label}
             </Text>
             <Text variant="caption" color={theme.textTertiary}>
-              Tap to capture
+              {t("clients.quickRegister.tapToCapture", {
+                defaultValue: "Tap to capture",
+              })}
             </Text>
           </View>
         </Pressable>
@@ -341,17 +363,37 @@ export default function QuickRegisterScreen() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
-  const handleCapture = useCallback((side: DocumentSide) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Simulate camera capture with a placeholder URI
-    setTimeout(() => {
-      setDocuments((prev) => ({
-        ...prev,
-        [side]: `captured_${side}_${Date.now()}.jpg`,
-      }));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }, 600);
-  }, []);
+  const handleCapture = useCallback(
+    async (side: DocumentSide) => {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        showToast({
+          variant: "error",
+          title: t("clients.quickRegister.cameraDeniedTitle", {
+            defaultValue: "Camera access needed",
+          }),
+          message: t("clients.quickRegister.cameraDeniedMessage", {
+            defaultValue: "Enable camera access to capture documents.",
+          }),
+        });
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.7,
+        allowsEditing: false,
+      });
+
+      if (result.canceled || !result.assets[0]?.uri) return;
+
+      setDocuments((prev) => ({ ...prev, [side]: result.assets[0].uri }));
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    [showToast, t],
+  );
 
   const handleRetake = useCallback((side: DocumentSide) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -394,12 +436,10 @@ export default function QuickRegisterScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     try {
-      // The agency_client relation is created first; document captures
-      // (which set verified_at) follow as a separate upload pass keyed by
-      // the new client's id. Implementation note: the simulated capture
-      // produces local placeholder URIs; once camera capture lands we'll
-      // post each captured file to /clients/:id/documents.
-      await createClient.mutateAsync({
+      // The agency_client relation is created first; the captured documents
+      // are then posted to /clients/:id/documents (each upload sets
+      // agency_client.verified_at server-side).
+      const created = await createClient.mutateAsync({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim(),
@@ -414,20 +454,58 @@ export default function QuickRegisterScreen() {
         registrationMethod: "walk-in",
       });
 
+      // Upload each captured document keyed by the new client's id. A failed
+      // upload shouldn't roll back the (already-created) client — surface a
+      // warning but still complete the flow.
+      const uploads: { type: ClientDocumentType; uri: string }[] = (
+        [
+          { type: "id-front", uri: documents.idFront ?? "" },
+          { type: "id-back", uri: documents.idBack ?? "" },
+          { type: "license-front", uri: documents.licenseFront ?? "" },
+          { type: "license-back", uri: documents.licenseBack ?? "" },
+          { type: "credit-card-front", uri: documents.creditCardFront ?? "" },
+        ] as const
+      )
+        .filter((d) => d.uri.length > 0)
+        .map((d) => ({ type: d.type, uri: d.uri }));
+
+      let uploadFailed = false;
+      for (const doc of uploads) {
+        try {
+          await uploadClientDocument(created.id, doc.type, doc.uri);
+        } catch {
+          uploadFailed = true;
+        }
+      }
+
       setIsSubmitting(false);
       setShowSuccess(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      setTimeout(() => {
+      if (uploadFailed) {
         showToast({
-          variant: "success",
-          title: t("clients.quickRegister.successTitle", {
-            defaultValue: "Client Registered",
+          variant: "warning",
+          title: t("clients.quickRegister.uploadPartialTitle", {
+            defaultValue: "Some documents failed to upload",
           }),
-          message: t("clients.quickRegister.successMessage", {
-            defaultValue: `${firstName.trim()} ${lastName.trim()} has been registered.`,
+          message: t("clients.quickRegister.uploadPartialMessage", {
+            defaultValue: "The client was created. Re-capture documents later.",
           }),
         });
+      }
+
+      setTimeout(() => {
+        if (!uploadFailed) {
+          showToast({
+            variant: "success",
+            title: t("clients.quickRegister.successTitle", {
+              defaultValue: "Client Registered",
+            }),
+            message: t("clients.quickRegister.successMessage", {
+              defaultValue: `${firstName.trim()} ${lastName.trim()} has been registered.`,
+            }),
+          });
+        }
         router.back();
       }, 1800);
     } catch {
@@ -639,19 +717,21 @@ export default function QuickRegisterScreen() {
                   label={t("clients.quickRegister.idFront", {
                     defaultValue: "Front Side",
                   })}
-                  captured={documents.idFront !== null}
+                  uri={documents.idFront}
                   onCapture={() => handleCapture("idFront")}
                   onRetake={() => handleRetake("idFront")}
                   delay={220}
+                  testID="quick-register-capture-id-front"
                 />
                 <CaptureArea
                   label={t("clients.quickRegister.idBack", {
                     defaultValue: "Back Side",
                   })}
-                  captured={documents.idBack !== null}
+                  uri={documents.idBack}
                   onCapture={() => handleCapture("idBack")}
                   onRetake={() => handleRetake("idBack")}
                   delay={260}
+                  testID="quick-register-capture-id-back"
                 />
               </View>
             </Card>
@@ -675,19 +755,21 @@ export default function QuickRegisterScreen() {
                   label={t("clients.quickRegister.licenseFront", {
                     defaultValue: "Front Side",
                   })}
-                  captured={documents.licenseFront !== null}
+                  uri={documents.licenseFront}
                   onCapture={() => handleCapture("licenseFront")}
                   onRetake={() => handleRetake("licenseFront")}
                   delay={340}
+                  testID="quick-register-capture-license-front"
                 />
                 <CaptureArea
                   label={t("clients.quickRegister.licenseBack", {
                     defaultValue: "Back Side",
                   })}
-                  captured={documents.licenseBack !== null}
+                  uri={documents.licenseBack}
                   onCapture={() => handleCapture("licenseBack")}
                   onRetake={() => handleRetake("licenseBack")}
                   delay={380}
+                  testID="quick-register-capture-license-back"
                 />
               </View>
             </Card>
@@ -710,10 +792,11 @@ export default function QuickRegisterScreen() {
                 label={t("clients.quickRegister.creditCardFront", {
                   defaultValue: "Front Side",
                 })}
-                captured={documents.creditCardFront !== null}
+                uri={documents.creditCardFront}
                 onCapture={() => handleCapture("creditCardFront")}
                 onRetake={() => handleRetake("creditCardFront")}
                 delay={440}
+                testID="quick-register-capture-credit-card-front"
               />
 
               {/* Privacy notice */}
@@ -765,6 +848,7 @@ export default function QuickRegisterScreen() {
           }}
         >
           <Pressable
+            testID="quick-register-submit"
             onPress={handleSubmit}
             disabled={isSubmitting}
             style={{

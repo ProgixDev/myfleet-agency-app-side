@@ -16,6 +16,8 @@ export interface RecordPaymentInput {
 
 export interface InvoiceListFilters {
   bookingId?: string;
+  /** Filter by agency_client.id (GET /invoices?agencyClientId=). */
+  agencyClientId?: string;
   kind?: "rental" | "damages";
   status?: string;
 }
@@ -25,6 +27,7 @@ export async function getInvoices(
 ): Promise<Invoice[]> {
   const qs = new URLSearchParams();
   if (filters?.bookingId) qs.set("bookingId", filters.bookingId);
+  if (filters?.agencyClientId) qs.set("agencyClientId", filters.agencyClientId);
   if (filters?.kind) qs.set("kind", filters.kind);
   if (filters?.status) qs.set("status", filters.status);
   const query = qs.toString();

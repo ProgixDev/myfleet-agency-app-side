@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  TextInput,
 } from "react-native";
 import { Image } from "@/components/ui/Image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -53,13 +54,17 @@ import { formatCurrency } from "@/utils/format";
 import { useTheme } from "@/hooks/useTheme";
 import { useToastStore } from "@/components/ui/Toast";
 import {
+  useAuthorizeDeposit,
   useBooking,
   useBookings,
   useCancelBooking,
+  useCaptureDeposit,
   useDeleteBooking,
   useExtendBooking,
+  useReleaseDeposit,
   useUpdateBooking,
 } from "@/hooks/useBookings";
+import { centsToUnits, unitsToCents } from "@/utils/money";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { resolveVehicleImageSource } from "@/data/vehicleImages";
 import { useVehicle } from "@/hooks/useFleet";
@@ -1160,7 +1165,18 @@ export default function BookingDetailScreen() {
         </Animated.View>
 
         {/* ── Deposit ───────────────────────────────────────────────── */}
-        {booking.depositStatus && booking.depositStatus !== "none" && (
+        {(() => {
+          // Show the deposit card when there is an active/terminal deposit
+          // state, OR when a non-cash confirmed/active booking has a deposit
+          // amount but no hold yet (so staff can optionally authorize one).
+          const ds = booking.depositStatus;
+          const canOfferAuthorize =
+            (ds == null || ds === "none") &&
+            booking.deposit > 0 &&
+            booking.paymentMethod !== "cash" &&
+            (booking.status === "confirmed" || booking.status === "active");
+          return ds && ds !== "none" ? true : canOfferAuthorize;
+        })() && (
           <Animated.View
             entering={FadeInDown.duration(400).delay(440)}
             style={{ marginTop: 18, marginHorizontal: 16 }}
@@ -1186,7 +1202,7 @@ export default function BookingDetailScreen() {
                   {t("booking.deposit.status.label", "Deposit")}
                 </Text>
                 {(() => {
-                  const ds = booking.depositStatus;
+                  const ds = booking.depositStatus ?? "none";
                   const tone =
                     ds === "captured"
                       ? toneColors("success", theme)
@@ -1214,7 +1230,7 @@ export default function BookingDetailScreen() {
                           fontSize: 11,
                         }}
                       >
-                        {t(`booking.deposit.status.${ds}`, ds ?? "")}
+                        {t(`booking.deposit.status.${ds}`, ds)}
                       </Text>
                     </View>
                   );
@@ -1242,6 +1258,20 @@ export default function BookingDetailScreen() {
                   </View>
                 )}
 
+              {booking.depositStatus === "failed" &&
+                booking.depositFailureReason && (
+                  <Text
+                    variant="bodySmall"
+                    color={theme.danger}
+                    style={{ marginTop: 8, fontSize: 12 }}
+                  >
+                    {t("booking.deposit.failureReason", {
+                      defaultValue: "Reason: {{reason}}",
+                      reason: booking.depositFailureReason,
+                    })}
+                  </Text>
+                )}
+
               {booking.autoCancelAt && booking.depositStatus !== "held" && (
                 <View
                   className="flex-row items-center"
@@ -1266,6 +1296,8 @@ export default function BookingDetailScreen() {
                   </Text>
                 </View>
               )}
+
+              <DepositControls booking={booking} />
             </View>
           </Animated.View>
         )}
@@ -1483,6 +1515,332 @@ export default function BookingDetailScreen() {
 }
 
 // ── Subcomponents ──────────────────────────────────────────────────────────
+
+// Deposit lifecycle controls (Stripe manual-capture). Rendered inside the
+// Payment card on the booking detail. Controls vary by depositStatus:
+//   held / partially_captured -> Capture (remaining) + Release
+//   none/undefined (eligible)  -> optional Authorize hold
+//   terminal states           -> display only (handled by the card chrome)
+function DepositControls({ booking }: { booking: Booking }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const showToast = useToastStore((s) => s.show);
+
+  const captureMut = useCaptureDeposit();
+  const releaseMut = useReleaseDeposit();
+  const authorizeMut = useAuthorizeDeposit();
+
+  const ds = booking.depositStatus ?? "none";
+  const captured = booking.depositCapturedAmount ?? 0;
+  // Cents still capturable from the held authorization.
+  const remainingCents = Math.max(0, booking.deposit - captured);
+
+  const [mode, setMode] = React.useState<"none" | "capture" | "release">(
+    "none",
+  );
+  // Decimal-pad input is in whole currency units; converted to cents on submit.
+  const [amount, setAmount] = React.useState("");
+  const [reason, setReason] = React.useState("");
+
+  const openCapture = React.useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAmount(String(centsToUnits(remainingCents)));
+    setReason("");
+    setMode("capture");
+  }, [remainingCents]);
+
+  const openRelease = React.useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setReason("");
+    setMode("release");
+  }, []);
+
+  const closePanel = React.useCallback(() => {
+    setMode("none");
+    setAmount("");
+    setReason("");
+  }, []);
+
+  const submitCapture = React.useCallback(() => {
+    const units = parseFloat(amount.replace(",", "."));
+    const amountCents = unitsToCents(units);
+    if (
+      !Number.isFinite(amountCents) ||
+      amountCents < 1 ||
+      amountCents > remainingCents
+    ) {
+      showToast({
+        variant: "error",
+        title: t("booking.deposit.errorAmount", {
+          defaultValue: "Enter an amount between {{min}} and {{max}}",
+          min: formatCurrency(1),
+          max: formatCurrency(remainingCents),
+        }),
+      });
+      return;
+    }
+    captureMut.mutate(
+      { id: booking.id, amount: amountCents },
+      {
+        onSuccess: () => {
+          void Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Success,
+          );
+          showToast({
+            variant: "success",
+            title: t("booking.deposit.captureSuccess", "Deposit captured"),
+          });
+          closePanel();
+        },
+        onError: (err) => {
+          showToast({
+            variant: "error",
+            title: t("booking.deposit.captureError", "Could not capture deposit"),
+            message: err instanceof Error ? err.message : undefined,
+          });
+        },
+      },
+    );
+  }, [amount, remainingCents, captureMut, booking.id, showToast, t, closePanel]);
+
+  const submitRelease = React.useCallback(() => {
+    releaseMut.mutate(
+      { id: booking.id, reason: reason.trim() || undefined },
+      {
+        onSuccess: () => {
+          void Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Success,
+          );
+          showToast({
+            variant: "success",
+            title: t("booking.deposit.releaseSuccess", "Deposit released"),
+          });
+          closePanel();
+        },
+        onError: (err) => {
+          showToast({
+            variant: "error",
+            title: t("booking.deposit.releaseError", "Could not release deposit"),
+            message: err instanceof Error ? err.message : undefined,
+          });
+        },
+      },
+    );
+  }, [releaseMut, booking.id, reason, showToast, t, closePanel]);
+
+  const submitAuthorize = React.useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    authorizeMut.mutate(
+      { id: booking.id },
+      {
+        onSuccess: () => {
+          void Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Success,
+          );
+          showToast({
+            variant: "success",
+            title: t(
+              "booking.deposit.authorizeSuccess",
+              "Deposit hold authorized",
+            ),
+          });
+        },
+        onError: (err) => {
+          showToast({
+            variant: "error",
+            title: t(
+              "booking.deposit.authorizeError",
+              "Could not authorize deposit",
+            ),
+            message: err instanceof Error ? err.message : undefined,
+          });
+        },
+      },
+    );
+  }, [authorizeMut, booking.id, showToast, t]);
+
+  const canCapture = ds === "held" || ds === "partially_captured";
+  const canRelease = ds === "held" || ds === "partially_captured";
+  const canAuthorize = ds === "none";
+
+  // Terminal / non-actionable states render nothing (card chrome shows status).
+  if (!canCapture && !canRelease && !canAuthorize) return null;
+
+  return (
+    <View style={{ marginTop: 14 }}>
+      {canCapture && (ds === "partially_captured" || captured > 0) && (
+        <View
+          className="flex-row items-center justify-between"
+          style={{ marginBottom: 10 }}
+        >
+          <Text
+            variant="bodyMedium"
+            color={theme.textSecondary}
+            style={{ fontSize: 13 }}
+          >
+            {t("booking.deposit.remaining", "Remaining to capture")}
+          </Text>
+          <Text variant="bodySmall">{formatCurrency(remainingCents)}</Text>
+        </View>
+      )}
+
+      {mode === "capture" ? (
+        <View>
+          <Text
+            variant="bodySmall"
+            color={theme.textSecondary}
+            style={{ fontSize: 12, marginBottom: 6 }}
+          >
+            {t("booking.deposit.amountLabel", "Amount to capture")}
+          </Text>
+          <View
+            className="flex-row items-center"
+            style={{
+              backgroundColor: theme.surfaceTertiary,
+              borderRadius: 12,
+              paddingHorizontal: 12,
+              marginBottom: 12,
+            }}
+          >
+            <TextInput
+              testID="deposit-capture-amount-input"
+              value={amount}
+              onChangeText={setAmount}
+              placeholder={t("booking.deposit.amountPlaceholder", {
+                defaultValue: "Max {{max}}",
+                max: formatCurrency(remainingCents),
+              })}
+              placeholderTextColor={theme.textTertiary}
+              keyboardType="decimal-pad"
+              style={{
+                flex: 1,
+                fontFamily: fontFamilies.regular,
+                fontSize: 14,
+                color: theme.textPrimary,
+                paddingVertical: 12,
+              }}
+            />
+          </View>
+          <View className="flex-row" style={{ gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Button variant="ghost" fullWidth onPress={closePanel}>
+                {t("booking.deposit.cancel", "Cancel")}
+              </Button>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button
+                testID="deposit-capture-confirm-button"
+                variant="primary"
+                fullWidth
+                loading={captureMut.isPending}
+                onPress={submitCapture}
+              >
+                {t("booking.deposit.confirmCapture", "Confirm capture")}
+              </Button>
+            </View>
+          </View>
+        </View>
+      ) : mode === "release" ? (
+        <View>
+          <Text
+            variant="bodySmall"
+            color={theme.textSecondary}
+            style={{ fontSize: 12, marginBottom: 6 }}
+          >
+            {t("booking.deposit.reasonLabel", "Reason (optional)")}
+          </Text>
+          <View
+            className="flex-row items-center"
+            style={{
+              backgroundColor: theme.surfaceTertiary,
+              borderRadius: 12,
+              paddingHorizontal: 12,
+              marginBottom: 12,
+            }}
+          >
+            <TextInput
+              testID="deposit-release-reason-input"
+              value={reason}
+              onChangeText={setReason}
+              placeholder={t(
+                "booking.deposit.reasonPlaceholder",
+                "e.g. fully refunded",
+              )}
+              placeholderTextColor={theme.textTertiary}
+              style={{
+                flex: 1,
+                fontFamily: fontFamilies.regular,
+                fontSize: 14,
+                color: theme.textPrimary,
+                paddingVertical: 12,
+              }}
+            />
+          </View>
+          <View className="flex-row" style={{ gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Button variant="ghost" fullWidth onPress={closePanel}>
+                {t("booking.deposit.cancel", "Cancel")}
+              </Button>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button
+                testID="deposit-release-confirm-button"
+                variant="danger"
+                fullWidth
+                loading={releaseMut.isPending}
+                onPress={submitRelease}
+              >
+                {t("booking.deposit.confirmRelease", "Confirm release")}
+              </Button>
+            </View>
+          </View>
+        </View>
+      ) : (
+        <View className="flex-row" style={{ gap: 10 }}>
+          {canCapture && (
+            <View style={{ flex: 1 }}>
+              <Button
+                testID="deposit-capture-button"
+                variant="primary"
+                fullWidth
+                onPress={openCapture}
+              >
+                {ds === "partially_captured"
+                  ? t("booking.deposit.captureRemaining", "Capture remaining")
+                  : t("booking.deposit.capture", "Capture")}
+              </Button>
+            </View>
+          )}
+          {canRelease && (
+            <View style={{ flex: 1 }}>
+              <Button
+                testID="deposit-release-button"
+                variant="ghost"
+                fullWidth
+                onPress={openRelease}
+              >
+                {t("booking.deposit.release", "Release")}
+              </Button>
+            </View>
+          )}
+          {canAuthorize && (
+            <View style={{ flex: 1 }}>
+              <Button
+                testID="deposit-authorize-button"
+                variant="secondary"
+                fullWidth
+                loading={authorizeMut.isPending}
+                onPress={submitAuthorize}
+              >
+                {t("booking.deposit.authorize", "Authorize hold")}
+              </Button>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
 
 function SectionLabel({
   theme,
