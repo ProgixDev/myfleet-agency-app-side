@@ -8,7 +8,7 @@
  * `EXPO_PUBLIC_API_URL` is resolved in `src/services/api.ts`.
  */
 
-const DEFAULT_WEB_ADMIN_URL = "https://web-admin-mu-nine.vercel.app";
+const DEFAULT_WEB_ADMIN_URL = "https://backoffice.myfleetagency.com";
 
 export const WEB_ADMIN_URL = (
   process.env.EXPO_PUBLIC_WEB_ADMIN_URL ?? DEFAULT_WEB_ADMIN_URL

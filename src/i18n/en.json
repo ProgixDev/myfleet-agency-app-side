@@ -782,6 +782,13 @@
     "clients": "Clients",
     "more": "More"
   },
+  "paywall": {
+    "title": "Subscription required",
+    "message": "Your agency needs an active MyFleet subscription to use the app. Subscribe from your web dashboard to unlock your fleet, bookings, inspections and AI.",
+    "subscribe": "Subscribe",
+    "refresh": "I've subscribed — refresh",
+    "logout": "Log out"
+  },
   "contracts": {
     "detail": {
       "signatures": "Signatures",

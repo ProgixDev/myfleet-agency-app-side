@@ -21,7 +21,10 @@ import {
 } from "@/types/inspection";
 
 interface Props {
-  pre: Inspection;
+  // Optional pre-rental baseline. When omitted, each angle renders a single
+  // photo (the inspection's own) and the AI runs in absolute-detection mode
+  // (no paired pre-rental required).
+  pre?: Inspection | null;
   post: Inspection;
   pendingAngles: Set<PhotoAngle>;
   onRunAi: (angle: PhotoAngle) => void;
@@ -38,11 +41,12 @@ export function PrePostAngleList({
   const theme = useTheme();
   const { t } = useTranslation();
 
+  const isPaired = !!pre;
   const preMap = React.useMemo(() => {
     const m = new Map<PhotoAngle, CapturedPhoto>();
-    for (const p of pre.photos) m.set(p.angle, p);
+    for (const p of pre?.photos ?? []) m.set(p.angle, p);
     return m;
-  }, [pre.photos]);
+  }, [pre?.photos]);
   const postMap = React.useMemo(() => {
     const m = new Map<PhotoAngle, CapturedPhoto>();
     for (const p of post.photos) m.set(p.angle, p);
@@ -94,14 +98,16 @@ export function PrePostAngleList({
             </View>
 
             <View className="flex-row" style={{ gap: 8 }}>
-              <PhotoTile
-                photo={prePhoto}
-                tag={t("inspections.detail.pre", "Pre")}
-                tone={theme.info}
-              />
+              {isPaired && (
+                <PhotoTile
+                  photo={prePhoto}
+                  tag={t("inspections.detail.pre", "Pre")}
+                  tone={theme.info}
+                />
+              )}
               <PhotoTile
                 photo={postPhoto}
-                tag={t("inspections.detail.post", "Post")}
+                tag={isPaired ? t("inspections.detail.post", "Post") : undefined}
                 tone={theme.warning}
               />
             </View>
@@ -151,7 +157,7 @@ function PhotoTile({
   tone,
 }: {
   photo: CapturedPhoto | undefined;
-  tag: string;
+  tag?: string;
   tone: string;
 }) {
   const theme = useTheme();
@@ -177,25 +183,27 @@ function PhotoTile({
           <Camera size={20} color={theme.border} strokeWidth={1.2} />
         </View>
       )}
-      <View
-        style={{
-          position: "absolute",
-          top: 6,
-          left: 6,
-          paddingHorizontal: 7,
-          paddingVertical: 2,
-          borderRadius: 9999,
-          backgroundColor: tone,
-        }}
-      >
-        <Text
-          variant="labelSmall"
-          color="#FFFFFF"
-          style={{ fontSize: 9, fontFamily: fontFamilies.semiBold }}
+      {tag ? (
+        <View
+          style={{
+            position: "absolute",
+            top: 6,
+            left: 6,
+            paddingHorizontal: 7,
+            paddingVertical: 2,
+            borderRadius: 9999,
+            backgroundColor: tone,
+          }}
         >
-          {tag}
-        </Text>
-      </View>
+          <Text
+            variant="labelSmall"
+            color="#FFFFFF"
+            style={{ fontSize: 9, fontFamily: fontFamilies.semiBold }}
+          >
+            {tag}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }

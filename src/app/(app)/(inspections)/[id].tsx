@@ -1655,41 +1655,56 @@ export default function InspectionDetailScreen() {
           </View>
         </Animated.View>
 
-        {/* AI + manual review require a paired pre-rental on the same booking. */}
-        {inspection.type === "post-rental" && (
-          <Animated.View
-            entering={FadeInDown.duration(400).delay(350)}
-            style={{ marginTop: 22, marginHorizontal: 16 }}
-          >
-            <SectionLabel theme={theme}>
-              {t("inspections.detail.angleReview.title", "Per-angle review")}
-            </SectionLabel>
+        {/* Per-angle AI + manual review. Single-image absolute detection — no
+            paired pre-rental required, so this works on any inspection type. */}
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(350)}
+          style={{ marginTop: 22, marginHorizontal: 16 }}
+        >
+          <SectionLabel theme={theme}>
+            {t("inspections.detail.angleReview.title", "Per-angle review")}
+          </SectionLabel>
+          {inspection.aiSummary && inspection.aiSummary.trim().length > 0 && (
             <View
               style={{
-                backgroundColor: theme.warningSoft,
-                borderRadius: 16,
-                padding: 14,
-                gap: 8,
+                backgroundColor: theme.surface,
+                borderRadius: 14,
+                padding: 12,
                 borderWidth: 1,
                 borderColor: theme.borderLight,
-                flexDirection: "row",
-                alignItems: "center",
+                marginBottom: 12,
               }}
             >
-              <AlertTriangle size={18} color={theme.warning} />
+              <View
+                className="flex-row items-center"
+                style={{ gap: 6, marginBottom: 4 }}
+              >
+                <Sparkles size={14} color={theme.accent} />
+                <Text
+                  variant="titleSmall"
+                  style={{ fontFamily: fontFamilies.semiBold, fontSize: 12 }}
+                >
+                  {t("inspections.detail.ai.summaryTitle", "AI summary")}
+                </Text>
+              </View>
               <Text
                 variant="bodySmall"
-                color={theme.warning}
-                style={{ flex: 1, fontSize: 12, lineHeight: 17 }}
+                color={theme.textSecondary}
+                style={{ fontSize: 12, lineHeight: 17 }}
               >
-                {t(
-                  "inspections.detail.ai.needsPreRental",
-                  "AI and manual review require a pre-rental inspection on the same booking.",
-                )}
+                {inspection.aiSummary}
               </Text>
             </View>
-          </Animated.View>
-        )}
+          )}
+          <PrePostAngleList
+            post={inspection}
+            pendingAngles={pendingAiAngles}
+            onRunAi={triggerAngleAi}
+            onManualReview={(angle, angleLabel) =>
+              setManualReview({ angle, angleLabel })
+            }
+          />
+        </Animated.View>
 
         {inspection.status === "draft" && (
           <Animated.View
@@ -1710,6 +1725,7 @@ export default function InspectionDetailScreen() {
       </ScrollView>
       {fullscreenModal}
       {menuModal}
+      {manualModal}
     </View>
   );
 }
