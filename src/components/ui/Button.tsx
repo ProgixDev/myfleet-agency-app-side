@@ -26,6 +26,7 @@ export interface ButtonProps {
   onPress?: () => void;
   children: React.ReactNode;
   className?: string;
+  testID?: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ export function Button({
   onPress,
   children,
   className,
+  testID,
 }: ButtonProps) {
   const theme = useTheme();
   const scale = useSharedValue(1);
@@ -189,6 +191,7 @@ export function Button({
         onPress={handlePress}
         disabled={disabled || loading}
         className={className}
+        testID={testID}
       >
         <LinearGradient
           colors={gradientColors}
@@ -213,6 +216,7 @@ export function Button({
       onPress={handlePress}
       disabled={disabled || loading}
       className={className}
+      testID={testID}
     >
       {renderContent()}
     </AnimatedPressable>

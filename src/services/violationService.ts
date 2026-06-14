@@ -4,6 +4,10 @@ import type { Violation } from "@/types/violation";
 export interface ViolationFilters {
   status?: Violation["status"];
   search?: string;
+  /** Filter by agency_client.id (GET /violations?clientId=). */
+  clientId?: string;
+  /** Filter by booking (GET /violations?bookingId=). */
+  bookingId?: string;
 }
 
 export interface ViolationSummary {
@@ -52,7 +56,12 @@ function buildQuery(params: Record<string, string | undefined>): string {
 export async function getViolations(
   filters: ViolationFilters = {},
 ): Promise<Violation[]> {
-  const qs = buildQuery({ status: filters.status, search: filters.search });
+  const qs = buildQuery({
+    status: filters.status,
+    search: filters.search,
+    clientId: filters.clientId,
+    bookingId: filters.bookingId,
+  });
   return authedRequest<Violation[]>(`/violations${qs}`, { method: "GET" });
 }
 

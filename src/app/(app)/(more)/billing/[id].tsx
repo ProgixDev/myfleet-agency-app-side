@@ -11,7 +11,6 @@ import {
   Banknote,
   ArrowRightLeft,
   Bell,
-  CheckCircle,
   Download,
   Send,
 } from "lucide-react-native";
@@ -43,7 +42,7 @@ function formatEuro(cents: number): string {
     new Intl.NumberFormat("fr-FR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(centsToUnits(cents)) + " \u20AC"
+    }).format(centsToUnits(cents)) + " €"
   );
 }
 
@@ -81,12 +80,12 @@ function statusBadgeVariant(status: InvoiceStatus): BadgeVariant {
 function statusLabel(status: InvoiceStatus): string {
   const map: Record<InvoiceStatus, string> = {
     pending: "En attente",
-    paid: "Pay\u00E9e",
+    paid: "Payée",
     overdue: "En retard",
-    "partially-paid": "Partiellement pay\u00E9e",
+    "partially-paid": "Partiellement payée",
     refund_pending: "Remboursement en attente",
-    refunded: "Rembours\u00E9",
-    void: "Annul\u00E9e",
+    refunded: "Remboursé",
+    void: "Annulée",
   };
   return map[status];
 }
@@ -94,7 +93,7 @@ function statusLabel(status: InvoiceStatus): string {
 function paymentMethodLabel(method: PaymentMethod): string {
   const map: Record<PaymentMethod, string> = {
     card: "Carte",
-    cash: "Esp\u00E8ces",
+    cash: "Espèces",
     transfer: "Virement",
     other: "Autre",
   };
@@ -131,79 +130,75 @@ export default function InvoiceDetailScreen() {
   const recordPaymentMutation = useRecordPayment();
   const sendReminderMutation = useSendInvoiceReminder();
 
-  // Payment simulation state
-  const [showCardPayment, setShowCardPayment] = useState(false);
-  const [showCashPayment, setShowCashPayment] = useState(false);
-  const [cashAmount, setCashAmount] = useState("");
-  const [cardLoading, setCardLoading] = useState(false);
-  const [cardSuccess, setCardSuccess] = useState(false);
+  // Honest "record payment received" state. This logs a payment against the
+  // invoice ledger via the backend — it does NOT process a card (real PSP is
+  // out of Phase-1 scope). Amount is entered in whole units, stored as cents.
+  const [showRecordPayment, setShowRecordPayment] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<
+    "card" | "cash" | "transfer"
+  >("card");
 
-  const handleCardPayment = useCallback(() => {
+  const openRecordPayment = useCallback(() => {
     if (!invoice) return;
-    setCardLoading(true);
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPaymentAmount(String(centsToUnits(invoice.remainingBalance)));
+    setPaymentMethod("card");
+    setShowRecordPayment(true);
+  }, [invoice]);
 
-    recordPaymentMutation.mutate(
-      {
-        id: invoice.id,
-        data: { amount: invoice.remainingBalance, method: "card" },
-      },
-      {
-        onSuccess: () => {
-          setCardLoading(false);
-          setCardSuccess(true);
-          void Haptics.notificationAsync(
-            Haptics.NotificationFeedbackType.Success,
-          );
-          setTimeout(() => {
-            setShowCardPayment(false);
-            setCardSuccess(false);
-          }, 2000);
-        },
-        onError: (err) => {
-          setCardLoading(false);
-          showToast({
-            variant: "error",
-            title: "\u00C9chec du paiement",
-            message: err instanceof Error ? err.message : "Erreur inconnue",
-          });
-        },
-      },
-    );
-  }, [invoice, recordPaymentMutation, showToast]);
-
-  const handleCashPayment = useCallback(() => {
+  const handleRecordPayment = useCallback(() => {
     if (!invoice) return;
-    const euros = parseFloat(cashAmount.replace(",", "."));
-    const amountCents = unitsToCents(euros);
+    const units = parseFloat(paymentAmount.replace(",", "."));
+    const amountCents = unitsToCents(units);
     if (
-      isNaN(amountCents) ||
-      amountCents <= 0 ||
+      !Number.isFinite(amountCents) ||
+      amountCents < 1 ||
       amountCents > invoice.remainingBalance
     ) {
       showToast({
         variant: "error",
-        title: "Montant invalide",
-        message: `Entrez un montant entre 1 et ${formatEuro(invoice.remainingBalance)}`,
+        title: t("billing.record.errorTitle", "Montant invalide"),
+        message: t("billing.record.errorMessage", {
+          defaultValue: "Entrez un montant entre {{min}} et {{max}}",
+          min: formatEuro(1),
+          max: formatEuro(invoice.remainingBalance),
+        }),
       });
       return;
     }
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     recordPaymentMutation.mutate(
-      { id: invoice.id, data: { amount: amountCents, method: "cash" } },
+      { id: invoice.id, data: { amount: amountCents, method: paymentMethod } },
       {
         onSuccess: () => {
-          setCashAmount("");
-          setShowCashPayment(false);
+          setShowRecordPayment(false);
+          setPaymentAmount("");
+          void Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Success,
+          );
           showToast({
             variant: "success",
-            title: "Paiement enregistr\u00E9",
-            message: `${formatEuro(amountCents)} re\u00E7u en esp\u00E8ces`,
+            title: t("billing.record.success", "Paiement enregistré"),
+          });
+        },
+        onError: (err) => {
+          showToast({
+            variant: "error",
+            title: t("billing.record.failure", "Échec de l'enregistrement"),
+            message: err instanceof Error ? err.message : undefined,
           });
         },
       },
     );
-  }, [invoice, cashAmount, recordPaymentMutation, showToast]);
+  }, [
+    invoice,
+    paymentAmount,
+    paymentMethod,
+    recordPaymentMutation,
+    showToast,
+    t,
+  ]);
 
   const handleSendReminder = useCallback(() => {
     if (!invoice) return;
@@ -212,8 +207,8 @@ export default function InvoiceDetailScreen() {
       onSuccess: () => {
         showToast({
           variant: "info",
-          title: "Rappel envoy\u00E9",
-          message: `Un rappel de paiement a \u00E9t\u00E9 envoy\u00E9 au client.`,
+          title: "Rappel envoyé",
+          message: `Un rappel de paiement a été envoyé au client.`,
         });
       },
     });
@@ -223,8 +218,8 @@ export default function InvoiceDetailScreen() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showToast({
       variant: "success",
-      title: "Facture PDF pr\u00EAte",
-      message: "La facture PDF est pr\u00EAte avec les informations du client.",
+      title: "Facture PDF prête",
+      message: "La facture PDF est prête avec les informations du client.",
     });
   }, [showToast]);
 
@@ -232,9 +227,9 @@ export default function InvoiceDetailScreen() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showToast({
       variant: "success",
-      title: "Facture envoy\u00E9e",
+      title: "Facture envoyée",
       message:
-        "La facture PDF a \u00E9t\u00E9 envoy\u00E9e par email au client.",
+        "La facture PDF a été envoyée par email au client.",
     });
   }, [showToast]);
 
@@ -358,7 +353,7 @@ export default function InvoiceDetailScreen() {
 
           {/* Client info */}
           <Text variant="bodySmall" color={theme.textTertiary}>
-            Factur\u00E9 \u00E0
+            Facturé à
           </Text>
           <Text variant="titleSmall" className="mt-1">
             {invoice.clientName}
@@ -370,7 +365,7 @@ export default function InvoiceDetailScreen() {
           <View className="flex-row justify-between">
             <View>
               <Text variant="bodySmall" color={theme.textTertiary}>
-                Date d&apos;{"\u00E9"}mission
+                Date d&apos;{"é"}mission
               </Text>
               <Text variant="bodySmall" className="mt-1">
                 {formatDate(invoice.issuedDate)}
@@ -378,7 +373,7 @@ export default function InvoiceDetailScreen() {
             </View>
             <View className="items-end">
               <Text variant="bodySmall" color={theme.textTertiary}>
-                Date d&apos;{"\u00E9"}ch{"\u00E9"}ance
+                Date d&apos;{"é"}ch{"é"}ance
               </Text>
               <Text variant="bodySmall" className="mt-1">
                 {formatDate(invoice.dueDate)}
@@ -394,7 +389,7 @@ export default function InvoiceDetailScreen() {
         className="mt-4"
       >
         <Text variant="headlineSmall" className="mb-3">
-          D{"\u00E9"}tail des prestations
+          D{"é"}tail des prestations
         </Text>
         <Card>
           {/* Header row */}
@@ -412,7 +407,7 @@ export default function InvoiceDetailScreen() {
               className="w-10"
               align="center"
             >
-              Qt{"\u00E9"}
+              Qt{"é"}
             </Text>
             <Text
               variant="titleSmall"
@@ -463,7 +458,7 @@ export default function InvoiceDetailScreen() {
         className="mt-4"
       >
         <Text variant="headlineSmall" className="mb-3">
-          R{"\u00E9"}capitulatif
+          R{"é"}capitulatif
         </Text>
         <Card>
           {/* Subtotal */}
@@ -490,7 +485,7 @@ export default function InvoiceDetailScreen() {
           {invoice.lateReturnFee > 0 ? (
             <View className="flex-row justify-between mb-2">
               <Text variant="bodySmall" color={theme.textSecondary}>
-                P{"\u00E9"}nalit{"\u00E9"} de retard
+                P{"é"}nalit{"é"} de retard
               </Text>
               <Text variant="bodySmall" color={theme.warning}>
                 +{formatEuro(invoice.lateReturnFee)}
@@ -514,7 +509,7 @@ export default function InvoiceDetailScreen() {
 
           {/* Total due */}
           <View className="flex-row justify-between items-center">
-            <Text variant="titleMedium">Total d\u00FB</Text>
+            <Text variant="titleMedium">Total dû</Text>
             <Text variant="headlineLarge" color={theme.accent}>
               {formatEuro(invoice.totalDue)}
             </Text>
@@ -602,129 +597,42 @@ export default function InvoiceDetailScreen() {
         </Card>
       </Animated.View>
 
-      {/* ── Stripe Simulation (pending / overdue / partially-paid) ── */}
+      {/* ── Payment actions (pending / overdue / partially-paid) ──── */}
       {isPendingOrOverdue ? (
         <Animated.View
           entering={FadeInDown.duration(400).delay(400)}
           className="mt-4"
         >
           <Text variant="headlineSmall" className="mb-3">
-            Actions de paiement
+            {t("billing.record.sectionTitle", "Actions de paiement")}
           </Text>
 
-          {/* Card Payment Section */}
-          {showCardPayment ? (
-            <Card className="mb-3">
-              {cardSuccess ? (
-                <Animated.View
-                  entering={FadeInDown.duration(600).springify()}
-                  className="items-center py-6"
-                >
-                  <Animated.View
-                    entering={FadeInDown.duration(800).springify()}
-                  >
-                    <CheckCircle
-                      size={64}
-                      color={theme.success}
-                      strokeWidth={1.5}
-                    />
-                  </Animated.View>
-                  <Text
-                    variant="titleMedium"
-                    color={theme.success}
-                    className="mt-3"
-                  >
-                    Paiement r{"\u00E9"}ussi !
-                  </Text>
-                  <Text
-                    variant="bodySmall"
-                    color={theme.textSecondary}
-                    className="mt-1"
-                  >
-                    {formatEuro(invoice.remainingBalance)} d{"\u00E9"}bit
-                    {"\u00E9"}
-                  </Text>
-                </Animated.View>
-              ) : (
-                <View>
-                  <Text variant="titleSmall" className="mb-3">
-                    Carte enregistr{"\u00E9"}e
-                  </Text>
-                  <View
-                    className="flex-row items-center p-3 rounded-xl mb-3"
-                    style={{ backgroundColor: theme.surfaceTertiary }}
-                  >
-                    <CreditCard size={20} color={theme.textSecondary} />
-                    <Text variant="bodyMedium" className="ml-3">
-                      **** **** **** 4242
-                    </Text>
-                  </View>
-                  <View className="flex-row justify-between mb-4">
-                    <Text variant="bodySmall" color={theme.textSecondary}>
-                      Montant {"\u00E0"} d{"\u00E9"}biter
-                    </Text>
-                    <Text variant="titleSmall" color={theme.accent}>
-                      {formatEuro(invoice.remainingBalance)}
-                    </Text>
-                  </View>
-                  <View className="flex-row gap-3">
-                    <View className="flex-1">
-                      <Button
-                        variant="ghost"
-                        fullWidth
-                        onPress={() => setShowCardPayment(false)}
-                      >
-                        Annuler
-                      </Button>
-                    </View>
-                    <View className="flex-1">
-                      <Button
-                        variant="primary"
-                        fullWidth
-                        loading={cardLoading}
-                        onPress={handleCardPayment}
-                      >
-                        Confirmer
-                      </Button>
-                    </View>
-                  </View>
-                </View>
-              )}
-            </Card>
-          ) : (
-            <Button
-              variant="primary"
-              fullWidth
-              leftIcon={CreditCard}
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowCardPayment(true);
-                setShowCashPayment(false);
-              }}
-              className="mb-3"
-            >
-              Charger la carte
-            </Button>
-          )}
-
-          {/* Cash Payment Section */}
-          {showCashPayment ? (
+          {showRecordPayment ? (
             <Card className="mb-3">
               <Text variant="titleSmall" className="mb-3">
-                Paiement en esp{"\u00E8"}ces
+                {t("billing.record.title", "Enregistrer un paiement reçu")}
+              </Text>
+
+              {/* Amount input */}
+              <Text
+                variant="bodySmall"
+                color={theme.textSecondary}
+                className="mb-1.5"
+              >
+                {t("billing.record.amountLabel", "Montant reçu")}
               </Text>
               <View
-                className="flex-row items-center p-3 rounded-xl mb-3"
+                className="flex-row items-center p-3 rounded-xl mb-4"
                 style={{ backgroundColor: theme.surfaceTertiary }}
               >
-                <Banknote size={20} color={theme.textSecondary} />
                 <TextInput
-                  value={cashAmount}
-                  onChangeText={setCashAmount}
+                  testID="invoice-payment-amount-input"
+                  value={paymentAmount}
+                  onChangeText={setPaymentAmount}
                   placeholder={`Max ${formatEuro(invoice.remainingBalance)}`}
                   placeholderTextColor={theme.textTertiary}
                   keyboardType="decimal-pad"
-                  className="flex-1 ml-3"
+                  className="flex-1"
                   style={{
                     fontFamily: "Poppins_400Regular",
                     fontSize: 14,
@@ -732,46 +640,110 @@ export default function InvoiceDetailScreen() {
                   }}
                 />
                 <Text variant="bodySmall" color={theme.textTertiary}>
-                  {"\u20AC"}
+                  {"€"}
                 </Text>
               </View>
+
+              {/* Method selector */}
+              <Text
+                variant="bodySmall"
+                color={theme.textSecondary}
+                className="mb-1.5"
+              >
+                {t("billing.record.methodLabel", "Méthode")}
+              </Text>
+              <View className="flex-row gap-2 mb-4">
+                {(
+                  [
+                    {
+                      key: "card" as const,
+                      icon: CreditCard,
+                      label: t("billing.record.methodCard", "Carte"),
+                    },
+                    {
+                      key: "cash" as const,
+                      icon: Banknote,
+                      label: t("billing.record.methodCash", "Espèces"),
+                    },
+                    {
+                      key: "transfer" as const,
+                      icon: ArrowRightLeft,
+                      label: t("billing.record.methodTransfer", "Virement"),
+                    },
+                  ] as const
+                ).map(({ key, icon: Icon, label }) => {
+                  const active = paymentMethod === key;
+                  return (
+                    <Pressable
+                      key={key}
+                      testID={`invoice-payment-method-${key}`}
+                      onPress={() => {
+                        void Haptics.impactAsync(
+                          Haptics.ImpactFeedbackStyle.Light,
+                        );
+                        setPaymentMethod(key);
+                      }}
+                      className="flex-1 items-center justify-center rounded-xl py-3"
+                      style={{
+                        backgroundColor: active
+                          ? theme.accentSoft
+                          : theme.surfaceTertiary,
+                        borderWidth: 1.5,
+                        borderColor: active ? theme.accent : "transparent",
+                      }}
+                    >
+                      <Icon
+                        size={18}
+                        color={active ? theme.accent : theme.textSecondary}
+                      />
+                      <Text
+                        variant="bodySmall"
+                        color={active ? theme.accent : theme.textSecondary}
+                        className="mt-1"
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
               <View className="flex-row gap-3">
                 <View className="flex-1">
                   <Button
                     variant="ghost"
                     fullWidth
                     onPress={() => {
-                      setShowCashPayment(false);
-                      setCashAmount("");
+                      setShowRecordPayment(false);
+                      setPaymentAmount("");
                     }}
                   >
-                    Annuler
+                    {t("billing.record.cancel", "Annuler")}
                   </Button>
                 </View>
                 <View className="flex-1">
                   <Button
+                    testID="invoice-record-payment-confirm-button"
                     variant="primary"
                     fullWidth
-                    onPress={handleCashPayment}
+                    loading={recordPaymentMutation.isPending}
+                    onPress={handleRecordPayment}
                   >
-                    Encaisser
+                    {t("billing.record.confirm", "Enregistrer")}
                   </Button>
                 </View>
               </View>
             </Card>
           ) : (
             <Button
-              variant="secondary"
+              testID="invoice-record-payment-button"
+              variant="primary"
               fullWidth
               leftIcon={Banknote}
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowCashPayment(true);
-                setShowCardPayment(false);
-              }}
+              onPress={openRecordPayment}
               className="mb-3"
             >
-              Paiement en esp{"\u00E8"}ces
+              {t("billing.record.cta", "Enregistrer un paiement reçu")}
             </Button>
           )}
 
@@ -782,7 +754,7 @@ export default function InvoiceDetailScreen() {
             leftIcon={Bell}
             onPress={handleSendReminder}
           >
-            Envoyer un rappel
+            {t("billing.record.sendReminder", "Envoyer un rappel")}
           </Button>
         </Animated.View>
       ) : null}
@@ -800,7 +772,7 @@ export default function InvoiceDetailScreen() {
               leftIcon={Download}
               onPress={handleGenerateInvoicePdf}
             >
-              G{"\u00E9"}n{"\u00E9"}rer facture PDF
+              G{"é"}n{"é"}rer facture PDF
             </Button>
             <Button
               variant="secondary"
