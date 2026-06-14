@@ -30,6 +30,8 @@ import { Divider } from '@/components/ui/Divider';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useToastStore } from '@/components/ui/Toast';
+import { deleteAccount } from '@/services/authService';
+import { ApiClientError } from '@/services/api';
 
 // ── SettingsRow ─────────────────────────────────────────────────────────────
 
@@ -46,6 +48,8 @@ interface SettingsRowProps {
   isLast?: boolean;
   testID?: string;
   switchTestID?: string;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 function SettingsRow({
@@ -61,6 +65,8 @@ function SettingsRow({
   isLast = false,
   testID,
   switchTestID,
+  accessibilityLabel,
+  accessibilityHint,
 }: SettingsRowProps) {
   const theme = useTheme();
   const textColor = danger ? theme.danger : theme.textPrimary;
@@ -70,6 +76,8 @@ function SettingsRow({
     <Pressable
       testID={testID}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityHint={accessibilityHint}
       onPress={() => {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress?.();
@@ -142,6 +150,7 @@ export default function SettingsScreen() {
   const [bookingReminders, setBookingReminders] = useState(true);
   const [returnAlerts, setReturnAlerts] = useState(true);
   const [biometrics, setBiometrics] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleLogout = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -149,18 +158,57 @@ export default function SettingsScreen() {
     router.replace('/' as never);
   };
 
+  const performAccountDeletion = async () => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await deleteAccount();
+      // Sign out locally + clear persisted auth, then route to the auth entry
+      // (mirrors handleLogout).
+      await logout();
+      showToast({
+        variant: 'success',
+        title: t('settings.deleteAccount.success'),
+        message: t('settings.deleteAccount.successMessage'),
+      });
+      router.replace('/' as never);
+    } catch (error) {
+      // ADMIN accounts are blocked by the backend with HTTP 403 and a specific
+      // message asking the user to contact support to transfer agency
+      // ownership; surface that message instead of a generic failure.
+      if (error instanceof ApiClientError && error.status === 403) {
+        Alert.alert(
+          t('settings.deleteAccount.adminBlockedTitle'),
+          error.message,
+        );
+      } else {
+        showToast({
+          variant: 'error',
+          title: t('settings.deleteAccount.errorTitle'),
+          message:
+            error instanceof Error && error.message
+              ? error.message
+              : t('settings.deleteAccount.errorMessage'),
+        });
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleDeleteAccount = () => {
+    if (isDeleting) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Alert.alert(
-      'Supprimer le compte',
-      'Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.',
+      t('settings.deleteAccount.confirmTitle'),
+      t('settings.deleteAccount.confirmMessage'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('settings.deleteAccount.cancel'), style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: t('settings.deleteAccount.confirm'),
           style: 'destructive',
           onPress: () => {
-            showToast({ variant: 'info', title: 'Coming soon', message: 'La suppression de compte sera disponible prochainement.' });
+            void performAccountDeletion();
           },
         },
       ],
@@ -354,11 +402,13 @@ export default function SettingsScreen() {
           />
           <SettingsRow
             icon={Trash2}
-            label="Supprimer le compte"
+            label={t('settings.deleteAccount.row')}
             danger
             onPress={handleDeleteAccount}
             isLast
             testID="settings-row-delete-account"
+            accessibilityLabel={t('settings.deleteAccount.row')}
+            accessibilityHint={t('settings.deleteAccount.confirmMessage')}
           />
         </View>
       </Animated.View>
