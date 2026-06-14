@@ -17,6 +17,7 @@ import {
 } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import * as Linking from "expo-linking";
 import { useTranslation } from "react-i18next";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -823,30 +824,62 @@ export default function BookingDetailScreen() {
                 <ContactButton
                   icon={Phone}
                   theme={theme}
+                  disabled={!client?.phone}
+                  testID="booking-call-button"
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    showToast({
-                      variant: "info",
-                      title: t(
-                        "bookings.detail.callSimulated",
-                        "Call simulated",
-                      ),
-                      message: client?.phone ?? booking.clientName,
+                    const phone = client?.phone;
+                    if (!phone) {
+                      showToast({
+                        variant: "info",
+                        title: t(
+                          "bookings.detail.noPhone",
+                          "No phone number on file",
+                        ),
+                        message: booking.clientName,
+                      });
+                      return;
+                    }
+                    void Linking.openURL(`tel:${phone}`).catch(() => {
+                      showToast({
+                        variant: "error",
+                        title: t(
+                          "bookings.detail.callFailed",
+                          "Unable to start call",
+                        ),
+                        message: phone,
+                      });
                     });
                   }}
                 />
                 <ContactButton
                   icon={Mail}
                   theme={theme}
+                  disabled={!client?.email}
+                  testID="booking-email-button"
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    showToast({
-                      variant: "info",
-                      title: t(
-                        "bookings.detail.emailSimulated",
-                        "Email simulated",
-                      ),
-                      message: client?.email ?? booking.clientName,
+                    const email = client?.email;
+                    if (!email) {
+                      showToast({
+                        variant: "info",
+                        title: t(
+                          "bookings.detail.noEmail",
+                          "No email address on file",
+                        ),
+                        message: booking.clientName,
+                      });
+                      return;
+                    }
+                    void Linking.openURL(`mailto:${email}`).catch(() => {
+                      showToast({
+                        variant: "error",
+                        title: t(
+                          "bookings.detail.emailFailed",
+                          "Unable to open email",
+                        ),
+                        message: email,
+                      });
                     });
                   }}
                 />
@@ -1937,6 +1970,8 @@ function ContactButton({
   icon: Icon,
   theme,
   onPress,
+  disabled = false,
+  testID,
 }: {
   icon: React.ComponentType<{
     size?: number;
@@ -1945,10 +1980,14 @@ function ContactButton({
   }>;
   theme: ReturnType<typeof useTheme>;
   onPress: () => void;
+  disabled?: boolean;
+  testID?: string;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
+      testID={testID}
       style={({ pressed }) => ({
         width: 40,
         height: 40,
@@ -1956,6 +1995,7 @@ function ContactButton({
         backgroundColor: theme.surfaceTertiary,
         alignItems: "center",
         justifyContent: "center",
+        opacity: disabled ? 0.4 : 1,
         transform: [{ scale: pressed ? 0.94 : 1 }],
       })}
     >

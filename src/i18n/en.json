@@ -471,6 +471,18 @@
       "share": "Share",
       "download": "Download",
       "print": "Print"
+    },
+    "invite": {
+      "title": "Invite a user",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "submit": "Send invitation",
+      "firstNameRequired": "Required",
+      "lastNameRequired": "Required",
+      "emailInvalid": "Enter a valid email",
+      "success": "Invitation sent",
+      "failed": "Could not send invitation"
     }
   },
   "insurance": {
@@ -710,6 +722,12 @@
       "subtotal": "Subtotal",
       "optionsTotal": "Options",
       "perDay": "day"
+    },
+    "detail": {
+      "noPhone": "No phone number on file",
+      "callFailed": "Unable to start call",
+      "noEmail": "No email address on file",
+      "emailFailed": "Unable to open email"
     }
   },
   "billing": {

@@ -59,6 +59,7 @@ import {
   useAgency,
   useAgencyDocuments,
   useAgencySettings,
+  useInviteTeamMember,
   useTeam,
   useUpdateAgency,
   useUpdateAgencyDocument,
@@ -94,6 +95,7 @@ export default function AgencyScreen() {
   const showToast = useToastStore((s) => s.show);
   const { data: agency, isLoading } = useAgency();
   const { data: team, isLoading: isTeamLoading } = useTeam();
+  const inviteTeamMember = useInviteTeamMember();
   const updateAgency = useUpdateAgency();
 
   const { data: settings, isLoading: isSettingsLoading } = useAgencySettings();
@@ -156,6 +158,17 @@ export default function AgencyScreen() {
     mimeType: string;
   } | null>(null);
   const [showLogoSheet, setShowLogoSheet] = useState(false);
+
+  // ── Invite team member state ──────────────────────────────────────
+  const [showInviteSheet, setShowInviteSheet] = useState(false);
+  const [inviteFirstName, setInviteFirstName] = useState("");
+  const [inviteLastName, setInviteLastName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteErrors, setInviteErrors] = useState<{
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }>({});
 
   // ── Business settings edit state ──────────────────────────────────
   const [isEditingBusiness, setIsEditingBusiness] = useState(false);
@@ -445,13 +458,62 @@ export default function AgencyScreen() {
     t,
   ]);
 
-  const comingSoon = () => {
-    showToast({
-      variant: "info",
-      title: "Coming soon",
-      message: "Cette fonctionnalité sera disponible prochainement.",
-    });
-  };
+  // ── Invite team member handlers ───────────────────────────────────
+  const handleOpenInvite = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setInviteFirstName("");
+    setInviteLastName("");
+    setInviteEmail("");
+    setInviteErrors({});
+    setShowInviteSheet(true);
+  }, []);
+
+  const handleSubmitInvite = useCallback(async () => {
+    const firstName = inviteFirstName.trim();
+    const lastName = inviteLastName.trim();
+    const email = inviteEmail.trim();
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    const errors: { firstName?: string; lastName?: string; email?: string } =
+      {};
+    if (!firstName)
+      errors.firstName = t("agency.invite.firstNameRequired", "Required");
+    if (!lastName)
+      errors.lastName = t("agency.invite.lastNameRequired", "Required");
+    if (!email || !emailRe.test(email))
+      errors.email = t("agency.invite.emailInvalid", "Enter a valid email");
+
+    if (Object.keys(errors).length > 0) {
+      setInviteErrors(errors);
+      return;
+    }
+    setInviteErrors({});
+
+    try {
+      await inviteTeamMember.mutateAsync({
+        firstName,
+        lastName,
+        email: email.toLowerCase(),
+      });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowInviteSheet(false);
+      showToast({
+        variant: "success",
+        title: t("agency.invite.success", "Invitation sent"),
+        message: email.toLowerCase(),
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : t("agency.invite.failed", "Could not send invitation");
+      showToast({
+        variant: "error",
+        title: t("agency.invite.failed", "Could not send invitation"),
+        message,
+      });
+    }
+  }, [inviteFirstName, inviteLastName, inviteEmail, inviteTeamMember, showToast, t]);
 
   // ── Agency branding handlers ─────────────────────────────────────
   const handlePickLogoFromLibrary = async () => {
@@ -1256,7 +1318,8 @@ export default function AgencyScreen() {
               fullWidth
               variant="secondary"
               leftIcon={UserPlus}
-              onPress={comingSoon}
+              onPress={handleOpenInvite}
+              testID="agency-invite-user-button"
             >
               Inviter un utilisateur
             </Button>
@@ -2144,6 +2207,53 @@ export default function AgencyScreen() {
             {t("agency.takePhoto", "Take Photo")}
           </Text>
         </Pressable>
+      </BottomSheet>
+
+      <BottomSheet
+        visible={showInviteSheet}
+        onClose={() => setShowInviteSheet(false)}
+        title={t("agency.invite.title", "Inviter un utilisateur")}
+      >
+        <View style={{ gap: 12 }}>
+          <Input
+            label={t("agency.invite.firstName", "Prénom")}
+            value={inviteFirstName}
+            onChangeText={setInviteFirstName}
+            autoCapitalize="words"
+            error={inviteErrors.firstName}
+            testID="agency-invite-first-name"
+          />
+          <Input
+            label={t("agency.invite.lastName", "Nom")}
+            value={inviteLastName}
+            onChangeText={setInviteLastName}
+            autoCapitalize="words"
+            error={inviteErrors.lastName}
+            testID="agency-invite-last-name"
+          />
+          <Input
+            label={t("agency.invite.email", "E-mail")}
+            value={inviteEmail}
+            onChangeText={setInviteEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            error={inviteErrors.email}
+            testID="agency-invite-email"
+          />
+          <Button
+            fullWidth
+            variant="primary"
+            leftIcon={UserPlus}
+            loading={inviteTeamMember.isPending}
+            disabled={inviteTeamMember.isPending}
+            onPress={() => {
+              void handleSubmitInvite();
+            }}
+            testID="agency-invite-submit-button"
+          >
+            {t("agency.invite.submit", "Envoyer l'invitation")}
+          </Button>
+        </View>
       </BottomSheet>
     </ScreenWrapper>
   );

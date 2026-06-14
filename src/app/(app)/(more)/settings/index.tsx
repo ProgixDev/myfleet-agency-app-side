@@ -11,12 +11,8 @@ import {
   Mail,
   Calendar,
   Clock,
-  CreditCard,
   KeyRound,
   Fingerprint,
-  HelpCircle,
-  FileText,
-  Shield,
   Info,
   LogOut,
   Trash2,
@@ -137,10 +133,6 @@ export default function SettingsScreen() {
   const [bookingReminders, setBookingReminders] = useState(true);
   const [returnAlerts, setReturnAlerts] = useState(true);
   const [biometrics, setBiometrics] = useState(false);
-
-  const comingSoon = () => {
-    showToast({ variant: 'info', title: 'Coming soon', message: 'Cette fonctionnalité sera disponible prochainement.' });
-  };
 
   const handleLogout = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -274,22 +266,6 @@ export default function SettingsScreen() {
         </View>
       </Animated.View>
 
-      {/* Abonnement */}
-      <Animated.View entering={FadeInDown.duration(400).delay(200)}>
-        <SectionHeader title="Abonnement" />
-        <View
-          style={{ backgroundColor: theme.surface }}
-          className="rounded-2xl overflow-hidden"
-        >
-          <SettingsRow
-            icon={CreditCard}
-            label="Mon abonnement"
-            onPress={comingSoon}
-            isLast
-          />
-        </View>
-      </Animated.View>
-
       {/* Sécurité */}
       <Animated.View entering={FadeInDown.duration(400).delay(250)}>
         <SectionHeader title="Sécurité" />
@@ -300,7 +276,7 @@ export default function SettingsScreen() {
           <SettingsRow
             icon={KeyRound}
             label="Changer mot de passe"
-            onPress={comingSoon}
+            onPress={() => router.push('/(auth)/forgot-password')}
           />
           <SettingsRow
             icon={Fingerprint}
@@ -308,24 +284,6 @@ export default function SettingsScreen() {
             rightElement="switch"
             switchValue={biometrics}
             onSwitchChange={setBiometrics}
-            isLast
-          />
-        </View>
-      </Animated.View>
-
-      {/* Support */}
-      <Animated.View entering={FadeInDown.duration(400).delay(300)}>
-        <SectionHeader title="Support" />
-        <View
-          style={{ backgroundColor: theme.surface }}
-          className="rounded-2xl overflow-hidden"
-        >
-          <SettingsRow icon={HelpCircle} label="Centre d'aide" onPress={comingSoon} />
-          <SettingsRow icon={FileText} label="Conditions" onPress={comingSoon} />
-          <SettingsRow
-            icon={Shield}
-            label="Confidentialité"
-            onPress={comingSoon}
             isLast
           />
         </View>

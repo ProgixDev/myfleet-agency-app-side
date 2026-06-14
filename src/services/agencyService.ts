@@ -20,6 +20,22 @@ export async function getTeam(): Promise<AgencyUser[]> {
   return authedRequest<AgencyUser[]>("/agency/team", { method: "GET" });
 }
 
+export interface InviteTeamMemberInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export async function inviteTeamMember(
+  input: InviteTeamMemberInput,
+): Promise<AgencyUser> {
+  return authedRequest<AgencyUser>("/agency/team", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
 export async function getAgencyDocuments(): Promise<AgencyDocument[]> {
   return authedRequest<AgencyDocument[]>("/agency/documents", {
     method: "GET",

@@ -358,14 +358,14 @@ export default function InspectionsScreen() {
 
   const handleCardPress = useCallback(
     (id: string) => {
-      router.push(`/(inspections)/${id}`);
+      router.push({ pathname: "/(app)/(inspections)/[id]", params: { id } });
     },
     [router],
   );
 
   const handleNewInspection = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push("/(inspections)/new");
+    router.push("/(app)/(inspections)/new");
   }, [router]);
 
   const renderItem = useCallback(
