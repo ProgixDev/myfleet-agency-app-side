@@ -425,6 +425,18 @@
     "darkMode": "Mode sombre",
     "notifications": "Notifications",
     "about": "À propos",
+    "deleteAccount": {
+      "row": "Supprimer le compte",
+      "confirmTitle": "Supprimer le compte",
+      "confirmMessage": "Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.",
+      "cancel": "Annuler",
+      "confirm": "Supprimer",
+      "success": "Compte supprimé",
+      "successMessage": "Votre compte a été définitivement supprimé.",
+      "errorTitle": "Échec de la suppression",
+      "errorMessage": "Impossible de supprimer votre compte. Veuillez réessayer.",
+      "adminBlockedTitle": "Compte non supprimable"
+    },
     "policies": {
       "title": "Politiques de Réservation",
       "autoCancel": "Annulation auto des réservations impayées",

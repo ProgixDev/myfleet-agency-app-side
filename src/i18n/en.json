@@ -425,6 +425,18 @@
     "darkMode": "Dark mode",
     "notifications": "Notifications",
     "about": "About",
+    "deleteAccount": {
+      "row": "Delete account",
+      "confirmTitle": "Delete account",
+      "confirmMessage": "Are you sure you want to delete your account? This action is irreversible.",
+      "cancel": "Cancel",
+      "confirm": "Delete",
+      "success": "Account deleted",
+      "successMessage": "Your account has been permanently deleted.",
+      "errorTitle": "Deletion failed",
+      "errorMessage": "Unable to delete your account. Please try again.",
+      "adminBlockedTitle": "Account cannot be deleted"
+    },
     "policies": {
       "title": "Booking Policies",
       "autoCancel": "Auto-cancel unpaid bookings",

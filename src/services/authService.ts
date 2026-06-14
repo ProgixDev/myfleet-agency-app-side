@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 
-import { apiRequest, AUTH_BASE_URL } from "@/services/api";
+import { apiRequest, authedRequest, AUTH_BASE_URL } from "@/services/api";
 import { supabase } from "@/lib/supabase";
 
 // Configure Google Sign-In
@@ -167,6 +167,22 @@ export async function validateSession(accessToken: string): Promise<AuthUser> {
 
 export async function logout(): Promise<void> {
   await supabase.auth.signOut();
+}
+
+/**
+ * Permanently deletes (soft-deletes + anonymizes) the currently authenticated
+ * account via the backend and signs the caller out server-side. Required for
+ * App Store guideline 5.1.1(v) (in-app account deletion).
+ *
+ * ADMIN accounts are rejected by the backend with HTTP 403 and a message
+ * instructing the user to contact support to transfer agency ownership first;
+ * callers should surface that message rather than a generic error.
+ */
+export async function deleteAccount(): Promise<void> {
+  await authedRequest<unknown>("/me", {
+    baseUrl: AUTH_BASE_URL,
+    method: "DELETE",
+  });
 }
 
 export async function forgotPassword(email: string): Promise<void> {
