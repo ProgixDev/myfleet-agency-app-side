@@ -74,7 +74,9 @@
       "signIn": "Se connecter",
       "noAccount": "Pas encore de compte ?",
       "register": "S'inscrire",
-      "continueWithPhone": "Continuer avec téléphone"
+      "continueWithPhone": "Continuer avec téléphone",
+      "closeLabel": "Fermer",
+      "socialLabel": "Se connecter avec {{provider}}"
     },
     "qrLogin": {
       "title": "Se connecter avec un QR code",

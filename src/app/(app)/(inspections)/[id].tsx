@@ -567,9 +567,11 @@ export default function InspectionDetailScreen() {
             />
           </View>
           <View className="flex-row flex-wrap" style={{ gap: 8 }}>
-            {PHOTO_ANGLES.map((a) =>
-              renderPhotoTile(a.label, photoMap.get(a.key), "48.5%", 4 / 3),
-            )}
+            {PHOTO_ANGLES.map((a) => (
+              <View key={a.key} style={{ width: "48.5%" }}>
+                {renderPhotoTile(a.label, photoMap.get(a.key), "100%", 4 / 3)}
+              </View>
+            ))}
           </View>
         </View>
 

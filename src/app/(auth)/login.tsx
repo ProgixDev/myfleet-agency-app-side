@@ -67,13 +67,20 @@ function SocialButton({
   icon,
   onPress,
   theme,
+  testID,
+  accessibilityLabel,
 }: {
   icon: React.ReactNode;
   onPress: () => void;
   theme: ReturnType<typeof useTheme>;
+  testID?: string;
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={() => {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
@@ -217,6 +224,11 @@ export default function LoginScreen() {
         </View>
 
         <Pressable
+          testID="login-close-button"
+          accessibilityRole="button"
+          accessibilityLabel={t("auth.loginScreen.closeLabel", {
+            defaultValue: "Fermer",
+          })}
           onPress={() => router.back()}
           hitSlop={12}
           style={{
@@ -272,18 +284,33 @@ export default function LoginScreen() {
             >
               <View className="flex-row gap-4">
                 <SocialButton
+                  testID="login-social-google"
+                  accessibilityLabel={t("auth.loginScreen.socialLabel", {
+                    provider: "Google",
+                    defaultValue: "Se connecter avec Google",
+                  })}
                   icon={<GoogleIcon />}
                   onPress={() => handleSocialLogin("google")}
                   theme={theme}
                 />
                 {showApple && (
                   <SocialButton
+                    testID="login-social-apple"
+                    accessibilityLabel={t("auth.loginScreen.socialLabel", {
+                      provider: "Apple",
+                      defaultValue: "Se connecter avec Apple",
+                    })}
                     icon={<AppleIcon />}
                     onPress={() => handleSocialLogin("apple")}
                     theme={theme}
                   />
                 )}
                 <SocialButton
+                  testID="login-social-facebook"
+                  accessibilityLabel={t("auth.loginScreen.socialLabel", {
+                    provider: "Facebook",
+                    defaultValue: "Se connecter avec Facebook",
+                  })}
                   icon={<FacebookIcon />}
                   onPress={() => handleSocialLogin("facebook")}
                   theme={theme}
@@ -298,6 +325,8 @@ export default function LoginScreen() {
             >
               <Pressable
                 testID="login-qr-button"
+                accessibilityRole="button"
+                accessibilityLabel={t("auth.qrLogin.openButton")}
                 onPress={() => {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push("/(auth)/qr-login");
@@ -380,6 +409,8 @@ export default function LoginScreen() {
               className="gap-4"
             >
               <Input
+                testID="login-email-input"
+                accessibilityLabel={t("auth.email")}
                 label={t("auth.email")}
                 placeholder={t("auth.loginScreen.emailPlaceholder")}
                 keyboardType="email-address"
@@ -394,6 +425,8 @@ export default function LoginScreen() {
               />
 
               <Input
+                testID="login-password-input"
+                accessibilityLabel={t("auth.password")}
                 variant="password"
                 label={t("auth.password")}
                 placeholder={t("auth.loginScreen.passwordPlaceholder")}
@@ -414,6 +447,9 @@ export default function LoginScreen() {
               className="mt-3 self-end"
             >
               <Pressable
+                testID="login-forgot-password"
+                accessibilityRole="button"
+                accessibilityLabel={t("auth.loginScreen.forgotPassword")}
                 onPress={() => router.push("/(auth)/forgot-password")}
                 style={({ pressed }) => ({
                   paddingHorizontal: 12,
@@ -434,6 +470,9 @@ export default function LoginScreen() {
               className="mt-6"
             >
               <Pressable
+                testID="login-submit"
+                accessibilityRole="button"
+                accessibilityLabel={t("auth.loginScreen.signIn")}
                 onPress={handleLogin}
                 disabled={isLoading}
                 style={({ pressed }) => ({
@@ -511,6 +550,8 @@ export default function LoginScreen() {
             >
               <Pressable
                 testID="login-signup-link"
+                accessibilityRole="button"
+                accessibilityLabel={t("auth.loginScreen.register")}
                 onPress={() => {
                   void Linking.openURL(`${WEB_ADMIN_URL}/signup`);
                 }}

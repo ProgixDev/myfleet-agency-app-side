@@ -34,6 +34,8 @@ export interface InputProps {
   keyboardType?: KeyboardTypeOptions;
   maxLength?: number;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  testID?: string;
+  accessibilityLabel?: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,6 +61,8 @@ export function Input({
   keyboardType,
   maxLength,
   autoCapitalize,
+  testID,
+  accessibilityLabel,
 }: InputProps) {
   const theme = useTheme();
   const isPassword = variant === 'password' || secureTextEntryProp;
@@ -138,6 +142,8 @@ export function Input({
         ) : null}
 
         <TextInput
+          testID={testID}
+          accessibilityLabel={accessibilityLabel ?? label}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
