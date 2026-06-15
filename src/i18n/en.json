@@ -575,6 +575,11 @@
       "ai": {
         "errorTitle": "AI analysis failed",
         "runAll": "Analyse all photos with AI",
+        "reviewTitle": "Review AI findings",
+        "reviewHint": "Confirm real damage or reject false alarms — it trains the AI on your fleet.",
+        "confirmDamage": "Real damage",
+        "rejectDamage": "Not damage",
+        "feedbackError": "Could not save feedback",
         "insufficientCreditsTitle": "Out of AI credits",
         "insufficientCreditsMessage": "Your agency has run out of AI inspection credits. Top up on the web admin to keep using AI analysis."
       }

@@ -575,6 +575,11 @@
       "ai": {
         "errorTitle": "Échec de l'analyse IA",
         "runAll": "Analyser toutes les photos avec l'IA",
+        "reviewTitle": "Vérifier les détections IA",
+        "reviewHint": "Confirmez les vrais dommages ou rejetez les fausses alertes — cela entraîne l'IA sur votre flotte.",
+        "confirmDamage": "Vrai dommage",
+        "rejectDamage": "Pas un dommage",
+        "feedbackError": "Impossible d'enregistrer l'avis",
         "insufficientCreditsTitle": "Crédits IA épuisés",
         "insufficientCreditsMessage": "Votre agence n'a plus de crédits d'inspection IA. Rechargez-les sur l'admin web pour continuer à utiliser l'analyse IA."
       }

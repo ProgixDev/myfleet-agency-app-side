@@ -80,6 +80,31 @@ export async function runInspectionAngleAi(
   return ok(data);
 }
 
+export interface MarkerFeedback {
+  verdict: "confirm" | "reject" | "reclassify";
+  rejectReason?: "false_positive" | "not_chargeable" | "duplicate" | "low_quality";
+  correctedClass?: string;
+  correctedSeverity?: "cosmetic" | "minor" | "moderate" | "severe";
+}
+
+// Data flywheel: the inspector's verdict on one AI finding (real damage / false
+// alarm) becomes a labelled example server-side.
+export async function submitMarkerFeedback(
+  inspectionId: string,
+  markerId: string,
+  feedback: MarkerFeedback,
+): Promise<ApiResponse<Inspection>> {
+  const data = await authedRequest<Inspection>(
+    `/inspections/${inspectionId}/markers/${markerId}/feedback`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(feedback),
+    },
+  );
+  return ok(data);
+}
+
 export async function patchInspection(
   id: string,
   patch: {

@@ -7,7 +7,9 @@ import {
   patchInspection,
   runInspectionAi,
   runInspectionAngleAi,
+  submitMarkerFeedback,
   type CreateInspectionPayload,
+  type MarkerFeedback,
 } from "@/services/inspectionService";
 import type { InspectionType, PhotoAngle } from "@/types/inspection";
 
@@ -73,6 +75,29 @@ export function useRunInspectionAngleAi() {
     mutationFn: async ({ id, angle }: { id: string; angle: PhotoAngle }) => {
       const res = await runInspectionAngleAi(id, angle);
       if (!res.data) throw new Error("Failed to run AI analysis");
+      return res.data;
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(inspectionKeys.detail(data.id), data);
+      void qc.invalidateQueries({ queryKey: inspectionKeys.all });
+    },
+  });
+}
+
+export function useMarkerFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      inspectionId: string;
+      markerId: string;
+      feedback: MarkerFeedback;
+    }) => {
+      const res = await submitMarkerFeedback(
+        vars.inspectionId,
+        vars.markerId,
+        vars.feedback,
+      );
+      if (!res.data) throw new Error("Failed to submit feedback");
       return res.data;
     },
     onSuccess: (data) => {

@@ -53,8 +53,10 @@ import {
   useInspections,
   useRunInspectionAi,
   useRunInspectionAngleAi,
+  useMarkerFeedback,
   useDeleteInspection,
 } from "@/hooks/useInspections";
+import { AiFindingsReview } from "@/components/inspections/AiFindingsReview";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { PrePostAngleList } from "@/components/inspections/PrePostAngleList";
 import { ManualAngleReviewModal } from "@/components/inspections/ManualAngleReviewModal";
@@ -243,6 +245,8 @@ export default function InspectionDetailScreen() {
   const { data: inspection, isLoading, isError, refetch } = useInspection(id);
   const runAngleAi = useRunInspectionAngleAi();
   const runAllAi = useRunInspectionAi();
+  const markerFeedback = useMarkerFeedback();
+  const [pendingMarkers, setPendingMarkers] = useState<Set<string>>(new Set());
   const deleteInspectionMut = useDeleteInspection();
   const isAdmin = useAuthStore((s) => s.user?.role) === "admin";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -338,6 +342,35 @@ export default function InspectionDetailScreen() {
         });
       },
     });
+  };
+
+  // Data flywheel: record the inspector's verdict on one AI finding.
+  const triggerMarkerFeedback = (
+    markerId: string,
+    verdict: "confirm" | "reject",
+  ) => {
+    if (!inspection) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPendingMarkers((s) => new Set(s).add(markerId));
+    markerFeedback.mutate(
+      { inspectionId: inspection.id, markerId, feedback: { verdict } },
+      {
+        onError: (err) => {
+          showToast({
+            variant: "error",
+            title: t("inspections.detail.ai.feedbackError", "Could not save feedback"),
+            message: err instanceof Error ? err.message : String(err),
+          });
+        },
+        onSettled: () => {
+          setPendingMarkers((s) => {
+            const next = new Set(s);
+            next.delete(markerId);
+            return next;
+          });
+        },
+      },
+    );
   };
 
   const { data: relatedInspections = [] } = useInspections(
@@ -1412,6 +1445,11 @@ export default function InspectionDetailScreen() {
               }
             />
           </Animated.View>
+          <AiFindingsReview
+            inspection={pair.post}
+            pending={pendingMarkers}
+            onFeedback={triggerMarkerFeedback}
+          />
         </ScrollView>
         {fullscreenModal}
         {manualModal}
@@ -1778,6 +1816,11 @@ export default function InspectionDetailScreen() {
             }
           />
         </Animated.View>
+        <AiFindingsReview
+          inspection={inspection}
+          pending={pendingMarkers}
+          onFeedback={triggerMarkerFeedback}
+        />
 
         {inspection.status === "draft" && (
           <Animated.View
