@@ -574,6 +574,7 @@
       "closeFullscreen": "Fermer",
       "ai": {
         "errorTitle": "Échec de l'analyse IA",
+        "runAll": "Analyser toutes les photos avec l'IA",
         "insufficientCreditsTitle": "Crédits IA épuisés",
         "insufficientCreditsMessage": "Votre agence n'a plus de crédits d'inspection IA. Rechargez-les sur l'admin web pour continuer à utiliser l'analyse IA."
       }

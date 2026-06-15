@@ -574,6 +574,7 @@
       "closeFullscreen": "Close",
       "ai": {
         "errorTitle": "AI analysis failed",
+        "runAll": "Analyse all photos with AI",
         "insufficientCreditsTitle": "Out of AI credits",
         "insufficientCreditsMessage": "Your agency has run out of AI inspection credits. Top up on the web admin to keep using AI analysis."
       }
