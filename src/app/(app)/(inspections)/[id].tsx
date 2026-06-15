@@ -51,6 +51,7 @@ import { formatDate, formatMileage } from "@/utils/format";
 import {
   useInspection,
   useInspections,
+  useRunInspectionAi,
   useRunInspectionAngleAi,
   useDeleteInspection,
 } from "@/hooks/useInspections";
@@ -241,6 +242,7 @@ export default function InspectionDetailScreen() {
 
   const { data: inspection, isLoading, isError, refetch } = useInspection(id);
   const runAngleAi = useRunInspectionAngleAi();
+  const runAllAi = useRunInspectionAi();
   const deleteInspectionMut = useDeleteInspection();
   const isAdmin = useAuthStore((s) => s.user?.role) === "admin";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -297,6 +299,45 @@ export default function InspectionDetailScreen() {
         },
       },
     );
+  };
+
+  // Canonical AI action: analyse EVERY captured angle in ONE backend call. This
+  // is the cost-efficient path — running AI per angle would be one OpenAI call
+  // per photo (up to 8×) for the same single credit.
+  const triggerRunAll = () => {
+    if (!inspection) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    runAllAi.mutate(inspection.id, {
+      onError: (err) => {
+        if (isInsufficientCredits(err)) {
+          Alert.alert(
+            t(
+              "inspections.detail.ai.insufficientCreditsTitle",
+              "Out of AI credits",
+            ),
+            t(
+              "inspections.detail.ai.insufficientCreditsMessage",
+              "Your agency has run out of AI inspection credits. Top up on the web admin to keep using AI analysis.",
+            ),
+            [
+              { text: t("common.close", "Close"), style: "cancel" },
+              {
+                text: t("common.openWebAdmin", "Buy credits"),
+                onPress: () => {
+                  void Linking.openURL(WEB_ADMIN_URL);
+                },
+              },
+            ],
+          );
+          return;
+        }
+        showToast({
+          variant: "error",
+          title: t("inspections.detail.ai.errorTitle", "AI analysis failed"),
+          message: err instanceof Error ? err.message : String(err),
+        });
+      },
+    });
   };
 
   const { data: relatedInspections = [] } = useInspections(
@@ -1310,6 +1351,22 @@ export default function InspectionDetailScreen() {
             <SectionLabel theme={theme}>
               {t("inspections.detail.angleReview.title", "Per-angle review")}
             </SectionLabel>
+            <Button
+              variant="primary"
+              fullWidth
+              size="md"
+              leftIcon={Sparkles}
+              loading={runAllAi.isPending}
+              onPress={triggerRunAll}
+              testID="inspection-run-all-ai-button"
+              accessibilityLabel={t(
+                "inspections.detail.ai.runAll",
+                "Analyse all photos with AI",
+              )}
+            >
+              {t("inspections.detail.ai.runAll", "Analyse all photos with AI")}
+            </Button>
+            <View style={{ height: 12 }} />
             {pair.post.aiSummary && pair.post.aiSummary.trim().length > 0 && (
               <View
                 style={{
@@ -1664,6 +1721,22 @@ export default function InspectionDetailScreen() {
           <SectionLabel theme={theme}>
             {t("inspections.detail.angleReview.title", "Per-angle review")}
           </SectionLabel>
+          <Button
+            variant="primary"
+            fullWidth
+            size="md"
+            leftIcon={Sparkles}
+            loading={runAllAi.isPending}
+            onPress={triggerRunAll}
+            testID="inspection-run-all-ai-button"
+            accessibilityLabel={t(
+              "inspections.detail.ai.runAll",
+              "Analyse all photos with AI",
+            )}
+          >
+            {t("inspections.detail.ai.runAll", "Analyse all photos with AI")}
+          </Button>
+          <View style={{ height: 12 }} />
           {inspection.aiSummary && inspection.aiSummary.trim().length > 0 && (
             <View
               style={{
