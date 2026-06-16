@@ -48,3 +48,6 @@ app-example
 *.MOV
 *.mov
 *.mp4
+
+# local agent config
+.claude/
