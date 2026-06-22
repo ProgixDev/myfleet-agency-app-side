@@ -420,7 +420,9 @@ export default function MoreScreen() {
                     style: "cancel",
                   },
                   {
-                    text: t("more.logout", { defaultValue: "Se déconnecter" }),
+                    text: t("more.logoutConfirmAction", {
+                      defaultValue: "Oui, me déconnecter",
+                    }),
                     style: "destructive",
                     onPress: async () => {
                       try {

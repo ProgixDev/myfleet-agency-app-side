@@ -794,7 +794,8 @@
     "settings": "Settings",
     "notifications": "Notifications",
     "qrCode": "My QR Code",
-    "logout": "Log out"
+    "logout": "Log out",
+    "logoutConfirmAction": "Yes, log out"
   },
   "tabs": {
     "dashboard": "Home",
