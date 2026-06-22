@@ -794,7 +794,8 @@
     "settings": "Paramètres",
     "notifications": "Notifications",
     "qrCode": "Mon QR Code",
-    "logout": "Déconnexion"
+    "logout": "Déconnexion",
+    "logoutConfirmAction": "Oui, me déconnecter"
   },
   "tabs": {
     "dashboard": "Accueil",
