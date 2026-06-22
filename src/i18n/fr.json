@@ -222,7 +222,19 @@
       "video": "Vidéo Intérieur",
       "noVideo": "Aucune vidéo disponible"
     },
-    "searchPlaceholder": "Rechercher par nom, modèle ou plaque"
+    "searchPlaceholder": "Rechercher par nom, modèle ou plaque",
+    "detail": {
+      "bookNow": "Réserver",
+      "inspect": "Inspecter",
+      "inspection": "Inspection"
+    },
+    "stats": {
+      "total": "véhicules",
+      "available": "disponibles",
+      "rented": "loués"
+    },
+    "addPhotos": "Ajouter des photos",
+    "featuresPlaceholder": "Ajoutez un équipement et appuyez sur Entrée"
   },
   "booking": {
     "title": "Réservations",
@@ -739,13 +751,16 @@
       "deposit": "Acompte",
       "subtotal": "Sous-total",
       "optionsTotal": "Options",
-      "perDay": "jour"
+      "perDay": "jour",
+      "next": "Suivant"
     },
     "detail": {
       "noPhone": "Aucun numéro de téléphone enregistré",
       "callFailed": "Impossible de démarrer l'appel",
       "noEmail": "Aucune adresse e-mail enregistrée",
-      "emailFailed": "Impossible d'ouvrir l'e-mail"
+      "emailFailed": "Impossible d'ouvrir l'e-mail",
+      "confirm": "Confirmer",
+      "cancel": "Annuler"
     }
   },
   "billing": {

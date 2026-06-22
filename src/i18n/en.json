@@ -222,7 +222,19 @@
       "video": "Interior Video",
       "noVideo": "No video available"
     },
-    "searchPlaceholder": "Search by name, model or plate"
+    "searchPlaceholder": "Search by name, model or plate",
+    "detail": {
+      "bookNow": "Book Now",
+      "inspect": "Inspect",
+      "inspection": "Inspection"
+    },
+    "stats": {
+      "total": "vehicles",
+      "available": "available",
+      "rented": "rented"
+    },
+    "addPhotos": "Add Photos",
+    "featuresPlaceholder": "Add a feature and press return"
   },
   "booking": {
     "title": "Bookings",
@@ -739,13 +751,16 @@
       "deposit": "Deposit",
       "subtotal": "Subtotal",
       "optionsTotal": "Options",
-      "perDay": "day"
+      "perDay": "day",
+      "next": "Next"
     },
     "detail": {
       "noPhone": "No phone number on file",
       "callFailed": "Unable to start call",
       "noEmail": "No email address on file",
-      "emailFailed": "Unable to open email"
+      "emailFailed": "Unable to open email",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
     }
   },
   "billing": {
