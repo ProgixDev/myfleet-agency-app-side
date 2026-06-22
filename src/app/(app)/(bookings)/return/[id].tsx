@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, Pressable, ScrollView, Alert, Linking } from "react-native";
+import { View, Pressable, ScrollView, Alert } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -61,7 +61,6 @@ import { useClient } from "@/hooks/useClients";
 import { useAgency } from "@/hooks/useAgency";
 import { formatCurrency } from "@/utils/format";
 import { isInsufficientCredits } from "@/services/apiErrors";
-import { WEB_ADMIN_URL } from "@/config/webAdmin";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Image } from "@/components/ui/Image";
 import { resolveVehicleImageSource } from "@/data/vehicleImages";
@@ -409,17 +408,9 @@ export default function ReturnScreen() {
                 ),
                 t(
                   "inspections.detail.ai.insufficientCreditsMessage",
-                  "Your agency has run out of AI inspection credits. Top up on the web admin to keep using AI analysis.",
+                  "Your agency has run out of AI inspection credits. Please contact your account administrator to add more.",
                 ),
-                [
-                  { text: t("common.close", "Close"), style: "cancel" },
-                  {
-                    text: t("common.openWebAdmin", "Buy credits"),
-                    onPress: () => {
-                      void Linking.openURL(WEB_ADMIN_URL);
-                    },
-                  },
-                ],
+                [{ text: t("common.ok", "OK") }],
               );
               return;
             }

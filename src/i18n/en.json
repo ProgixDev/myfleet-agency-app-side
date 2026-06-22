@@ -581,7 +581,7 @@
         "rejectDamage": "Not damage",
         "feedbackError": "Could not save feedback",
         "insufficientCreditsTitle": "Out of AI credits",
-        "insufficientCreditsMessage": "Your agency has run out of AI inspection credits. Top up on the web admin to keep using AI analysis."
+        "insufficientCreditsMessage": "Your agency has run out of AI inspection credits. Please contact your account administrator to add more."
       }
     }
   },

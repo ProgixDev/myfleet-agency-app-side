@@ -7,7 +7,6 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
-  Linking,
   type DimensionValue,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -63,7 +62,6 @@ import { ManualAngleReviewModal } from "@/components/inspections/ManualAngleRevi
 import { getVehicleImage } from "@/data/vehicleImages";
 import { fontFamilies } from "@/theme/typography";
 import { isInsufficientCredits } from "@/services/apiErrors";
-import { WEB_ADMIN_URL } from "@/config/webAdmin";
 import type {
   Inspection,
   CapturedPhoto,
@@ -274,17 +272,9 @@ export default function InspectionDetailScreen() {
               ),
               t(
                 "inspections.detail.ai.insufficientCreditsMessage",
-                "Your agency has run out of AI inspection credits. Top up on the web admin to keep using AI analysis.",
+                "Your agency has run out of AI inspection credits. Please contact your account administrator to add more.",
               ),
-              [
-                { text: t("common.close", "Close"), style: "cancel" },
-                {
-                  text: t("common.openWebAdmin", "Buy credits"),
-                  onPress: () => {
-                    void Linking.openURL(WEB_ADMIN_URL);
-                  },
-                },
-              ],
+              [{ text: t("common.ok", "OK") }],
             );
             return;
           }
@@ -323,15 +313,7 @@ export default function InspectionDetailScreen() {
               "inspections.detail.ai.insufficientCreditsMessage",
               "Your agency has run out of AI inspection credits. Top up on the web admin to keep using AI analysis.",
             ),
-            [
-              { text: t("common.close", "Close"), style: "cancel" },
-              {
-                text: t("common.openWebAdmin", "Buy credits"),
-                onPress: () => {
-                  void Linking.openURL(WEB_ADMIN_URL);
-                },
-              },
-            ],
+            [{ text: t("common.ok", "OK") }],
           );
           return;
         }

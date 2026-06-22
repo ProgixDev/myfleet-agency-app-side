@@ -581,7 +581,7 @@
         "rejectDamage": "Pas un dommage",
         "feedbackError": "Impossible d'enregistrer l'avis",
         "insufficientCreditsTitle": "Crédits IA épuisés",
-        "insufficientCreditsMessage": "Votre agence n'a plus de crédits d'inspection IA. Rechargez-les sur l'admin web pour continuer à utiliser l'analyse IA."
+        "insufficientCreditsMessage": "Votre agence n'a plus de crédits d'inspection IA. Veuillez contacter l'administrateur de votre compte pour en ajouter."
       }
     }
   },
