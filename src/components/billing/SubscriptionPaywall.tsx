@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Linking, Pressable } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { Sparkles, RefreshCw, LogOut } from "lucide-react-native";
@@ -7,14 +7,18 @@ import { Text } from "@/components/ui/Text";
 import { Button } from "@/components/ui/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { fontFamilies } from "@/theme/typography";
-import { WEB_ADMIN_URL } from "@/config/webAdmin";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 /**
  * Full-screen gate shown over the (app) area when the agency has no active
- * subscription. Subscriptions are purchased on the web admin (Stripe Checkout
- * needs the web), so the primary CTA deep-links there; the refresh button
- * re-checks status after the user pays, and logout lets them switch accounts.
+ * subscription. Subscriptions are managed entirely on the web back-office.
+ *
+ * This gate is intentionally NEUTRAL to stay within Apple's App Store rules
+ * (Guideline 3.1.1 anti-steering + the "free companion app" exemption): it must
+ * not show prices, a "Subscribe" button, or any link/CTA to an external
+ * purchase page. It only states the account is inactive and offers
+ * "refresh status" (re-check after the agency activates on the web) and
+ * "log out". Do not re-add an in-app purchase/subscribe call-to-action here.
  */
 export function SubscriptionPaywall({
   onRefresh,
@@ -62,7 +66,7 @@ export function SubscriptionPaywall({
           align="center"
           style={{ fontFamily: fontFamilies.bold }}
         >
-          {t("paywall.title", "Subscription required")}
+          {t("paywall.title", "Subscription inactive")}
         </Text>
         <Text
           variant="bodyMedium"
@@ -72,7 +76,7 @@ export function SubscriptionPaywall({
         >
           {t(
             "paywall.message",
-            "Your agency needs an active MyFleet subscription to use the app. Subscribe from your web dashboard to unlock your fleet, bookings, inspections and AI.",
+            "This account doesn't have an active MyFleet subscription. Please contact your account administrator to activate it.",
           )}
         </Text>
       </View>
@@ -82,26 +86,13 @@ export function SubscriptionPaywall({
           variant="primary"
           fullWidth
           size="lg"
-          leftIcon={Sparkles}
-          onPress={() =>
-            void Linking.openURL(`${WEB_ADMIN_URL}/subscription`)
-          }
-          testID="paywall-subscribe-button"
-          accessibilityLabel={t("paywall.subscribe", "Subscribe")}
-        >
-          {t("paywall.subscribe", "Subscribe")}
-        </Button>
-        <Button
-          variant="secondary"
-          fullWidth
-          size="lg"
           leftIcon={RefreshCw}
           loading={refreshing}
           onPress={onRefresh}
           testID="paywall-refresh-button"
-          accessibilityLabel={t("paywall.refresh", "I've subscribed — refresh")}
+          accessibilityLabel={t("paywall.refresh", "Refresh status")}
         >
-          {t("paywall.refresh", "I've subscribed — refresh")}
+          {t("paywall.refresh", "Refresh status")}
         </Button>
         <Pressable
           onPress={() => void logout()}

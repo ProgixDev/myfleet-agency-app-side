@@ -789,10 +789,9 @@
     "more": "Plus"
   },
   "paywall": {
-    "title": "Abonnement requis",
-    "message": "Votre agence doit disposer d'un abonnement MyFleet actif pour utiliser l'application. Abonnez-vous depuis votre tableau de bord web pour débloquer votre flotte, vos réservations, vos inspections et l'IA.",
-    "subscribe": "S'abonner",
-    "refresh": "Je me suis abonné — actualiser",
+    "title": "Abonnement inactif",
+    "message": "Ce compte ne dispose pas d'un abonnement MyFleet actif. Veuillez contacter l'administrateur de votre compte pour l'activer.",
+    "refresh": "Actualiser le statut",
     "logout": "Se déconnecter"
   },
   "contracts": {
