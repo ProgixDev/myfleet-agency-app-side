@@ -24,3 +24,13 @@ export function isSubscriptionRequired(err: unknown): boolean {
     err instanceof ApiClientError && err.code === "SUBSCRIPTION_REQUIRED"
   );
 }
+
+/**
+ * True when the agency has been suspended by a platform operator: the backend
+ * returns HTTP 403 with envelope `error.code === "AGENCY_SUSPENDED"` from the
+ * auth layer, so it can surface on any request. The app shows a dedicated
+ * suspended screen; reactivation happens on the platform (superadmin) side.
+ */
+export function isAgencySuspended(err: unknown): boolean {
+  return err instanceof ApiClientError && err.code === "AGENCY_SUSPENDED";
+}
