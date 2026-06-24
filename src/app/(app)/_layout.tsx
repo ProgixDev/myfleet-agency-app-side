@@ -12,6 +12,8 @@ import { useTranslation } from "react-i18next";
 import { TabBar, type TabItem } from "@/components/ui/TabBar";
 import { useSubscription } from "@/hooks/useSubscription";
 import { SubscriptionPaywall } from "@/components/billing/SubscriptionPaywall";
+import { AccountSuspendedScreen } from "@/components/billing/AccountSuspendedScreen";
+import { isAgencySuspended } from "@/services/apiErrors";
 
 // Routes where the global tab bar should be hidden — full-bleed screens
 // (e.g. camera capture) that need the entire viewport.
@@ -27,6 +29,9 @@ export default function AppLayout() {
   // while loading or on a fetch error we fail open (the backend
   // SubscriptionGuard still enforces access — this overlay is just UX).
   const subscription = useSubscription();
+  // A suspended agency's auth-gated requests come back 403 AGENCY_SUSPENDED, so
+  // the subscription fetch surfaces it. Suspension overrides the paywall.
+  const suspended = isAgencySuspended(subscription.error);
   const locked = subscription.data ? !subscription.data.active : false;
 
   const tabs: TabItem[] = [
@@ -65,12 +70,17 @@ export default function AppLayout() {
         <Tabs.Screen name="(bookings)" />
         <Tabs.Screen name="(more)" />
       </Tabs>
-      {locked && (
+      {suspended ? (
+        <AccountSuspendedScreen
+          onRefresh={() => void subscription.refetch()}
+          refreshing={subscription.isFetching}
+        />
+      ) : locked ? (
         <SubscriptionPaywall
           onRefresh={() => void subscription.refetch()}
           refreshing={subscription.isFetching}
         />
-      )}
+      ) : null}
     </>
   );
 }

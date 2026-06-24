@@ -810,6 +810,10 @@
     "refresh": "Refresh status",
     "logout": "Log out"
   },
+  "suspended": {
+    "title": "Account suspended",
+    "message": "This agency account has been suspended. Please contact MyFleet support to restore access."
+  },
   "contracts": {
     "detail": {
       "signatures": "Signatures",

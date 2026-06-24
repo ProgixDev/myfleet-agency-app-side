@@ -810,6 +810,10 @@
     "refresh": "Actualiser le statut",
     "logout": "Se déconnecter"
   },
+  "suspended": {
+    "title": "Compte suspendu",
+    "message": "Ce compte d'agence a été suspendu. Veuillez contacter le support MyFleet pour rétablir l'accès."
+  },
   "contracts": {
     "detail": {
       "signatures": "Signatures",
