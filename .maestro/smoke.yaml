@@ -1,0 +1,23 @@
+# Agency app — launch & onboarding smoke.
+# Proves the harness drives the real app and the unauthenticated screens render
+# and navigate. These are key-window screens that Maestro can read (unlike the
+# sign-in modal — see login.yaml for the testability blockers).
+appId: com.progix.myfleet-agency
+name: Agency · launch & onboarding smoke
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: true
+# Onboarding carousel renders (fresh install).
+- extendedWaitUntil:
+    visible: "Passer|Skip"
+    timeout: 20000
+- assertVisible: "Suivant|Next"
+- tapOn: "Passer|Skip"
+# Welcome screen renders with both CTAs.
+- extendedWaitUntil:
+    visible: "Commencer|Get Started"
+    timeout: 10000
+- assertVisible: "Se connecter|Sign In"
+- takeScreenshot: artifacts/agency-welcome

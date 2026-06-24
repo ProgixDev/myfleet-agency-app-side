@@ -1,0 +1,58 @@
+# Agency app — login (authenticated flows entry point).
+#
+# STATUS: BLOCKED — not runnable until the app is made automatable. The sign-in
+# screen is a separate-window iOS modal whose RN content Maestro cannot read OR
+# inject text into (coordinate taps don't focus its fields). To unblock, either
+# render sign-in in the root window (drop `presentation: "modal"` on the login
+# Stack.Screen in src/app/(auth)/_layout.tsx) or expose the fields another way.
+# Once unblocked, this + a navigation-smoke + booking-view flow can run. Tagged
+# `wip` so the default `smoke` suite stays green.
+#
+# Logs in as the QA agency owner and asserts the home (tab bar) renders.
+#
+# NOTES on this app's testability (encoded so future flows don't relearn it):
+#  - New Architecture (Fabric): `testID` does NOT surface as an iOS
+#    accessibilityIdentifier, so Maestro `id:` selectors never match.
+#  - The sign-in screen is `presentation: "modal"` (a separate iOS window) whose
+#    content Maestro cannot read — so we drive the two fields + submit by point
+#    taps, hiding the keyboard between fields to keep the layout stable.
+#  - Key-window screens (onboarding, welcome, the authed tab bar) ARE readable,
+#    so we assert success on the home tab bar text.
+appId: com.progix.myfleet-agency
+name: Agency · login (blocked)
+tags:
+  - wip
+  - auth
+---
+- launchApp:
+    clearState: true
+# Onboarding carousel (fresh install only) — skip if present.
+- runFlow:
+    when:
+      visible: "Passer|Skip"
+    commands:
+      - tapOn: "Passer|Skip"
+# Welcome screen → open the sign-in modal (only if shown).
+- runFlow:
+    when:
+      visible: "Se connecter|Sign In"
+    commands:
+      - tapOn: "Se connecter|Sign In"
+# Sign-in modal (Maestro-blind) — fill by coordinates.
+- waitForAnimationToEnd:
+    timeout: 4000
+- tapOn:
+    point: "50%,58%"
+- inputText: "agencyqa1781442020@example.com"
+- hideKeyboard
+- tapOn:
+    point: "50%,68%"
+- inputText: "Test1234!"
+- hideKeyboard
+- tapOn:
+    point: "50%,81%"
+# Logged-in anchor: the bottom tab bar (FR "Réservations" / EN "Bookings").
+- extendedWaitUntil:
+    visible: "Réservations|Bookings"
+    timeout: 25000
+- takeScreenshot: artifacts/agency-home
