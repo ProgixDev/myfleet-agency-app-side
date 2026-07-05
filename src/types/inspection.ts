@@ -1,4 +1,7 @@
 export type InspectionType = "pre-rental" | "post-rental" | "routine";
+// How damage is detected: `ai` runs the vision pipeline (1 credit); `manual`
+// skips AI — the inspector marks damage by hand and nothing is billed.
+export type InspectionMode = "ai" | "manual";
 
 export type InspectionStatus = "draft" | "completed";
 
@@ -90,6 +93,9 @@ export interface Inspection {
   bookingId: string | null;
   clientName: string | null;
   type: InspectionType;
+  // Optional for legacy/mock rows; the API always returns it. Absent ⇒ treated
+  // as "ai" (the safe default) everywhere it's read.
+  mode?: InspectionMode;
   status: InspectionStatus;
   date: string;
   inspectorName: string;

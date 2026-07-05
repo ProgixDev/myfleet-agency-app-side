@@ -6,6 +6,7 @@ import type {
   DamageSeverity,
   DamageType,
   Inspection,
+  InspectionMode,
   InspectionType,
   PhotoAngle,
 } from "@/types/inspection";
@@ -39,6 +40,7 @@ export interface CreateInspectionPayload {
   vehicleId: string;
   bookingId?: string | null;
   type: InspectionType;
+  mode?: InspectionMode;
   inspectorName?: string;
   mileage?: number;
   fuelLevel?: number;

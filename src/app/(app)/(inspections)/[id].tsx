@@ -241,6 +241,8 @@ export default function InspectionDetailScreen() {
   const showToast = useToastStore((s) => s.show);
 
   const { data: inspection, isLoading, isError, refetch } = useInspection(id);
+  // Manual-mode inspections never run AI — hide every AI affordance.
+  const isManual = inspection?.mode === "manual";
   const runAngleAi = useRunInspectionAngleAi();
   const runAllAi = useRunInspectionAi();
   const markerFeedback = useMarkerFeedback();
@@ -1366,22 +1368,29 @@ export default function InspectionDetailScreen() {
             <SectionLabel theme={theme}>
               {t("inspections.detail.angleReview.title", "Per-angle review")}
             </SectionLabel>
-            <Button
-              variant="primary"
-              fullWidth
-              size="md"
-              leftIcon={Sparkles}
-              loading={runAllAi.isPending}
-              onPress={triggerRunAll}
-              testID="inspection-run-all-ai-button"
-              accessibilityLabel={t(
-                "inspections.detail.ai.runAll",
-                "Analyse all photos with AI",
-              )}
-            >
-              {t("inspections.detail.ai.runAll", "Analyse all photos with AI")}
-            </Button>
-            <View style={{ height: 12 }} />
+            {!isManual && (
+              <>
+                <Button
+                  variant="primary"
+                  fullWidth
+                  size="md"
+                  leftIcon={Sparkles}
+                  loading={runAllAi.isPending}
+                  onPress={triggerRunAll}
+                  testID="inspection-run-all-ai-button"
+                  accessibilityLabel={t(
+                    "inspections.detail.ai.runAll",
+                    "Analyse all photos with AI",
+                  )}
+                >
+                  {t(
+                    "inspections.detail.ai.runAll",
+                    "Analyse all photos with AI",
+                  )}
+                </Button>
+                <View style={{ height: 12 }} />
+              </>
+            )}
             {pair.post.aiSummary && pair.post.aiSummary.trim().length > 0 && (
               <View
                 style={{
@@ -1425,13 +1434,16 @@ export default function InspectionDetailScreen() {
               onManualReview={(angle, angleLabel) =>
                 setManualReview({ angle, angleLabel })
               }
+              aiEnabled={!isManual}
             />
           </Animated.View>
-          <AiFindingsReview
-            inspection={pair.post}
-            pending={pendingMarkers}
-            onFeedback={triggerMarkerFeedback}
-          />
+          {!isManual && (
+            <AiFindingsReview
+              inspection={pair.post}
+              pending={pendingMarkers}
+              onFeedback={triggerMarkerFeedback}
+            />
+          )}
         </ScrollView>
         {fullscreenModal}
         {manualModal}
@@ -1741,22 +1753,29 @@ export default function InspectionDetailScreen() {
           <SectionLabel theme={theme}>
             {t("inspections.detail.angleReview.title", "Per-angle review")}
           </SectionLabel>
-          <Button
-            variant="primary"
-            fullWidth
-            size="md"
-            leftIcon={Sparkles}
-            loading={runAllAi.isPending}
-            onPress={triggerRunAll}
-            testID="inspection-run-all-ai-button"
-            accessibilityLabel={t(
-              "inspections.detail.ai.runAll",
-              "Analyse all photos with AI",
-            )}
-          >
-            {t("inspections.detail.ai.runAll", "Analyse all photos with AI")}
-          </Button>
-          <View style={{ height: 12 }} />
+          {!isManual && (
+            <>
+              <Button
+                variant="primary"
+                fullWidth
+                size="md"
+                leftIcon={Sparkles}
+                loading={runAllAi.isPending}
+                onPress={triggerRunAll}
+                testID="inspection-run-all-ai-button"
+                accessibilityLabel={t(
+                  "inspections.detail.ai.runAll",
+                  "Analyse all photos with AI",
+                )}
+              >
+                {t(
+                  "inspections.detail.ai.runAll",
+                  "Analyse all photos with AI",
+                )}
+              </Button>
+              <View style={{ height: 12 }} />
+            </>
+          )}
           {inspection.aiSummary && inspection.aiSummary.trim().length > 0 && (
             <View
               style={{
@@ -1796,13 +1815,16 @@ export default function InspectionDetailScreen() {
             onManualReview={(angle, angleLabel) =>
               setManualReview({ angle, angleLabel })
             }
+            aiEnabled={!isManual}
           />
         </Animated.View>
-        <AiFindingsReview
-          inspection={inspection}
-          pending={pendingMarkers}
-          onFeedback={triggerMarkerFeedback}
-        />
+        {!isManual && (
+          <AiFindingsReview
+            inspection={inspection}
+            pending={pendingMarkers}
+            onFeedback={triggerMarkerFeedback}
+          />
+        )}
 
         {inspection.status === "draft" && (
           <Animated.View

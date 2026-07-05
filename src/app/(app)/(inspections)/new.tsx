@@ -46,7 +46,11 @@ import {
 } from "@/hooks/useInspections";
 import { fontFamilies } from "@/theme/typography";
 import type { Vehicle } from "@/types/vehicle";
-import type { InspectionType, PhotoAngle } from "@/types/inspection";
+import type {
+  InspectionMode,
+  InspectionType,
+  PhotoAngle,
+} from "@/types/inspection";
 
 import {
   VehiclePhotoCapture,
@@ -199,6 +203,7 @@ export default function NewInspectionScreen() {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
 
   const [selectedType, setSelectedType] = useState<InspectionType | null>(null);
+  const [selectedMode, setSelectedMode] = useState<InspectionMode>("ai");
 
   const [mileage, setMileage] = useState("");
   const [fuelLevel, setFuelLevel] = useState<number>(100);
@@ -289,6 +294,7 @@ export default function NewInspectionScreen() {
         const created = await createInspection.mutateAsync({
           vehicleId: selectedVehicle.id,
           type: selectedType,
+          mode: selectedMode,
           mileage: isNaN(parsedMileage) ? 0 : parsedMileage,
           fuelLevel,
           notes: notes.trim() || undefined,
@@ -311,6 +317,7 @@ export default function NewInspectionScreen() {
     inspectionId,
     selectedVehicle,
     selectedType,
+    selectedMode,
     mileage,
     fuelLevel,
     notes,
@@ -339,6 +346,11 @@ export default function NewInspectionScreen() {
   const handleSelectType = useCallback((type: InspectionType) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedType((prev) => (prev === type ? null : type));
+  }, []);
+
+  const handleSelectMode = useCallback((mode: InspectionMode) => {
+    void Haptics.selectionAsync();
+    setSelectedMode(mode);
   }, []);
 
   const handleFuelLevel = useCallback((level: number) => {
@@ -701,6 +713,36 @@ export default function NewInspectionScreen() {
                   onPress={() => handleSelectType(option.type)}
                 />
               ))}
+            </View>
+
+            <View style={{ marginTop: 24, gap: 12 }}>
+              <Text
+                variant="titleMedium"
+                style={{ fontFamily: fontFamilies.semiBold, fontSize: 15 }}
+              >
+                {t("inspections.new.modeTitle", "Damage detection")}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                <ModeCard
+                  active={selectedMode === "ai"}
+                  title={t("inspections.new.modeAi", "AI")}
+                  subtitle={t("inspections.new.modeAiHint", "1 credit · auto")}
+                  theme={theme}
+                  onPress={() => handleSelectMode("ai")}
+                  testID="inspections-new-mode-ai"
+                />
+                <ModeCard
+                  active={selectedMode === "manual"}
+                  title={t("inspections.new.modeManual", "Manual")}
+                  subtitle={t(
+                    "inspections.new.modeManualHint",
+                    "Free · by hand",
+                  )}
+                  theme={theme}
+                  onPress={() => handleSelectMode("manual")}
+                  testID="inspections-new-mode-manual"
+                />
+              </View>
             </View>
           </Animated.View>
         );
@@ -1266,6 +1308,59 @@ function SelectedVehicleHeader({
         </Pressable>
       )}
     </Animated.View>
+  );
+}
+
+// ── Mode card (AI vs manual) ──────────────────────────────────────────────────
+
+function ModeCard({
+  active,
+  title,
+  subtitle,
+  theme,
+  onPress,
+  testID,
+}: {
+  active: boolean;
+  title: string;
+  subtitle: string;
+  theme: ReturnType<typeof useTheme>;
+  onPress: () => void;
+  testID: string;
+}) {
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flex: 1,
+        backgroundColor: active ? theme.accentSoft : theme.surface,
+        borderRadius: 16,
+        borderWidth: active ? 2 : 1,
+        borderColor: active ? theme.accent : theme.borderLight,
+        padding: 14,
+        transform: [{ scale: pressed ? 0.99 : 1 }],
+      })}
+    >
+      <Text
+        variant="titleSmall"
+        style={{
+          fontFamily: fontFamilies.semiBold,
+          color: active ? theme.accent : theme.textPrimary,
+          marginBottom: 2,
+        }}
+      >
+        {title}
+      </Text>
+      <Text
+        variant="bodySmall"
+        style={{ fontSize: 12, color: theme.textSecondary }}
+      >
+        {subtitle}
+      </Text>
+    </Pressable>
   );
 }
 
