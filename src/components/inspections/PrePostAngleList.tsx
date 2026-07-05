@@ -29,6 +29,8 @@ interface Props {
   pendingAngles: Set<PhotoAngle>;
   onRunAi: (angle: PhotoAngle) => void;
   onManualReview: (angle: PhotoAngle, angleLabel: string) => void;
+  // Manual-mode inspections never run AI — hide the per-angle "Run AI" button.
+  aiEnabled?: boolean;
 }
 
 export function PrePostAngleList({
@@ -37,6 +39,7 @@ export function PrePostAngleList({
   pendingAngles,
   onRunAi,
   onManualReview,
+  aiEnabled = true,
 }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -124,18 +127,20 @@ export function PrePostAngleList({
             )}
 
             <View className="flex-row" style={{ gap: 8 }}>
-              <ActionButton
-                label={
-                  status === "completed"
-                    ? t("inspections.detail.angle.rerunAi", "Re-run AI")
-                    : t("inspections.detail.angle.runAi", "Run AI")
-                }
-                icon={Sparkles}
-                tone="primary"
-                onPress={() => onRunAi(angle)}
-                disabled={!canRunAi}
-                pending={isPending}
-              />
+              {aiEnabled && (
+                <ActionButton
+                  label={
+                    status === "completed"
+                      ? t("inspections.detail.angle.rerunAi", "Re-run AI")
+                      : t("inspections.detail.angle.runAi", "Run AI")
+                  }
+                  icon={Sparkles}
+                  tone="primary"
+                  onPress={() => onRunAi(angle)}
+                  disabled={!canRunAi}
+                  pending={isPending}
+                />
+              )}
               <ActionButton
                 label={t("inspections.detail.angle.manual", "Manual review")}
                 icon={PenTool}
