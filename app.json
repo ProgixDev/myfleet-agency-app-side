@@ -13,8 +13,8 @@
       "buildNumber": "11",
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Used to capture photos of your fleet vehicles.",
-        "NSPhotoLibraryUsageDescription": "My Fleet needs photo library access to save inspection photos.",
+        "NSCameraUsageDescription": "Autorisez My Fleet à accéder à l'appareil photo pour photographier vos véhicules et réaliser les inspections.",
+        "NSPhotoLibraryUsageDescription": "Autorisez My Fleet à accéder à vos photos pour enregistrer les photos d'inspection.",
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
@@ -74,7 +74,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Used to capture photos of your fleet vehicles."
+          "cameraPermission": "Autorisez My Fleet à accéder à l'appareil photo pour photographier vos véhicules et réaliser les inspections."
         }
       ],
       "expo-video",
