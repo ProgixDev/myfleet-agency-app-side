@@ -41,3 +41,45 @@ Until decided: don't assume the current subscription-billing mechanism is perman
 - The agency **subscription + AI credit top-ups are sold on the new web admin** via Stripe — **not in-app**. This app is a **login-only companion** for billing: no in-app purchase, no paywall screen, **RevenueCat is not used**.
 - Deposits/booking stay on Stripe and move to **Stripe Connect** (each agency a connected account; per-agency payouts + platform application fee; manual-capture deposits carry over).
 - **AI credits** live as a ledger in the backend (Supabase); this app only *checks/displays* the balance via API and gates AI actions on it. The detection engine behind the credits is still being evaluated (research in progress).
+
+## 2026-08-08 — renter pairing QR was broken end to end (fixed)
+
+The agency pairing QR could never pair a renter. Four independent defects stacked on the
+same twelve lines of `src/app/(app)/(more)/agency-qr.tsx`, none of them visible without
+reading the *renter* app and the backend alongside it:
+
+1. **Blank env inlined as `""`.** `EXPO_PUBLIC_PUBLIC_URL` was empty in `.env`, and the code
+   used `process.env.X ?? "https://myfleet.app"`. `??` falls back only on `null`/`undefined`,
+   so the base URL resolved to `""` and the QR encoded a *relative* path.
+2. **Wrong path segment.** The producer emitted `/a/<…>`; the renter's scanner
+   (`client/app/scan.tsx` → `parseQrPayload`) only recognises `/pair/<…>` (or `myfleet://pair/<…>`).
+3. **Wrong identifier.** The producer emitted `agency.slug`, but the backend pair endpoint
+   (`backend/src/bookings/bookings.public.controller.ts`, `.eq('agency_id', agencyId)`) keys on
+   the agency **UUID** and does no slug resolution.
+4. **Silent failure mode.** `parseQrPayload` falls through to "treat as a raw id" for any
+   short whitespace-free string, so the *entire URL* was passed to the pair endpoint. The
+   renter saw a generic pairing error rather than anything pointing at the real cause.
+
+**Fixed:** the QR now encodes `${base}/pair/${agency.id}`, base resolved through the new
+`envBaseUrl` helper. Verified by running the real `parseQrPayload` against the generated
+payload: it fails to pair in every "before" variant and pairs in every "after" variant,
+including blank env, undefined env, and trailing slashes.
+
+### Rules this leaves behind
+
+- **Never resolve an optional `EXPO_PUBLIC_*` with `??`.** Use `envOr` / `envBaseUrl` from
+  `src/lib/env.ts`. A key that is present-but-blank in `.env` or an EAS profile inlines as `""`,
+  which `??` happily accepts. `src/services/api.ts` already guarded against this locally; the
+  lesson had simply never been written down, so two other call sites repeated it.
+- **The QR payload is a cross-repo contract** between this app, `client/app/scan.tsx` and the
+  backend pair endpoint. Changing the shape means changing all three. There is no test spanning
+  them; until there is, verify by hand against `parseQrPayload`.
+
+### Still open
+
+- No web route serves `/pair/<id>`. Scanning the QR *inside the renter app* works, because the
+  app parses the string locally and never fetches it — but a renter scanning with their phone's
+  native camera (the obvious thing to do with a QR on a counter) gets a 404 on
+  myfleetagency.com. Needs a landing page that deep-links into the app or offers store links.
+- `EXPO_PUBLIC_MAPBOX_TOKEN` and both `EXPO_PUBLIC_GOOGLE_*_CLIENT_ID` are still blank.
+  Maps degrade honestly (`hasMapsApiKey()` guards them), but Google sign-in fails silently.

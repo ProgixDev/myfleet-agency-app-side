@@ -15,6 +15,7 @@ import { Text } from "@/components/ui/Text";
 import { IconButton } from "@/components/ui/IconButton";
 import { useTheme } from "@/hooks/useTheme";
 import { useAgency } from "@/hooks/useAgency";
+import { envBaseUrl } from "@/lib/env";
 import { shadows } from "@/theme/shadows";
 import { fontFamilies } from "@/theme/typography";
 
@@ -30,10 +31,18 @@ export default function AgencyQRScreen() {
   const router = useRouter();
   const { data: agency } = useAgency();
   const agencyName = agency?.name ?? "";
-  const publicBase = (
-    process.env.EXPO_PUBLIC_PUBLIC_URL ?? "https://myfleet.app"
-  ).replace(/\/+$/, "");
-  const agencyQrUrl = agency?.slug ? `${publicBase}/a/${agency.slug}` : "";
+  // The renter app is the only consumer of this QR. Its scanner
+  // (client/app/scan.tsx `parseQrPayload`) matches `/pair/<idOrSlug>`, and the
+  // backend's pair endpoint keys on the agency UUID
+  // (bookings.public.controller.ts `.eq('agency_id', agencyId)`) — it does not
+  // resolve slugs. So the payload must be the agency *id* on a `/pair/` path.
+  // `envBaseUrl` (not `??`) because a blank env var inlines as "" and would
+  // yield a relative URL that cannot be scanned.
+  const publicBase = envBaseUrl(
+    process.env.EXPO_PUBLIC_PUBLIC_URL,
+    "https://myfleetagency.com",
+  );
+  const agencyQrUrl = agency?.id ? `${publicBase}/pair/${agency.id}` : "";
 
   const qrRef = useRef<QRRef | null>(null);
 

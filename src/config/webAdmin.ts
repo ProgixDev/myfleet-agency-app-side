@@ -8,8 +8,14 @@
  * `EXPO_PUBLIC_API_URL` is resolved in `src/services/api.ts`.
  */
 
+import { envBaseUrl } from "@/lib/env";
+
 const DEFAULT_WEB_ADMIN_URL = "https://backoffice.myfleetagency.com";
 
-export const WEB_ADMIN_URL = (
-  process.env.EXPO_PUBLIC_WEB_ADMIN_URL ?? DEFAULT_WEB_ADMIN_URL
-).replace(/\/+$/, "");
+// `envBaseUrl`, not `??`: a present-but-blank env var inlines as "" and `??`
+// does not fall back on it, which would leave this an empty string and send
+// billing links to a relative URL.
+export const WEB_ADMIN_URL = envBaseUrl(
+  process.env.EXPO_PUBLIC_WEB_ADMIN_URL,
+  DEFAULT_WEB_ADMIN_URL,
+);
