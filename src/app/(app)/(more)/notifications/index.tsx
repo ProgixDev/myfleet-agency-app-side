@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useMemo } from "react";
-import { View, Pressable, SectionList, ScrollView } from "react-native";
-import { useTranslation } from "react-i18next";
+import React, { useCallback, useMemo } from "react";
+import { View, Pressable, SectionList } from "react-native";
 import { useRouter } from "expo-router";
 import {
   ChevronLeft,
@@ -14,9 +13,6 @@ import {
   Wrench,
   FileText,
   Megaphone,
-  CalendarPlus,
-  CheckCircle,
-  FileCheck,
 } from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -27,24 +23,12 @@ import { Text } from "@/components/ui/Text";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
-import { fontFamilies } from "@/theme/typography";
 import {
   useNotifications,
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
 } from "@/hooks/useNotifications";
-import { recentActivity, type ActivityType } from "@/data/dashboard";
 import type { AppNotification, NotificationType } from "@/types/notification";
-
-type FeedTab = "activity" | "notifications";
-
-const ACTIVITY_ICONS: Record<ActivityType, LucideIcon> = {
-  inspection_completed: ScanLine,
-  booking_created: CalendarPlus,
-  vehicle_returned: CheckCircle,
-  violation_logged: AlertTriangle,
-  contract_signed: FileCheck,
-};
 
 // ── Icon / color mapping ────────────────────────────────────────────────────
 
@@ -100,10 +84,8 @@ const GROUP_ORDER = ["Aujourd'hui", "Hier", "Cette semaine", "Plus ancien"];
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function NotificationsScreen() {
-  const { t } = useTranslation();
   const theme = useTheme();
   const router = useRouter();
-  const [feedTab, setFeedTab] = useState<FeedTab>("notifications");
   const { data: notifications = [] } = useNotifications();
   const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();
@@ -278,158 +260,43 @@ export default function NotificationsScreen() {
         )}
       </Animated.View>
 
-      {/* Toggle between Activity + Notifications */}
-      <Animated.View
-        entering={FadeInDown.duration(400).delay(40)}
-        style={{
-          flexDirection: "row",
-          padding: 4,
-          marginBottom: 14,
-          borderRadius: 9999,
-          backgroundColor: theme.surfaceTertiary,
-        }}
-      >
-        <ToggleTab
-          label={t("dashboard.tabActivity")}
-          active={feedTab === "activity"}
-          onPress={() => {
-            void Haptics.selectionAsync();
-            setFeedTab("activity");
-          }}
-          theme={theme}
-        />
-        <ToggleTab
-          label={t("dashboard.tabNotifications")}
-          active={feedTab === "notifications"}
-          onPress={() => {
-            void Haptics.selectionAsync();
-            setFeedTab("notifications");
-          }}
-          theme={theme}
-        />
-      </Animated.View>
+      {/* The Activity tab was removed: it rendered a hardcoded array from
+          src/data/dashboard.ts, and there is no activity endpoint on the
+          backend to replace it with. Showing invented history to a real agency
+          is both misleading and an App Review 2.1 risk (placeholder content
+          presented as real). Notifications below are real server data. If an
+          activity feed is wanted later it needs a backend endpoint first, and
+          the toggle can come back with it. */}
+      <>
+        {unreadCount > 0 && (
+          <Animated.View
+            entering={FadeInDown.duration(400).delay(60)}
+            className="mb-3"
+          >
+            <Pressable onPress={markAllAsRead}>
+              <Text variant="titleMedium" color={theme.accent}>
+                Tout marquer lu
+              </Text>
+            </Pressable>
+          </Animated.View>
+        )}
 
-      {feedTab === "notifications" ? (
-        <>
-          {unreadCount > 0 && (
-            <Animated.View
-              entering={FadeInDown.duration(400).delay(60)}
-              className="mb-3"
-            >
-              <Pressable onPress={markAllAsRead}>
-                <Text variant="titleMedium" color={theme.accent}>
-                  Tout marquer lu
-                </Text>
-              </Pressable>
-            </Animated.View>
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          renderItem={renderNotification}
+          renderSectionHeader={({ section }) => (
+            <View className="pt-3 pb-1.5">
+              <Text variant="titleSmall" color={theme.textTertiary}>
+                {section.title}
+              </Text>
+            </View>
           )}
-
-          <SectionList
-            sections={sections}
-            keyExtractor={(item) => item.id}
-            renderItem={renderNotification}
-            renderSectionHeader={({ section }) => (
-              <View className="pt-3 pb-1.5">
-                <Text variant="titleSmall" color={theme.textTertiary}>
-                  {section.title}
-                </Text>
-              </View>
-            )}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 32 }}
-            stickySectionHeadersEnabled={false}
-          />
-        </>
-      ) : (
-        <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 32 }}
-        >
-          {recentActivity.map((item, idx) => {
-            const Icon = ACTIVITY_ICONS[item.type];
-            const isLast = idx === recentActivity.length - 1;
-            return (
-              <Animated.View
-                key={item.id}
-                entering={FadeInDown.duration(300).delay(idx * 30)}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: 12,
-                    paddingHorizontal: 4,
-                    borderBottomWidth: isLast ? 0 : 0.5,
-                    borderBottomColor: theme.border,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 12,
-                      backgroundColor: theme.accentSoft,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginRight: 12,
-                    }}
-                  >
-                    <Icon size={18} color={theme.accent} strokeWidth={1.8} />
-                  </View>
-                  <Text
-                    variant="bodyMedium"
-                    style={{ flex: 1, fontFamily: fontFamilies.medium }}
-                    numberOfLines={2}
-                  >
-                    {item.description}
-                  </Text>
-                  <Text variant="caption" color={theme.textTertiary}>
-                    {getTimeAgo(item.timestamp)}
-                  </Text>
-                </View>
-              </Animated.View>
-            );
-          })}
-        </ScrollView>
-      )}
+          stickySectionHeadersEnabled={false}
+        />
+      </>
     </ScreenWrapper>
-  );
-}
-
-interface ToggleTabProps {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-  theme: ReturnType<typeof useTheme>;
-}
-
-function ToggleTab({ label, active, onPress, theme }: ToggleTabProps) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        flex: 1,
-        paddingVertical: 9,
-        borderRadius: 9999,
-        alignItems: "center",
-        backgroundColor: active ? theme.surface : "transparent",
-        shadowColor: active ? "#000" : "transparent",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: active ? 0.05 : 0,
-        shadowRadius: 3,
-        elevation: active ? 2 : 0,
-      }}
-    >
-      <Text
-        variant="bodySmall"
-        style={{
-          fontFamily: active ? fontFamilies.semiBold : fontFamilies.medium,
-          fontSize: 13,
-          color: active ? theme.textPrimary : theme.textTertiary,
-        }}
-      >
-        {label}
-      </Text>
-    </Pressable>
   );
 }

@@ -71,7 +71,7 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import { resolveVehicleImageSource } from "@/data/vehicleImages";
 import { useVehicle } from "@/hooks/useFleet";
 import type { Booking, BookingStatus, TimelineStep } from "@/types/booking";
-import { mockClients } from "@/data/clients";
+import { useClient } from "@/hooks/useClients";
 import { fontFamilies } from "@/theme/typography";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -245,6 +245,11 @@ export default function BookingDetailScreen() {
 
   const { data: booking, isLoading, isError, refetch } = useBooking(id);
   const { data: vehicle } = useVehicle(booking?.vehicleId ?? "");
+  // Real contact details for the renter. This used to look the id up in
+  // `mockClients`, which never matches a real booking — so Call and Email were
+  // permanently dead outside the seeded demo data. `useClient` no-ops while the
+  // id is empty, so it is safe to call before the booking has loaded.
+  const { data: client } = useClient(booking?.clientId ?? "");
   // For the conflict banner we need to resolve referenced booking ids; only fetch
   // the list when the current booking actually has conflicts.
   const { data: allBookings = [] } = useBookings(
@@ -300,7 +305,6 @@ export default function BookingDetailScreen() {
     );
   }
 
-  const client = mockClients.find((c) => c.id === booking.clientId);
   const totalDays = daysBetween(booking.startDate, booking.endDate);
   const elapsed = daysElapsed(booking.startDate);
   const remaining = Math.max(0, totalDays - elapsed);
