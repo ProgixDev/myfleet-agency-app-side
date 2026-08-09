@@ -15,11 +15,20 @@ export default function AuthLayout() {
     >
       <Stack.Screen name="onboarding" options={{ animation: "fade" }} />
       <Stack.Screen name="welcome" />
+      {/* Login renders in the root window, not as a modal.
+       *
+       * As a modal it was a separate iOS window whose layout shifts when the
+       * keyboard opens, which made the email and password fields drift between
+       * taps — unusable for UI automation, and the reason the Maestro login
+       * flow has been parked as `wip` since the harness was added. It is also
+       * the better home for a form with two inputs and a keyboard.
+       *
+       * The slide_from_bottom animation is kept so the transition still reads
+       * like the sheet it replaces. */}
       <Stack.Screen
         name="login"
         options={{
           animation: "slide_from_bottom",
-          presentation: "modal",
         }}
       />
       <Stack.Screen name="forgot-password" />
