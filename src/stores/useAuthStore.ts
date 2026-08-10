@@ -8,7 +8,6 @@ import {
   logout as supabaseSignOut,
   signInWithApple,
   signInWithGoogle,
-  signInWithFacebook,
   exchangeQrToken,
   EmailNotConfirmedError,
   type SocialProvider,
@@ -19,6 +18,8 @@ import { supabase } from '@/lib/supabase';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type UserRole = 'admin' | 'employee' | 'client';
+// 'facebook' is kept only so a persisted session written by an older build
+// still rehydrates instead of failing to parse. Nothing produces it any more.
 export type AuthProvider = 'email' | 'apple' | 'google' | 'facebook' | 'qr';
 
 export interface AuthUser {
@@ -137,10 +138,6 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
 
         try {
-          if (provider === 'facebook') {
-            throw new Error('Facebook login not yet implemented on mobile');
-          }
-
           let socialResult;
           if (provider === 'apple') {
             socialResult = await signInWithApple();

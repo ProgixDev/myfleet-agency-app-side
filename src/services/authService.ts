@@ -18,7 +18,13 @@ export class EmailNotConfirmedError extends Error {
   }
 }
 
-export type SocialProvider = "apple" | "google" | "facebook";
+/**
+ * Social providers that actually work. Facebook was here with a stub that
+ * resolved to a hardcoded "Facebook User" after an 800ms sleep — dropped rather
+ * than left behind a flag, because a provider in this union is a provider the
+ * login screen will happily offer.
+ */
+export type SocialProvider = "apple" | "google";
 
 export interface SocialAuthResult {
   provider: SocialProvider;
@@ -97,18 +103,6 @@ export async function signInWithGoogle(): Promise<SocialAuthResult> {
     photoUrl: userInfo.user.photo ?? undefined,
     providerId: userInfo.user.id,
     idToken: userInfo.idToken,
-  };
-}
-
-export async function signInWithFacebook(): Promise<SocialAuthResult> {
-  await new Promise((resolve) => setTimeout(resolve, 800));
-
-  return {
-    provider: "facebook",
-    email: "user@facebook.com",
-    name: "Facebook User",
-    photoUrl: "https://ui-avatars.com/api/?name=Facebook+User&size=128",
-    providerId: "facebook-001",
   };
 }
 
