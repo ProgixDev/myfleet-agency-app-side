@@ -245,6 +245,16 @@ export default function InspectionDetailScreen() {
   const isManual = inspection?.mode === "manual";
   const runAngleAi = useRunInspectionAngleAi();
   const runAllAi = useRunInspectionAi();
+  // The backend answers run-ai with 202 the moment the cascade starts, so the
+  // mutation settles in milliseconds while the analysis runs for minutes.
+  // Spinning on `isPending` would flash and stop with the work still going, and
+  // leave the button tappable — a second tap the server ignores but the agent
+  // reads as "nothing happened". Track the inspection's own status instead;
+  // useInspection already polls every 3s while it is running.
+  const aiRunInFlight =
+    runAllAi.isPending ||
+    inspection?.aiStatus === "running" ||
+    inspection?.aiStatus === "queued";
   const markerFeedback = useMarkerFeedback();
   const [pendingMarkers, setPendingMarkers] = useState<Set<string>>(new Set());
   const deleteInspectionMut = useDeleteInspection();
@@ -1375,7 +1385,8 @@ export default function InspectionDetailScreen() {
                   fullWidth
                   size="md"
                   leftIcon={Sparkles}
-                  loading={runAllAi.isPending}
+                  loading={aiRunInFlight}
+                  disabled={aiRunInFlight}
                   onPress={triggerRunAll}
                   testID="inspection-run-all-ai-button"
                   accessibilityLabel={t(
@@ -1760,7 +1771,8 @@ export default function InspectionDetailScreen() {
                 fullWidth
                 size="md"
                 leftIcon={Sparkles}
-                loading={runAllAi.isPending}
+                loading={aiRunInFlight}
+                disabled={aiRunInFlight}
                 onPress={triggerRunAll}
                 testID="inspection-run-all-ai-button"
                 accessibilityLabel={t(
