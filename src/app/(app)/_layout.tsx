@@ -14,6 +14,8 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { SubscriptionPaywall } from "@/components/billing/SubscriptionPaywall";
 import { AccountSuspendedScreen } from "@/components/billing/AccountSuspendedScreen";
 import { isAgencySuspended } from "@/services/apiErrors";
+import { usePushRegistration } from "@/hooks/usePushRegistration";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 // Routes where the global tab bar should be hidden — full-bleed screens
 // (e.g. camera capture) that need the entire viewport.
@@ -24,6 +26,12 @@ export default function AppLayout() {
   const segments = useSegments();
   const lastSegment = segments.at(-1) ?? "";
   const hideTabBar = HIDDEN_TAB_BAR_SEGMENTS.has(lastSegment);
+
+  // Register for push once there is a session to attach the token to. The
+  // backend already fans out to agency staff (MessagesService); without this
+  // there were simply no tokens to deliver to.
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  usePushRegistration(isAuthenticated);
 
   // Paywall gate. We only lock when we POSITIVELY know the agency is inactive;
   // while loading or on a fetch error we fail open (the backend

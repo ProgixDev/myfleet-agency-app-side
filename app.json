@@ -13,8 +13,8 @@
       "buildNumber": "11",
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Autorisez My Fleet à accéder à l'appareil photo pour photographier vos véhicules et réaliser les inspections.",
-        "NSPhotoLibraryUsageDescription": "Autorisez My Fleet à accéder à vos photos pour enregistrer les photos d'inspection.",
+        "NSCameraUsageDescription": "Autorisez My Fleet \u00e0 acc\u00e9der \u00e0 l'appareil photo pour photographier vos v\u00e9hicules et r\u00e9aliser les inspections.",
+        "NSPhotoLibraryUsageDescription": "Autorisez My Fleet \u00e0 acc\u00e9der \u00e0 vos photos pour enregistrer les photos d'inspection.",
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
@@ -26,7 +26,7 @@
             }
           }
         },
-        "NSPhotoLibraryAddUsageDescription": "Autorisez My Fleet à enregistrer dans votre photothèque les photos d'inspection et le QR code de votre agence."
+        "NSPhotoLibraryAddUsageDescription": "Autorisez My Fleet \u00e0 enregistrer dans votre phototh\u00e8que les photos d'inspection et le QR code de votre agence."
       }
     },
     "android": {
@@ -76,7 +76,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Autorisez My Fleet à accéder à l'appareil photo pour photographier vos véhicules et réaliser les inspections.",
+          "cameraPermission": "Autorisez My Fleet \u00e0 acc\u00e9der \u00e0 l'appareil photo pour photographier vos v\u00e9hicules et r\u00e9aliser les inspections.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -90,7 +90,8 @@
             "useFrameworks": "static"
           }
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
