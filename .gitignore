@@ -54,3 +54,6 @@ app-example
 
 # Local screenshots/recordings from agent runs — never part of a build.
 artifacts/
+
+# cutover backups
+*.pre-cutover
